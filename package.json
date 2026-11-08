@@ -1,0 +1,25 @@
+{
+  "name": "pianist-assistant",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-build": "^7.4.1",
+    "workbox-window": "^7.4.1"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "opensheetmusicdisplay": "^2.3.0",
+    "smplr": "^1.2.0"
+  }
+}

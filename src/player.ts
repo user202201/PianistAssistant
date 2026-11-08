@@ -1,0 +1,268 @@
+import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import type { Smplr } from "smplr";
+import { clickSound } from "./audio";
+import type { NoteEvent, ParsedScore } from "./score";
+
+const LOOKAHEAD = 0.15; // seconds of audio scheduled ahead
+const TICK_MS = 25;
+
+export interface PlayerState {
+  playing: boolean;
+  speed: number;
+  positionSec: number;
+}
+
+/**
+ * Plays a parsed score through a smplr instrument and keeps the OSMD cursor in sync.
+ * Score time ("sec") is time at 100% speed; real time = score time / speed.
+ */
+export class Player {
+  speed = 1;
+  /** which parts / hands are audible */
+  partOn: boolean[];
+  handOn = { right: true, left: true };
+  metronome = false;
+  countIn = false;
+  volume = 0.8;
+  /** loop between measures (0-based, inclusive) */
+  loop: { from: number; to: number } | null = null;
+  /** practice ramp: after each loop pass add `step` to speed until `max` */
+  ramp: { step: number; max: number } | null = null;
+  onChange: () => void = () => {};
+
+  private events: NoteEvent[];
+  private evPtr = 0;
+  private clickPtr = 0;
+  private stepIdx = 0;
+  private timer: number | null = null;
+  private startAudio = 0;
+  private startPos = 0;
+  private pendingVisual: { at: number; step: number } | null = null;
+  playing = false;
+  private paused = 0;
+
+  constructor(
+    private osmd: OpenSheetMusicDisplay,
+    private score: ParsedScore,
+    private ctx: AudioContext,
+    private inst: Smplr,
+  ) {
+    this.events = [...score.events].sort((a, b) => a.sec - b.sec);
+    this.partOn = score.parts.map(() => true);
+  }
+
+  setInstrument(inst: Smplr) {
+    this.stopSound();
+    this.inst = inst;
+  }
+
+  get currentStep() {
+    return this.stepIdx;
+  }
+
+  /** current position in score seconds */
+  position(): number {
+    if (!this.playing) return this.paused;
+    return this.startPos + (this.ctx.currentTime - this.startAudio) * this.speed;
+  }
+
+  private audible(e: NoteEvent): boolean {
+    if (!this.partOn[e.part]) return false;
+    if (this.score.staffCounts[e.part] < 2) return true; // hand split only for 2-staff parts
+    return e.staff % 2 === 0 ? this.handOn.right : this.handOn.left;
+  }
+
+  private stopSound() {
+    try {
+      this.inst.stop();
+    } catch {
+      /* not loaded yet */
+    }
+  }
+
+  // ---- cursor ----
+  private placeCursor(step: number) {
+    const c = this.osmd.cursor;
+    c.reset();
+    for (let i = 0; i < step; i++) c.next();
+    this.stepIdx = step;
+  }
+
+  private stepAtOrAfter(sec: number): number {
+    const s = this.score.steps;
+    for (let i = 0; i < s.length; i++) if (s[i].sec >= sec - 1e-6) return i;
+    return Math.max(0, s.length - 1);
+  }
+
+  private firstStepOfMeasure(m: number): number {
+    const i = this.score.steps.findIndex((s) => s.measure >= m);
+    return i < 0 ? 0 : i;
+  }
+
+  seekStep(step: number) {
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+    step = Math.max(0, Math.min(step, this.score.steps.length - 1));
+    this.placeCursor(step);
+    this.paused = this.score.steps[step]?.sec ?? 0;
+    this.onChange();
+    if (wasPlaying) void this.play();
+  }
+
+  seekMeasure(m: number) {
+    this.seekStep(this.firstStepOfMeasure(m));
+  }
+
+  get measureIndex(): number {
+    return this.score.steps[this.stepIdx]?.measure ?? 0;
+  }
+
+  private loopRange(): { startSec: number; endSec: number; startStep: number } | null {
+    if (!this.loop) return null;
+    const startStep = this.firstStepOfMeasure(this.loop.from);
+    const after = this.score.steps.findIndex((s) => s.measure > this.loop!.to);
+    const endSec = after < 0 ? this.score.duration : this.score.steps[after].sec;
+    return { startSec: this.score.steps[startStep].sec, endSec, startStep };
+  }
+
+  // ---- transport ----
+  async play() {
+    if (this.playing) return;
+    await this.ctx.resume();
+    const range = this.loopRange();
+    let pos = this.paused;
+    let step = this.stepIdx;
+    if (range && (pos < range.startSec - 1e-6 || pos >= range.endSec)) {
+      pos = range.startSec;
+      step = range.startStep;
+      this.placeCursor(step);
+    }
+    if (pos >= this.score.duration - 0.01) {
+      pos = 0;
+      step = 0;
+      this.placeCursor(0);
+    }
+    const now = this.ctx.currentTime + 0.08;
+    const beatSec = ((60 / this.score.baseBpm) * (4 / this.score.timeSig.den)) / this.speed;
+    let lead = 0;
+    if (this.countIn) {
+      const n = this.score.timeSig.num;
+      for (let i = 0; i < n; i++) clickSound(this.ctx, now + i * beatSec, i === 0, this.volume);
+      lead = n * beatSec;
+    }
+    this.startAudio = now + lead;
+    this.startPos = pos;
+    this.evPtr = this.events.findIndex((e) => e.sec >= pos - 1e-6);
+    if (this.evPtr < 0) this.evPtr = this.events.length;
+    this.clickPtr = Math.ceil(pos / this.clickSec() - 1e-6);
+    this.pendingVisual = null;
+    this.playing = true;
+    this.timer = window.setInterval(() => this.tick(), TICK_MS);
+    this.onChange();
+  }
+
+  pause() {
+    if (!this.playing) return;
+    this.paused = Math.max(0, this.position());
+    this.playing = false;
+    if (this.timer !== null) clearInterval(this.timer);
+    this.timer = null;
+    this.stopSound();
+    this.onChange();
+  }
+
+  stop() {
+    this.pause();
+    this.seekStep(0);
+  }
+
+  setSpeed(v: number) {
+    v = Math.min(2, Math.max(0.1, v));
+    if (this.playing) {
+      // re-anchor so already-scheduled notes keep their time and the rest follows the new speed
+      const pos = this.position();
+      this.startAudio = this.ctx.currentTime;
+      this.startPos = pos;
+    }
+    this.speed = v;
+    this.onChange();
+  }
+
+  private clickSec() {
+    return (60 / this.score.baseBpm) * (4 / this.score.timeSig.den);
+  }
+
+  private tick() {
+    const now = this.ctx.currentTime;
+    const range = this.loopRange();
+    let pos = this.startPos + (now - this.startAudio) * this.speed;
+    const horizon = pos + LOOKAHEAD * this.speed;
+    const limit = range ? Math.min(horizon, range.endSec) : horizon;
+    const at = (sec: number) => this.startAudio + (sec - this.startPos) / this.speed;
+
+    // notes
+    while (this.evPtr < this.events.length && this.events[this.evPtr].sec < limit - 1e-9) {
+      const e = this.events[this.evPtr++];
+      if (!this.audible(e)) continue;
+      this.inst.start({
+        note: e.midi,
+        time: Math.max(at(e.sec), now),
+        duration: e.dur / this.speed,
+        velocity: 80,
+      });
+    }
+    // metronome
+    if (this.metronome) {
+      const cs = this.clickSec();
+      while (this.clickPtr * cs < limit - 1e-9) {
+        const k = this.clickPtr++;
+        clickSound(this.ctx, Math.max(at(k * cs), now), k % this.score.timeSig.num === 0, this.volume);
+      }
+    }
+
+    // loop wrap: re-anchor *ahead of time* so there is no gap
+    if (range && horizon >= range.endSec) {
+      const wrapAt = at(range.endSec);
+      if (this.ramp && this.speed < this.ramp.max - 1e-9) {
+        this.speed = Math.min(this.ramp.max, this.speed + this.ramp.step);
+      }
+      this.startAudio = wrapAt;
+      this.startPos = range.startSec;
+      this.evPtr = this.events.findIndex((e) => e.sec >= range.startSec - 1e-6);
+      if (this.evPtr < 0) this.evPtr = this.events.length;
+      this.clickPtr = Math.ceil(range.startSec / this.clickSec() - 1e-6);
+      this.pendingVisual = { at: wrapAt, step: range.startStep };
+      this.onChange();
+      return;
+    }
+
+    // visuals
+    if (this.pendingVisual) {
+      if (now >= this.pendingVisual.at) {
+        this.placeCursor(this.pendingVisual.step);
+        this.pendingVisual = null;
+      }
+      return;
+    }
+    if (pos < 0) pos = 0;
+    const steps = this.score.steps;
+    let moved = false;
+    while (this.stepIdx + 1 < steps.length && steps[this.stepIdx + 1].sec <= pos + 1e-6) {
+      this.osmd.cursor.next();
+      this.stepIdx++;
+      moved = true;
+    }
+    if (moved) this.onChange();
+
+    if (!range && pos >= this.score.duration + 0.2) {
+      this.pause();
+      this.paused = 0;
+      this.placeCursor(0);
+      this.onChange();
+    }
+  }
+
+  dispose() {
+    this.pause();
+  }
+}

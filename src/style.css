@@ -1,0 +1,63 @@
+:root {
+  --bg: #111827; --panel: #1f2937; --panel2: #374151; --text: #f3f4f6; --muted: #9ca3af;
+  --accent: #22c55e; --danger: #f87171;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+#app { height: 100%; display: flex; flex-direction: column; }
+button, input, select { font: inherit; color: inherit; }
+button { background: var(--panel2); border: 1px solid #4b5563; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+button:hover { filter: brightness(1.15); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #052e16; font-weight: 600; }
+input[type=text], input[type=password], input[type=number], select {
+  background: #0b1220; border: 1px solid #4b5563; border-radius: 8px; padding: 8px 10px; width: 100%; }
+input[type=number] { width: 4.5em; }
+.muted { color: var(--muted); } .error { color: var(--danger); } .pad { padding: 24px; }
+.grow { flex: 1; }
+.top { display: flex; align-items: center; gap: 10px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--panel); }
+.top h1 { font-size: 1.15rem; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status { color: var(--muted); font-size: .9rem; }
+
+.login { max-width: 460px; margin: 8vh auto; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
+.login label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: .9rem; }
+.login details { color: var(--muted); font-size: .9rem; } .login a { color: var(--accent); }
+
+.home { padding: 16px; overflow: auto; max-width: 1000px; width: 100%; margin: 0 auto; }
+.home h2 { font-size: 1rem; color: var(--muted); font-weight: 600; margin: 18px 0 8px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.card { display: flex; background: var(--panel); border-radius: 10px; overflow: hidden; border: 1px solid #374151; }
+.card .open { flex: 1; text-align: left; border: 0; border-radius: 0; background: transparent; padding: 16px; font-size: 1rem; }
+.card .del { border: 0; border-radius: 0; background: transparent; padding: 0 14px; }
+
+.dlg { background: var(--panel); color: var(--text); border: 1px solid #4b5563; border-radius: 12px; padding: 20px; width: min(420px, 92vw); }
+.dlg::backdrop { background: rgba(0,0,0,.6); }
+.dlg label { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+.toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #000c; padding: 10px 16px;
+  border-radius: 8px; z-index: 50; max-width: 90vw; }
+
+/* player */
+.scorewrap { flex: 1; min-height: 0; overflow: auto; background: #fff; }
+.score { min-height: 100%; padding: 8px; color: #000; }
+.controls { background: var(--panel); padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px; position: relative; }
+.controls .big { font-size: 1.25rem; padding: 8px 18px; }
+.speedbox { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 160px; }
+.speed { flex: 1; accent-color: var(--accent); }
+.speedlabel { white-space: nowrap; min-width: 6.5em; font-variant-numeric: tabular-nums; }
+.pos { color: var(--muted); white-space: nowrap; font-size: .9rem; }
+.group { display: flex; align-items: center; gap: 4px; }
+.gl { color: var(--muted); font-size: .85rem; margin-right: 4px; }
+button.seg { padding: 6px 12px; }
+button.seg.on { background: var(--accent); border-color: var(--accent); color: #052e16; font-weight: 600; }
+.panel { position: absolute; bottom: 100%; right: 8px; background: var(--panel); border: 1px solid #4b5563; border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 -6px 24px #0008; max-width: calc(100vw - 16px); }
+.panel[hidden] { display: none; }
+.line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+label.inline { flex-direction: row; display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 560px) { .pos { display: none; } .top h1 { font-size: 1rem; } }
