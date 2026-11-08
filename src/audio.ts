@@ -82,3 +82,30 @@ export function createSynth(ctx: AudioContext): Smplr {
   };
   return synth as unknown as Smplr;
 }
+
+let unlocked = false;
+/**
+ * iOS/iPadOS: Web Audio is muted by the hardware silent switch and needs a user gesture.
+ * Call from a tap handler: switches the audio session to "playback" and plays a silent <audio> once.
+ */
+export function unlockIOSAudio() {
+  if (unlocked) return;
+  unlocked = true;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const as = (navigator as any).audioSession;
+    if (as) as.type = "playback";
+  } catch {
+    /* unsupported */
+  }
+  try {
+    const a = document.createElement("audio");
+    a.setAttribute("playsinline", "");
+    a.loop = true;
+    // 0.1 s of silence (8-bit mono WAV)
+    a.src = "data:audio/wav;base64,UklGRjQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YRAAAACAgICAgICAgICAgICAgIA=";
+    void a.play().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}

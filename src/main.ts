@@ -2,7 +2,8 @@ import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import QRCode from "qrcode";
 import type { Smplr } from "smplr";
 import * as api from "./api";
-import { SOUNDS, createSynth } from "./audio";
+import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
+import { FingerTools } from "./fingerui";
 import { Player } from "./player";
 import { extractScore, toMusicXml } from "./score";
 import { getRecent, loadSettings, pushRecent, saveSettings } from "./settings";
@@ -206,14 +207,22 @@ async function renderHome() {
   const list = h("div", { class: "grid" });
   const recent = h("div", { class: "grid" });
   const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
+  const queue = h("div", { class: "grid" });
+  const queueSec = h(
+    "section",
+    { hidden: true },
+    h("h2", {}, "PDF / 图片转换"),
+    queue,
+    h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
+  );
   const status = h("p", { class: "muted" }, "加载中…");
-  const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl", multiple: true, hidden: true });
+  const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,application/pdf,image/*", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
     for (const f of Array.from(file.files ?? [])) {
       try {
         toast(`上传中：${f.name}`);
-        await api.uploadScore(f);
-        toast(`已上传：${f.name}`);
+        const up = await api.uploadScore(f);
+        toast(up.kind === "inbox" ? `已加入转换队列：${f.name}（约需几分钟）` : `已上传：${f.name}`);
       } catch (e) {
         if (e instanceof api.AuthExpired) return renderLogin(e.message);
         toast((e as Error).message);
@@ -233,7 +242,7 @@ async function renderHome() {
       h("button", { onclick: () => openSettings(), title: "设置" }, "⚙"),
     ),
     file,
-    h("main", { class: "home" }, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
+    h("main", { class: "home" }, queueSec, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
   );
 
   const card = (name: string, del = false) =>
@@ -257,8 +266,34 @@ async function renderHome() {
         }, "🗑"),
     );
 
+  const queueCard = (it: api.InboxItem) =>
+    h(
+      "div",
+      { class: "card" + (it.failed ? " failed" : " busy") },
+      h("span", { class: "open static" }, it.failed ? `⚠ ${it.name}（转换失败）` : `⏳ ${it.name}（转换中…）`),
+      it.failed &&
+        h("button", { class: "del", title: "查看原因", onclick: async () => {
+          try { showLog(it.name, await api.readFailureLog(it.name)); } catch (e) { toast((e as Error).message); }
+        } }, "ℹ"),
+      h("button", { class: "del", title: "删除", onclick: async () => {
+        if (!confirm(`从队列中删除「${it.name}」？`)) return;
+        try { await api.deleteInbox(it.name); load(); } catch (e) { toast((e as Error).message); }
+      } }, "🗑"),
+    );
+  function showLog(name: string, text: string) {
+    const dlg = h("dialog", { class: "dlg" }, h("h2", {}, `转换失败：${name}`), h("pre", { class: "log" }, text), h("button", { class: "primary", onclick: () => dlg.close() }, "关闭"));
+    dlg.addEventListener("close", () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+  }
+
   async function load() {
+    clearTimeout(homeTimer);
     try {
+      const inbox = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
+      queue.replaceChildren(...inbox.map(queueCard));
+      queueSec.hidden = inbox.length === 0;
+      if (inbox.some((i) => !i.failed)) homeTimer = window.setTimeout(load, 20000); // poll while converting
       const scores = await api.listScores();
       const names = new Set(scores.map((s) => s.name));
       list.replaceChildren(...scores.sort((a, b) => a.name.localeCompare(b.name, "zh")).map((s) => card(s.name, true)));
@@ -276,30 +311,35 @@ async function renderHome() {
 
 // ---------- player ----------
 let disposePlayer: (() => void) | null = null;
+let homeTimer = 0;
 function cleanup() {
+  clearTimeout(homeTimer);
   disposePlayer?.();
   disposePlayer = null;
 }
 
 async function renderPlayer(name: string) {
   cleanup();
-  const scoreBox = h("div", { class: "score" });
+  // OSMD owns (and clears) scoreBox on every render, so overlays live in the outer holder instead
+  const scoreBox = h("div", { class: "osmd" });
+  const holder = h("div", { class: "score" }, scoreBox);
   const status = h("span", { class: "status" }, "加载乐谱…");
   app.replaceChildren(
     h(
       "header",
       { class: "top compact" },
-      h("button", { onclick: () => (location.hash = "#/") }, "← 返回"),
+      h("button", { onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, "← 返回"),
       h("h1", {}, displayName(name)),
       h("div", { class: "grow" }),
       status,
       h("button", { onclick: () => openSettings(() => void applySound()), title: "设置" }, "⚙"),
     ),
-    h("div", { class: "scorewrap" }, scoreBox),
+    h("div", { class: "scorewrap" }, holder),
   );
 
   let osmd: OpenSheetMusicDisplay;
   let player: Player;
+  let leaveGuard: () => boolean = () => true;
   try {
     const buf = await api.downloadScore(name);
     osmd = new OpenSheetMusicDisplay(scoreBox, {
@@ -309,10 +349,14 @@ async function renderPlayer(name: string) {
       followCursor: true,
       cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: true }],
     });
-    await osmd.load(toMusicXml(buf));
+    const xml = toMusicXml(buf);
+    await osmd.load(xml);
     osmd.zoom = settings.zoom;
     osmd.render();
     osmd.cursor.show();
+    const tools = new FingerTools(osmd, holder, xml);
+    tools.refresh();
+    leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
     const score = extractScore(osmd, displayName(name));
     const inst = await getInstrument(settings.sound, (s) => (status.textContent = s));
     player = new Player(osmd, score, audioCtx(), inst);
@@ -320,9 +364,9 @@ async function renderPlayer(name: string) {
     pushRecent(name);
 
     // expose for tests / debugging
-    (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd };
+    (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools };
 
-    buildControls(player, score, osmd, status);
+    buildControls(player, score, osmd, status, tools, name);
     let applying = 0;
     applySound = async () => {
       const id = ++applying;
@@ -335,6 +379,7 @@ async function renderPlayer(name: string) {
     setVolume(inst);
     disposePlayer = () => {
       player.dispose();
+      tools.dispose();
       osmd.clear();
       releaseWake();
     };
@@ -364,6 +409,8 @@ function buildControls(
   score: ReturnType<typeof extractScore>,
   osmd: OpenSheetMusicDisplay,
   status: HTMLElement,
+  tools: FingerTools,
+  name: string,
 ) {
   const playBtn = h("button", { class: "primary big", title: "播放 / 暂停 (空格)" }, "▶");
   const stopBtn = h("button", { class: "big", title: "回到开头" }, "⏮");
@@ -419,17 +466,86 @@ function buildControls(
 
   const zoomIn = h("button", { onclick: () => zoom(0.1), title: "放大" }, "＋");
   const zoomOut = h("button", { onclick: () => zoom(-0.1), title: "缩小" }, "－");
-  function zoom(d: number) {
-    settings.zoom = Math.min(2.5, Math.max(0.4, +(settings.zoom + d).toFixed(2)));
-    saveSettings(settings);
+  function rerender() {
     const step = player.currentStep;
+    osmd.EngravingRules.RenderFingerings = tools.showXml;
     osmd.zoom = settings.zoom;
     osmd.render();
     osmd.cursor.show();
     player.seekStep(step);
+    tools.refresh();
+  }
+  function zoom(d: number) {
+    settings.zoom = Math.min(2.5, Math.max(0.4, +(settings.zoom + d).toFixed(2)));
+    saveSettings(settings);
+    rerender();
   }
 
-  playBtn.addEventListener("click", () => (player.playing ? player.pause() : void player.play()));
+  // ---- fingering ----
+  const cbXml = h("input", { type: "checkbox", checked: tools.showXml, disabled: tools.xmlCount === 0 });
+  const cbAuto = h("input", { type: "checkbox", checked: tools.showAuto });
+  cbXml.addEventListener("change", () => { tools.showXml = cbXml.checked; rerender(); });
+  cbAuto.addEventListener("change", () => tools.setAuto(cbAuto.checked));
+  const editBtn = h("button", { class: "primary", onclick: () => enterEdit() }, "✏ 编辑指法");
+  const fpanel = h(
+    "div",
+    { class: "panel", hidden: true },
+    h("label", { class: "inline" }, cbXml, tools.xmlCount ? `显示乐谱里的指法（${tools.xmlCount} 个音符）` : "乐谱里没有指法信息"),
+    h("label", { class: "inline" }, cbAuto, h("span", {}, "自动建议指法（", h("b", { class: "blue" }, "蓝色"), "，仅作参考；已有指法的音符不会被改动）")),
+    h("p", { class: "muted small" }, "优先级：乐谱里的指法 > 自动建议。自己标注的指法保存后写进乐谱文件，之后读取以它为准。"),
+    editBtn,
+  );
+  const fingerBtn = h("button", { disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, "指法 ▾");
+  practiceBtn.addEventListener("click", () => (fpanel.hidden = true));
+
+  const fbtns = [1, 2, 3, 4, 5].map((n) => h("button", { class: "fnum", onclick: () => tools.apply(n) }, String(n)));
+  const fclear = h("button", { class: "fnum", title: "清除该音符的指法", onclick: () => tools.apply(null) }, "✕");
+  const fundo = h("button", { class: "fnum", title: "撤销", onclick: () => tools.undo() }, "↶");
+  const finfo = h("span", { class: "finfo" });
+  const fsave = h("button", { class: "primary", onclick: () => void saveFingering() }, "保存");
+  const fdone = h("button", { onclick: () => exitEdit() }, "完成");
+  const editbar = h("div", { class: "editbar", hidden: true }, ...fbtns, fclear, fundo, finfo, h("div", { class: "grow" }), fsave, fdone);
+  function enterEdit() {
+    fpanel.hidden = true;
+    editbar.hidden = false;
+    document.querySelector(".scorewrap")?.classList.add("editing");
+    tools.setEditing(true);
+  }
+  function exitEdit() {
+    if (tools.dirty && !confirm("有未保存的指法，放弃这些修改？")) return;
+    tools.discard();
+    editbar.hidden = true;
+    document.querySelector(".scorewrap")?.classList.remove("editing");
+    tools.setEditing(false);
+  }
+  async function saveFingering() {
+    fsave.disabled = true;
+    try {
+      const xml = await tools.save((x) => api.saveScoreText(name, x, `Fingering: ${displayName(name)}`));
+      await osmd.load(xml);
+      rerender();
+      toast("指法已保存到乐谱");
+    } catch (e) {
+      if (e instanceof api.AuthExpired) return renderLogin(e.message);
+      toast(`保存失败：${(e as Error).message}`);
+    } finally {
+      syncEdit();
+    }
+  }
+  function syncEdit() {
+    finfo.textContent = tools.describeSelected();
+    fsave.textContent = tools.pending.size ? `保存（${tools.pending.size}）` : "保存";
+    fsave.disabled = tools.pending.size === 0;
+    fundo.disabled = tools.pending.size === 0;
+  }
+  tools.onChange = syncEdit;
+  syncEdit();
+
+  playBtn.addEventListener("click", () => {
+    unlockIOSAudio();
+    if (player.playing) player.pause();
+    else void player.play();
+  });
   stopBtn.addEventListener("click", () => player.stop());
   speed.addEventListener("input", () => player.setSpeed(Number(speed.value) / 100));
 
@@ -448,18 +564,35 @@ function buildControls(
 
   const onKey = (e: KeyboardEvent) => {
     if ((e.target as HTMLElement)?.matches("input, select, textarea")) return;
+    if (tools.editing) {
+      if (/^[1-5]$/.test(e.key)) return tools.apply(Number(e.key));
+      if (e.key === "Backspace" || e.key === "Delete") return tools.apply(null);
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") return tools.undo();
+    }
     if (e.code === "Space") { e.preventDefault(); playBtn.click(); }
     if (e.code === "ArrowRight") player.seekMeasure(player.measureIndex + 1);
     if (e.code === "ArrowLeft") player.seekMeasure(Math.max(0, player.measureIndex - 1));
   };
   document.addEventListener("keydown", onKey);
+  // iOS suspends audio when the app goes to the background: pause so the position is not lost
+  const onHide = () => {
+    if (document.hidden) player.pause();
+    else void audioCtx().resume();
+  };
+  document.addEventListener("visibilitychange", onHide);
   const prevDispose = disposePlayer;
-  disposePlayer = () => { document.removeEventListener("keydown", onKey); prevDispose?.(); };
+  disposePlayer = () => {
+    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("visibilitychange", onHide);
+    prevDispose?.();
+  };
 
   const bar = h(
     "footer",
     { class: "controls" },
     panel,
+    fpanel,
+    editbar,
     h("div", { class: "row" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos),
     h(
       "div",
@@ -467,6 +600,7 @@ function buildControls(
       hasHands && h("div", { class: "group" }, h("span", { class: "gl" }, "手"), ...Object.values(handBtns)),
       score.parts.length > 1 && h("div", { class: "group" }, h("span", { class: "gl" }, "声部"), ...partBtns),
       h("div", { class: "grow" }),
+      fingerBtn,
       practiceBtn,
       zoomOut,
       zoomIn,

@@ -38,7 +38,7 @@ input[type=number] { width: 4.5em; }
 .dlg label { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; color: var(--muted); }
 .row { display: flex; gap: 10px; align-items: center; }
 .row.wrap { flex-wrap: wrap; }
-.toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #000c; padding: 10px 16px;
+.toast { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 64px); transform: translateX(-50%); background: #000c; padding: 10px 16px;
   border-radius: 8px; z-index: 50; max-width: 90vw; }
 
 /* player */
@@ -69,3 +69,49 @@ label.inline { flex-direction: row; display: inline-flex; align-items: center; g
 .qr { background: #fff; border-radius: 8px; width: 240px; height: 240px; image-rendering: pixelated; }
 .dlg a { color: var(--accent); }
 .login label.inline { flex-direction: row; align-items: center; }
+
+/* ---------- fingering ---------- */
+.score { position: relative; }
+.flayer { position: absolute; inset: 0; pointer-events: none; }
+.fbadge { position: absolute; transform: translateX(-50%); min-width: 20px; height: 22px; line-height: 22px; text-align: center;
+  font: italic 700 16px/22px system-ui, sans-serif; border-radius: 6px; padding: 0 3px; }
+.fbadge.auto { color: #2563eb; background: #fffffff0; }
+.fbadge.pend { color: #fff; background: #ea580c; font-style: normal; }
+.fhit { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 2px dashed #94a3b8aa; }
+.fhit.sel { border: 3px solid #ea580c; background: #ea580c33; }
+.scorewrap.editing .score { cursor: crosshair; }
+.blue { color: #60a5fa; }
+.editbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid #4b5563; }
+.editbar[hidden] { display: none; }
+button.fnum { min-width: 56px; min-height: 52px; font-size: 1.4rem; font-weight: 700; padding: 0; }
+.finfo { color: var(--muted); font-size: .9rem; }
+.card.busy .open.static, .card.failed .open.static { cursor: default; }
+.card.failed { border-color: #f87171; }
+.log { max-height: 50vh; overflow: auto; background: #0b1220; padding: 10px; border-radius: 8px; font-size: .8rem; white-space: pre-wrap; }
+
+/* ---------- iPad / touch ---------- */
+html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+#app { height: 100dvh; padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+button, input, select, .score { touch-action: manipulation; }
+.controls, .top, .editbar, .panel, .dlg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.scorewrap { -webkit-overflow-scrolling: touch; }
+@media (pointer: coarse) {
+  button { min-height: 46px; min-width: 46px; padding: 10px 16px; }
+  button.seg { min-height: 46px; padding: 8px 16px; }
+  .card .open { padding: 20px 16px; }
+  input[type=range] { height: 36px; }
+  input[type=checkbox] { width: 22px; height: 22px; }
+  input[type=number] { width: 5em; min-height: 44px; }
+  label.inline { min-height: 44px; }
+}
+@media (pointer: coarse) and (max-height: 520px) {
+  .controls { padding-top: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom)); gap: 4px; }
+}
+/* wide tablets in landscape: all transport controls on one line to leave more room for the score */
+@media (min-width: 1000px) {
+  .controls { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 18px; row-gap: 6px; }
+  .controls > .row { flex-wrap: nowrap; }
+  .controls > .row:first-of-type { flex: 1 1 520px; }
+  .controls > .editbar { flex: 1 1 100%; border-bottom: 0; order: -1; }
+  .controls > .panel { right: 16px; }
+}

@@ -1,3 +1,5 @@
+import { toMusicXml } from "./score";
+
 /**
  * Scores live in a PRIVATE GitHub repo (default: <you>/PianistScores, folder scores/).
  * The browser talks to the GitHub REST API directly with a fine-grained token that
@@ -9,9 +11,13 @@ export interface ScoreInfo {
 }
 
 const AUTH_KEY = "pianist.auth.v1";
-const DIR = "scores";
-const EXT = /\.(musicxml|xml|mxl)$/i;
+const SCORES = "scores";
+const INBOX = "inbox";
+const SCORE_EXT = /\.(musicxml|xml|mxl)$/i;
+/** files that need optical music recognition first (done by a GitHub Action in the scores repo) */
+const INBOX_EXT = /\.(pdf|png|jpe?g|tiff?|bmp)$/i;
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_INBOX_BYTES = 20 * 1024 * 1024;
 
 export interface Auth {
   token: string;
@@ -62,6 +68,7 @@ export function parseLink(text: string): { token: string; repo: string } | null 
 }
 
 export class AuthExpired extends Error {}
+export type Kind = "score" | "inbox";
 
 function headers(a: Auth, accept = "application/vnd.github+json"): HeadersInit {
   return {
@@ -111,39 +118,59 @@ function need(): Auth {
   if (!a) throw new AuthExpired("请先登录");
   return a;
 }
-function url(a: Auth, name?: string) {
-  const p = name ? `${DIR}/${encodeURIComponent(name)}` : DIR;
+function url(a: Auth, dir: string, name?: string) {
+  const p = name ? `${dir}/${encodeURIComponent(name)}` : dir;
   return `https://api.github.com/repos/${a.repo}/contents/${p}`;
 }
 const ref = (a: Auth) => `?ref=${encodeURIComponent(a.branch ?? "main")}`;
 
-export function cleanName(raw: string): string | null {
+export function cleanName(raw: string, kind: Kind = "score"): string | null {
   // eslint-disable-next-line no-control-regex
   const n = raw.normalize("NFC").replace(/[\\/\u0000-\u001f<>:"|?*]/g, "_").trim();
-  return !n || n.startsWith(".") || n.length > 120 || !EXT.test(n) ? null : n;
+  const re = kind === "score" ? SCORE_EXT : INBOX_EXT;
+  return !n || n.startsWith(".") || n.length > 120 || !re.test(n) ? null : n;
 }
 
-export async function listScores(): Promise<ScoreInfo[]> {
+async function list(dir: string): Promise<ScoreInfo[]> {
   const a = need();
-  const r = await gh(a, url(a) + ref(a), { headers: headers(a), cache: "no-store" });
+  const r = await gh(a, url(a, dir) + ref(a), { headers: headers(a), cache: "no-store" });
   if (r.status === 404) return [];
   if (!r.ok) throw new Error(`读取列表失败 (${r.status})`);
   const items = (await r.json()) as { name: string; size: number; type: string }[];
-  return items.filter((i) => i.type === "file" && EXT.test(i.name)).map((i) => ({ name: i.name, size: i.size }));
+  return items.filter((i) => i.type === "file" && !i.name.startsWith(".")).map((i) => ({ name: i.name, size: i.size }));
 }
 
-export async function downloadScore(name: string): Promise<ArrayBuffer> {
+export async function listScores(): Promise<ScoreInfo[]> {
+  return (await list(SCORES)).filter((i) => SCORE_EXT.test(i.name));
+}
+
+export interface InboxItem {
+  name: string; // original file name (pdf/image)
+  failed: boolean;
+}
+/** PDFs / images waiting for conversion, plus ones whose conversion failed. */
+export async function listInbox(): Promise<InboxItem[]> {
+  const all = (await list(INBOX)).map((i) => i.name);
+  const failed = new Set(all.filter((n) => n.endsWith(".failed.txt")).map((n) => n.slice(0, -".failed.txt".length)));
+  return all.filter((n) => INBOX_EXT.test(n) && !n.endsWith(".failed.txt")).map((name) => ({ name, failed: failed.has(name) }));
+}
+
+async function getBytes(dir: string, name: string): Promise<ArrayBuffer> {
   const a = need();
-  const r = await gh(a, url(a, name) + ref(a), {
+  const r = await gh(a, url(a, dir, name) + ref(a), {
     headers: headers(a, "application/vnd.github.raw+json"),
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`下载失败 (${r.status})`);
   return r.arrayBuffer();
 }
+export const downloadScore = (name: string) => getBytes(SCORES, name);
+export async function readFailureLog(name: string): Promise<string> {
+  return new TextDecoder().decode(await getBytes(INBOX, name + ".failed.txt"));
+}
 
-async function sha(a: Auth, name: string): Promise<string | undefined> {
-  const r = await gh(a, url(a, name) + ref(a), { headers: headers(a), cache: "no-store" });
+async function sha(a: Auth, dir: string, name: string): Promise<string | undefined> {
+  const r = await gh(a, url(a, dir, name) + ref(a), { headers: headers(a), cache: "no-store" });
   if (r.status === 404) return undefined;
   if (!r.ok) throw new Error(`GitHub ${r.status}`);
   return ((await r.json()) as { sha: string }).sha;
@@ -156,33 +183,66 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(bin);
 }
 
-export async function uploadScore(file: File): Promise<string> {
+async function put(dir: string, name: string, data: ArrayBuffer, message: string) {
   const a = need();
-  const name = cleanName(file.name);
-  if (!name) throw new Error(`不支持的文件：${file.name}（请用 .musicxml / .xml / .mxl）`);
-  if (file.size > MAX_BYTES) throw new Error("文件超过 10 MB");
-  const r = await gh(a, url(a, name), {
+  const r = await gh(a, url(a, dir, name), {
     method: "PUT",
     headers: headers(a),
-    body: JSON.stringify({
-      message: `Upload score: ${name}`,
-      content: toBase64(await file.arrayBuffer()),
-      branch: a.branch,
-      sha: await sha(a, name),
-    }),
+    body: JSON.stringify({ message, content: toBase64(data), branch: a.branch, sha: await sha(a, dir, name) }),
   });
-  if (!r.ok) throw new Error(`上传失败 (${r.status})`);
-  return name;
+  if (!r.ok) throw new Error(`保存失败 (${r.status})`);
 }
 
-export async function deleteScore(name: string): Promise<void> {
+export interface Uploaded {
+  kind: Kind;
+  name: string;
+}
+
+/**
+ * MusicXML / .mxl  -> stored as plain .musicxml in scores/ (editable, e.g. fingering)
+ * PDF / image      -> stored in inbox/; a GitHub Action converts it to scores/<name>.musicxml
+ */
+export async function uploadScore(file: File): Promise<Uploaded> {
+  if (INBOX_EXT.test(file.name)) {
+    const name = cleanName(file.name, "inbox");
+    if (!name) throw new Error(`文件名不可用：${file.name}`);
+    if (file.size > MAX_INBOX_BYTES) throw new Error("PDF / 图片超过 20 MB");
+    await put(INBOX, name, await file.arrayBuffer(), `Queue for conversion: ${name}`);
+    return { kind: "inbox", name };
+  }
+  let name = cleanName(file.name);
+  if (!name) throw new Error(`不支持的文件：${file.name}（支持 MusicXML、.mxl、PDF、图片）`);
+  let data = await file.arrayBuffer();
+  if (data.byteLength > MAX_BYTES) throw new Error("文件超过 10 MB");
+  if (/\.mxl$/i.test(name)) {
+    const xml = toMusicXml(data); // unzip so the stored file is readable and editable
+    data = new TextEncoder().encode(xml).buffer as ArrayBuffer;
+    name = name.replace(/\.mxl$/i, ".musicxml");
+  }
+  await put(SCORES, name, data, `Upload score: ${name}`);
+  return { kind: "score", name };
+}
+
+/** Overwrite an existing score with edited MusicXML text (e.g. after adding fingering). */
+export async function saveScoreText(name: string, xml: string, message: string) {
+  const n = cleanName(name);
+  if (!n) throw new Error("文件名不可用");
+  await put(SCORES, n, new TextEncoder().encode(xml).buffer as ArrayBuffer, message);
+}
+
+async function remove(dir: string, name: string, message: string) {
   const a = need();
-  const s = await sha(a, name);
+  const s = await sha(a, dir, name);
   if (!s) return;
-  const r = await gh(a, url(a, name), {
+  const r = await gh(a, url(a, dir, name), {
     method: "DELETE",
     headers: headers(a),
-    body: JSON.stringify({ message: `Delete score: ${name}`, sha: s, branch: a.branch }),
+    body: JSON.stringify({ message, sha: s, branch: a.branch }),
   });
   if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+}
+export const deleteScore = (name: string) => remove(SCORES, name, `Delete score: ${name}`);
+export async function deleteInbox(name: string) {
+  await remove(INBOX, name + ".failed.txt", `Clear failure note: ${name}`);
+  await remove(INBOX, name, `Remove from queue: ${name}`);
 }
