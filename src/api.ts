@@ -20,19 +20,44 @@ export interface Auth {
   user?: string;
 }
 
-export function getAuth(): Auth | null {
+function readAuth(store: Storage): Auth | null {
   try {
-    const a = JSON.parse(localStorage.getItem(AUTH_KEY) ?? "null");
+    const a = JSON.parse(store.getItem(AUTH_KEY) ?? "null");
     return a?.token && a?.repo ? a : null;
   } catch {
     return null;
   }
 }
+/** "Stay signed in" lives in localStorage; otherwise only in sessionStorage (gone when the tab closes). */
+export function getAuth(): Auth | null {
+  return readAuth(sessionStorage) ?? readAuth(localStorage);
+}
+export function isPersistent(): boolean {
+  return readAuth(localStorage) !== null;
+}
 export function logout() {
+  for (const st of [localStorage, sessionStorage]) {
+    try {
+      st.removeItem(AUTH_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** A link that signs another device in: the token travels in the URL #fragment (never sent to any server). */
+export function makeLoginLink(a: Auth): string {
+  const payload = btoa(JSON.stringify({ t: a.token, r: a.repo })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${location.origin}${location.pathname}#/link/${payload}`;
+}
+export function parseLink(text: string): { token: string; repo: string } | null {
+  const m = text.match(/#\/link\/([\w-]+)/);
+  if (!m) return null;
   try {
-    localStorage.removeItem(AUTH_KEY);
+    const o = JSON.parse(atob(m[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return o.t && o.r ? { token: o.t, repo: o.r } : null;
   } catch {
-    /* ignore */
+    return null;
   }
 }
 
@@ -56,7 +81,9 @@ async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Respons
 }
 
 /** Validate token + repo, then remember them on this device. */
-export async function login(token: string, repo: string): Promise<Auth> {
+export async function login(token: string, repo: string, remember = true): Promise<Auth> {
+  const link = parseLink(token);
+  if (link) ({ token, repo } = link);
   repo = repo.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "");
   token = token.trim();
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("仓库格式应为 owner/name");
@@ -74,7 +101,8 @@ export async function login(token: string, repo: string): Promise<Auth> {
   a.branch = info.default_branch;
   const u = await fetch("https://api.github.com/user", { headers: headers(a) });
   if (u.ok) a.user = ((await u.json()) as { login: string }).login;
-  localStorage.setItem(AUTH_KEY, JSON.stringify(a));
+  logout();
+  (remember ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify(a));
   return a;
 }
 

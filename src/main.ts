@@ -1,4 +1,5 @@
 import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import QRCode from "qrcode";
 import type { Smplr } from "smplr";
 import * as api from "./api";
 import { SOUNDS, createSynth } from "./audio";
@@ -64,12 +65,13 @@ function renderLogin(message = "") {
   const token = h("input", { type: "password", placeholder: "github_pat_…", autocomplete: "off" });
   const repo = h("input", { type: "text", value: "user202201/PianistScores", autocomplete: "off" });
   const err = h("p", { class: "error" }, message);
+  const remember = h("input", { type: "checkbox", checked: true });
   const btn = h("button", { class: "primary" }, "登录");
   const submit = async () => {
     btn.disabled = true;
     err.textContent = "";
     try {
-      await api.login(token.value, repo.value);
+      await api.login(token.value, repo.value, remember.checked);
       route();
     } catch (e) {
       err.textContent = (e as Error).message;
@@ -86,7 +88,8 @@ function renderLogin(message = "") {
       h("h1", {}, "🎹 Pianist Assistant"),
       h("p", { class: "muted" }, "琴谱存放在你的私有 GitHub 仓库中，需要访问令牌才能查看。"),
       h("label", {}, "琴谱仓库", repo),
-      h("label", {}, "GitHub 访问令牌", token),
+      h("label", {}, "GitHub 访问令牌（也可粘贴“登录链接”）", token),
+      h("label", { class: "inline" }, remember, "保持登录（取消勾选则关闭页面后需重新登录，适合公用设备）"),
       btn,
       err,
       h(
@@ -105,6 +108,7 @@ function renderLogin(message = "") {
             "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
           ),
           h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
+          h("li", {}, "已有一台登录好的设备？在它的“设置 → 登录与设备”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
         ),
       ),
     ),
@@ -132,15 +136,66 @@ function openSettings(onSound?: () => void) {
     h("h2", {}, "设置"),
     h("label", {}, "钢琴音色", sound),
     h("label", {}, "音量", vol),
-    h("p", { class: "muted" }, a ? `已登录：${a.user ?? "GitHub"} · ${a.repo}` : ""),
+    h("h3", {}, "登录与设备"),
+    h(
+      "p",
+      { class: "muted" },
+      a ? `本设备：${a.user ?? "GitHub"} · ${a.repo} · ${api.isPersistent() ? "保持登录" : "仅本次"}` : "",
+    ),
+    h(
+      "div",
+      { class: "row wrap" },
+      h("button", { id: "qr-btn", onclick: () => showQr() }, "📱 手机扫码登录"),
+      h("button", { id: "copy-link", onclick: async () => {
+        const cur = api.getAuth();
+        if (!cur) return;
+        try { await navigator.clipboard.writeText(api.makeLoginLink(cur)); toast("登录链接已复制，粘贴到另一台设备的登录页即可"); }
+        catch { toast("复制失败，请改用扫码"); }
+      } }, "复制登录链接"),
+    ),
+    h(
+      "p",
+      { class: "muted small" },
+      "所有设备共用同一个令牌，所以无法单独移除某一台。如果设备丢失或怀疑泄露：到 ",
+      h("a", { href: "https://github.com/settings/personal-access-tokens", target: "_blank", rel: "noopener" }, "GitHub 令牌管理"),
+      " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。",
+    ),
     h(
       "div",
       { class: "row" },
-      h("button", { onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出登录"),
+      h("button", { onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"),
       h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
     ),
   );
   dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+// ---------- QR sign-in for another device ----------
+async function showQr() {
+  const a = api.getAuth();
+  if (!a) return;
+  const link = api.makeLoginLink(a);
+  const img = h("img", { class: "qr", alt: "登录二维码", src: await QRCode.toDataURL(link, { margin: 2, width: 280, errorCorrectionLevel: "M" }) });
+  img.dataset.link = link;
+  const dlg = h("dialog", { class: "dlg center" });
+  const left = h("span", {}, "60");
+  let n = 60;
+  const timer = window.setInterval(() => {
+    n--;
+    left.textContent = String(n);
+    if (n <= 0) dlg.close();
+  }, 1000);
+  dlg.append(
+    h("h2", {}, "用手机扫描登录"),
+    h("p", { class: "muted" }, "用另一台设备的相机扫描下面的二维码，会自动打开并登录。"),
+    img,
+    h("p", { class: "error small" }, "二维码等同于你的登录钥匙，请勿截图或让他人拍到。"),
+    h("p", { class: "muted small" }, h("span", {}, "将在 "), left, " 秒后自动关闭"),
+    h("button", { class: "primary", onclick: () => dlg.close() }, "关闭"),
+  );
+  dlg.addEventListener("close", () => { clearInterval(timer); dlg.remove(); });
   document.body.append(dlg);
   dlg.showModal();
 }
@@ -423,7 +478,22 @@ function buildControls(
 }
 
 // ---------- routing ----------
+async function signInFromLink(hash: string) {
+  app.replaceChildren(h("p", { class: "muted pad" }, "正在登录…"));
+  const link = api.parseLink(hash);
+  // remove the secret from the address bar / history right away
+  history.replaceState(null, "", location.pathname + location.search + "#/");
+  if (!link) return renderLogin("登录链接无效");
+  try {
+    await api.login(link.token, link.repo, true);
+    route();
+  } catch (e) {
+    renderLogin((e as Error).message);
+  }
+}
+
 function route() {
+  if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
   if (!api.getAuth()) return renderLogin();
   const m = location.hash.match(/^#\/score\/(.+)$/);
   if (m) void renderPlayer(decodeURIComponent(m[1]));

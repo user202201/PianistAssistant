@@ -61,3 +61,11 @@ button.seg.on { background: var(--accent); border-color: var(--accent); color: #
 .line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 label.inline { flex-direction: row; display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 560px) { .pos { display: none; } .top h1 { font-size: 1rem; } }
+
+.dlg h3 { margin: 18px 0 4px; font-size: 1rem; }
+.dlg .small, .small { font-size: .8rem; }
+.dlg.center { text-align: center; }
+.dlg.center .row, .dlg.center button { margin-top: 6px; }
+.qr { background: #fff; border-radius: 8px; width: 240px; height: 240px; image-rendering: pixelated; }
+.dlg a { color: var(--accent); }
+.login label.inline { flex-direction: row; align-items: center; }
