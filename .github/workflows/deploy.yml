@@ -2,7 +2,7 @@ name: deploy
 # Builds the app and publishes it to GitHub Pages on every push to the default branch.
 on:
   push:
-    branches: [main]
+    branches: [main, claude/epic-dirac-38xck6]
   workflow_dispatch:
 permissions:
   contents: read
