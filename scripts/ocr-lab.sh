@@ -14,7 +14,8 @@ score() { # $1 stem  $2 variant  $3 result.musicxml
   if [ ! -s "$3" ]; then echo "| $1 | $2 | – | – | NO RESULT | | |" | tee -a "$SUMMARY"; return; fi
   python3 scripts/ocr-compare.py "$truth" "$3" "$1" "$2" | tee -a "$SUMMARY"
   # titles / tempo / text found?
-  echo "    text in result: title=$(grep -c '<work-title>' "$3") words=$(grep -c '<words' "$3") tempo=$(grep -c '<sound tempo\|<metronome' "$3")"
+  echo "    text in result: credits=[$(grep -o '<credit-words[^>]*>[^<]*' "$3" | sed 's/<[^>]*>//' | tr '\n' '|')] words=$(grep -c '<words' "$3") tempo=$(grep -c '<sound tempo\|<metronome' "$3")"
+  echo "    text in truth:  title=$(grep -o '<work-title>[^<]*' "$truth" | sed 's/<[^>]*>//') words=$(grep -c '<words' "$truth") tempo=$(grep -c '<sound tempo\|<metronome' "$truth")"
 }
 
 # language data for the text recognition: the one from Ubuntu ("distro") and the full English model from the Tesseract project
