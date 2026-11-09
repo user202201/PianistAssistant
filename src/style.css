@@ -107,11 +107,9 @@ button, input, select, .score { touch-action: manipulation; }
 @media (pointer: coarse) and (max-height: 520px) {
   .controls { padding-top: 6px; padding-bottom: max(6px, env(safe-area-inset-bottom)); gap: 4px; }
 }
-/* wide tablets in landscape: all transport controls on one line to leave more room for the score */
-@media (min-width: 1000px) {
-  .controls { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 18px; row-gap: 6px; }
-  .controls > .row { flex-wrap: nowrap; }
-  .controls > .row:first-of-type { flex: 1 1 520px; }
-  .controls > .editbar { flex: 1 1 100%; border-bottom: 0; order: -1; }
-  .controls > .panel { right: 16px; }
-}
+
+button.toggle.on { background: var(--accent); border-color: var(--accent); color: #052e16; font-weight: 600; }
+button.narrow { min-width: 0; padding-left: 10px; padding-right: 10px; }
+.group.pair { gap: 0; }
+.group.pair button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.group.pair button:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 0; }

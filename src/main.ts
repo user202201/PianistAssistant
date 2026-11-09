@@ -355,6 +355,12 @@ async function renderPlayer(name: string) {
     osmd.render();
     osmd.cursor.show();
     const tools = new FingerTools(osmd, holder, xml);
+    tools.visible = settings.fingers;
+    if (!tools.visible) {
+      osmd.EngravingRules.RenderFingerings = false;
+      osmd.render();
+      osmd.cursor.show();
+    }
     tools.refresh();
     leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
     const score = extractScore(osmd, displayName(name));
@@ -468,7 +474,7 @@ function buildControls(
   const zoomOut = h("button", { onclick: () => zoom(-0.1), title: "缩小" }, "－");
   function rerender() {
     const step = player.currentStep;
-    osmd.EngravingRules.RenderFingerings = tools.showXml;
+    osmd.EngravingRules.RenderFingerings = tools.visible && tools.showXml;
     osmd.zoom = settings.zoom;
     osmd.render();
     osmd.cursor.show();
@@ -495,7 +501,17 @@ function buildControls(
     h("p", { class: "muted small" }, "优先级：乐谱里的指法 > 自动建议。自己标注的指法保存后写进乐谱文件，之后读取以它为准。"),
     editBtn,
   );
-  const fingerBtn = h("button", { disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, "指法 ▾");
+  const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, "指法");
+  const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, "▾");
+  const fingerBtn = h("div", { class: "group pair" }, fingerToggle, fingerOpts);
+  function setFingers(on: boolean) {
+    tools.visible = on;
+    settings.fingers = on;
+    saveSettings(settings);
+    fingerToggle.classList.toggle("on", on);
+    rerender();
+  }
+  fingerToggle.classList.toggle("on", tools.visible);
   practiceBtn.addEventListener("click", () => (fpanel.hidden = true));
 
   const fbtns = [1, 2, 3, 4, 5].map((n) => h("button", { class: "fnum", onclick: () => tools.apply(n) }, String(n)));
@@ -506,6 +522,7 @@ function buildControls(
   const fdone = h("button", { onclick: () => exitEdit() }, "完成");
   const editbar = h("div", { class: "editbar", hidden: true }, ...fbtns, fclear, fundo, finfo, h("div", { class: "grow" }), fsave, fdone);
   function enterEdit() {
+    if (!tools.visible) setFingers(true);
     fpanel.hidden = true;
     editbar.hidden = false;
     document.querySelector(".scorewrap")?.classList.add("editing");

@@ -21,6 +21,8 @@ export class FingerTools {
   readonly doc: Document;
   readonly notes: XNote[];
   private byKey = new Map<string, XNote>();
+  /** master switch: hides XML fingering, suggestions and edits (editing forces it on) */
+  visible = true;
   showXml = true;
   showAuto: boolean;
   editing = false;
@@ -119,11 +121,14 @@ export class FingerTools {
             }
       }),
     );
+    const show = this.visible || this.editing;
     for (const s of this.spots) {
       const idx = s.note.idx;
       let text: string | null = null;
       let cls = "";
-      if (this.pending.has(idx)) {
+      if (!show) {
+        text = null;
+      } else if (this.pending.has(idx)) {
         const v = this.pending.get(idx);
         text = v === null || v === undefined ? "✕" : String(v);
         cls = "pend";
