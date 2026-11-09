@@ -34,6 +34,8 @@ export class Player {
   expressive = true;
   countIn = false;
   volume = 0.8;
+  /** loudness of the metronome / count-in clicks, 0..1 (on top of the volume) */
+  clickLevel = 0.6;
   /** loop between measures (0-based, inclusive) */
   loop: { from: number; to: number } | null = null;
   /** practice ramp: after each loop pass add `step` to speed until `max` */
@@ -162,7 +164,7 @@ export class Player {
     let lead = 0;
     if (this.countIn && withCountIn) {
       const n = this.score.timeSig.num;
-      for (let i = 0; i < n; i++) clickSound(this.ctx, now + i * beatSec, i === 0, this.volume);
+      for (let i = 0; i < n; i++) clickSound(this.ctx, now + i * beatSec, i === 0, this.volume * this.clickLevel);
       lead = n * beatSec;
     }
     this.startAudio = now + lead;
@@ -237,7 +239,7 @@ export class Player {
       const cs = this.clickSec();
       while (this.clickPtr * cs < limit - 1e-9) {
         const k = this.clickPtr++;
-        clickSound(this.ctx, Math.max(at(k * cs), now), k % this.score.timeSig.num === 0, this.volume);
+        clickSound(this.ctx, Math.max(at(k * cs), now), k % this.score.timeSig.num === 0, this.volume * this.clickLevel);
       }
     }
 

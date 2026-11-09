@@ -106,7 +106,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++;
   await page.click('button[title="回到开头"]');
   await page.click('button >> text=练习');
   await page.fill('.panel input[type=number] >> nth=0', '2'); await page.fill('.panel input[type=number] >> nth=1', '2');
-  await page.locator('.panel .line').first().locator('input[type=checkbox]').check();
+  await page.locator('.panel .line:has(input[type=number])').first().locator('input[type=checkbox]').check();
   await page.screenshot({ path: D + 'practice.png' });
   await page.click('button >> text=练习');
   await page.evaluate(() => { window.__rec.length = 0; });

@@ -160,6 +160,28 @@ const setSecsHelper = null;
   r = await rect(); await pen(r, 'pen', [[0.3, 0.3], [0.5, 0.35]]); await page.waitForTimeout(3300);
   ok(!wasOn && await page.locator('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]').evaluate(e => e.classList.contains('on')) && (await strokes('3')).length === 1, 'the Pencil touching the page switches annotating on by itself and draws (no need to press the button first)');
 
+  // ---- two fingers zoom and move the page, also while annotating (and with "finger draws too")
+  const sheetW = () => page.evaluate(() => document.querySelector('.pdfsheet:not([hidden])').getBoundingClientRect().width);
+  const cdpTouch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  const two = (cx, cy, d) => [{ x: cx - d / 2, y: cy, id: 1 }, { x: cx + d / 2, y: cy, id: 2 }];
+  const pinchTo = async (d0, d1, first) => { if (first) { await cdpTouch('touchStart', [first[0]]); for (let i = 1; i <= 3; i++) await cdpTouch('touchMove', [{ ...first[0], x: first[0].x + i * 6, y: first[0].y + i * 4 }]); } await cdpTouch('touchStart', two(600, 420, d0)); for (let i = 1; i <= 8; i++) await cdpTouch('touchMove', two(600, 420, d0 + ((d1 - d0) * i) / 8)); await cdpTouch('touchEnd', []); await page.waitForTimeout(300); };
+  ok(await page.locator('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]').evaluate(e => e.classList.contains('on')), 'annotate mode is on');
+  const w0 = await sheetW(); await pinchTo(160, 460); const w1 = await sheetW();
+  ok(w1 > w0 * 1.8 && await page.evaluate(() => document.querySelector('.pdfwrap').classList.contains('zoomed')), `a two-finger pinch zooms the page while annotating (${Math.round(w0)} -> ${Math.round(w1)} px)`);
+  await touchSwipe(800, 500, 500, 300);
+  const sc = await page.evaluate(() => { const w = document.querySelector('.pdfwrap'); return { x: w.scrollLeft, y: w.scrollTop }; });
+  ok(sc.x > 50 || sc.y > 50, `one finger moves the zoomed page (scroll ${Math.round(sc.x)}, ${Math.round(sc.y)})`);
+  await pinchTo(460, 120); const w2 = await sheetW(); ok(w2 < w1 / 2, `pinching in zooms out again (${Math.round(w1)} -> ${Math.round(w2)} px)`);
+  await page.click('#finger-draw'); // a finger draws now ...
+  const nBefore = (await strokes('3')).length;
+  await pinchTo(160, 440, [{ x: 520, y: 400, id: 1 }]); const w3 = await sheetW(); // ... but a pinch must still zoom, and must not leave a stroke
+  const ink = await page.evaluate(() => { const c = document.querySelector('.pdfsheet:not([hidden]) .notes'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; });
+  await page.waitForTimeout(3300);
+  ok(w3 > w2 * 1.5, `with "finger draws too" a pinch zooms as well (${Math.round(w2)} -> ${Math.round(w3)} px)`);
+  ok((await strokes('3')).length === nBefore, `and the stroke the first finger had started is dropped (strokes ${nBefore} -> ${(await strokes('3')).length})`);
+  await page.click('#finger-draw');
+  await page.click('button[data-view=scroll]'); await page.waitForTimeout(400); const s0 = await sheetW(); await pinchTo(160, 420); ok((await sheetW()) > s0 * 1.5, 'in the continuous view a pinch zooms too');
+
   // ---- deleting the PDF deletes its annotations
   await page.evaluate(() => (location.hash = '#/')); await page.waitForSelector('.home');
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf');

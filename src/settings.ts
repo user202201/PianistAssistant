@@ -9,8 +9,8 @@ export interface Settings {
   lineHighlight: boolean; // tint the line that is being played
   /** scores with several parts (four hands): show each part on its own half of the screen */
   splitView: boolean;
-  /** split view: keep the bottom bar down to play / pause (everything else behind a button) */
-  splitControlsMin: boolean;
+  /** small screens: the bottom bar shows everything (full), only play / pause + speed (min), or is hidden behind a small handle; null = by default (min for four hands, full otherwise) */
+  barMode: "full" | "min" | "hidden" | null;
   /** appearance: follow the system, or force light / dark */
   theme: "system" | "light" | "dark";
   /** interface language: follow the system, or one of the languages in i18n.ts (LANGS) */
@@ -21,6 +21,8 @@ export interface Settings {
   countIn: boolean;
   /** cloud conversion of PDFs / photos: which recogniser (see api.OcrEngine) */
   ocrEngine: "audiveris" | "homr" | "oemer" | "both" | "all";
+  /** loudness of the metronome / count-in clicks, 0..1 */
+  clickVolume: number;
   /** PDF viewer: one page at a time (like a book) or all pages in one scroll */
   pdfView: "single" | "scroll";
   /** PDF viewer: seconds per page for the automatic page turn */
@@ -32,7 +34,7 @@ const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, splitControlsMin: true, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false });
 
 export function loadSettings(): Settings {
   try {

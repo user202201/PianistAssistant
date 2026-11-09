@@ -37,16 +37,24 @@ const ALL_SOUNDS: SoundPreset[] = [
 /** The sounds on offer. The apps (iOS / Android / HarmonyOS) must work without a connection, so they only offer the sounds that are packed into them. */
 export const SOUNDS: SoundPreset[] = ALL_SOUNDS.filter((s) => !__MOBILE__ || s.bundled);
 
+/**
+ * One click of the metronome / count-in. Calibrated against the piano: the first version was 0.5 (about 8 dB louder than a note), and on the
+ * first beat of a piece the click stacked with the notes that start there, so that beat was always the loudest. Now the click sits below the
+ * notes, the downbeat is only a little stronger (and higher), and the start is a soft 4 ms ramp instead of a 2 ms jump.
+ */
 export function clickSound(ctx: AudioContext, time: number, accent: boolean, volume: number) {
+  const level = (accent ? 0.3 : 0.22) * volume;
+  if (level < 0.0005) return;
+  const t = Math.max(time, ctx.currentTime); // never in the past: a start in the past would jump to full level at once
   const osc = ctx.createOscillator();
   const g = ctx.createGain();
-  osc.frequency.value = accent ? 1600 : 1100;
-  g.gain.setValueAtTime(0.0001, time);
-  g.gain.exponentialRampToValueAtTime(0.5 * volume, time + 0.002);
-  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
+  osc.frequency.value = accent ? 1500 : 1000;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(level, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
   osc.connect(g).connect(ctx.destination);
-  osc.start(time);
-  osc.stop(time + 0.08);
+  osc.start(t);
+  osc.stop(t + 0.09);
 }
 
 /** Offline fallback: a simple synthesized piano-ish tone, used when samples can't be downloaded. */

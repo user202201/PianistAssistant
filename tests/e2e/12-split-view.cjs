@@ -35,11 +35,11 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
   { const w = await vis(); ok(w.play && w.speed && w.practice && !w.more, `wide screen: the whole bar is visible in one row (${w.h}px tall), no "更多"`); }
   await page.setViewportSize({ width: 700, height: 800 }); await page.waitForTimeout(500);
   let v0 = await vis();
-  ok(v0.play && v0.more && !v0.speed && !v0.practice, `bottom bar is minimal: play/pause + "更多" only (${v0.h}px tall)`);
+  ok(v0.play && v0.more && v0.speed && !v0.practice, `bottom bar is minimal: play/pause + speed + "更多" (${v0.h}px tall)`);
   await page.click('.morebtn');
-  let v1 = await vis(); ok(v1.speed && v1.practice && v1.h > v0.h, `"更多" brings back speed, practice, ... (${v1.h}px)`);
-  await page.click('.morebtn'); v0 = await vis(); ok(!v0.speed, 'and it collapses again');
-  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).splitControlsMin) === true, 'the choice is remembered');
+  let v1 = await vis(); ok(v1.speed && v1.practice && v1.h > v0.h, `"更多" brings back practice, fingering, ... (${v1.h}px)`);
+  await page.click('.morebtn'); v0 = await vis(); ok(!v0.practice, 'and it collapses again');
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).barMode) === 'min', 'the choice is remembered');
 
   // ---- per-player hands and sound
   await page.click('.panehead:nth-of-type(1) >> nth=0'); // noop focus ring

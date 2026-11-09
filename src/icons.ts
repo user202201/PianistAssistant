@@ -8,6 +8,8 @@ const STROKE: Record<string, string> = {
   marker: '<path d="M9 14l7-7 3 3-7 7H9z"/><path d="M9 17H5l2-3"/><path d="M4 21h16"/>',
   page: '<rect x="6" y="3" width="12" height="18" rx="2"/>',
   scroll: '<rect x="7" y="3" width="10" height="7" rx="1.5"/><rect x="7" y="14" width="10" height="7" rx="1.5"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>',
+  duet: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>',
   timer: '<circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.5 2M9.5 3h5"/>',
   "chevron-up": '<path d="M6 15l6-6 6 6"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',

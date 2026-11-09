@@ -94,6 +94,8 @@ export class NoteBook {
   enabled = false;
   /** a finger draws as well (otherwise only Pencil / mouse) */
   fingerDraw = false;
+  /** two or more fingers are down (a pinch): nothing is drawn until they are all lifted */
+  pinching = false;
   /** something changed since the last save */
   dirty = false;
   /** called after every change of the strokes (save soon, update buttons) */
@@ -165,6 +167,10 @@ export class NoteBook {
     this.changed();
     return true;
   }
+  /** a second finger came down (a pinch): drop the stroke a finger had just started */
+  abortStrokes() {
+    for (const l of this.layers.values()) l.abort();
+  }
   clearPage(page: number): number {
     const list = this.strokes(page);
     if (!list.length) return 0;
@@ -220,8 +226,23 @@ export class PageLayer {
     return [Math.round(((e.clientX - r.left) / r.width) * 1e4) / 1e4, Math.round(((e.clientY - r.top) / r.height) * 1e4) / 1e4, Math.round(pressure * 100) / 100];
   }
 
+  /** drop the stroke in progress (nothing is saved); an eraser stroke that already removed something is kept */
+  abort() {
+    if (this.pointer < 0) return;
+    try { this.canvas.releasePointerCapture(this.pointer); } catch { /* ignore */ }
+    this.pointer = -1;
+    this.cur = null;
+    if (this.erased.length) {
+      this.nb.push({ t: "del", page: this.page, items: this.erased });
+      this.erased = [];
+      this.nb.changed();
+    }
+    this.redraw();
+    this.nb.onBusy(false);
+  }
+
   private down = (e: PointerEvent) => {
-    if (this.pointer >= 0 || !this.nb.drawable(e)) return;
+    if (this.pointer >= 0 || this.nb.pinching || !this.nb.drawable(e)) return;
     e.preventDefault();
     this.pointer = e.pointerId;
     try { this.canvas.setPointerCapture(e.pointerId); } catch { /* not capturable: fine */ }

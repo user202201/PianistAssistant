@@ -1,8 +1,8 @@
 /**
  * Long texts (German, ...) and small screens: controls must fit instead of being pushed out of the screen or clipped.
  * Same ideas as other apps use (iOS "shrink text to fit", segmented control -> pop-up menu when it is too wide):
- *  1. A row of segmented buttons (.group) that does not fit gets a smaller font (.tight), then tighter spacing (.dense), and as a last
- *     resort it is shown as a drop-down list (a <select> placed after it that drives the buttons).
+ *  1. A row of segmented buttons (.group) that does not fit gets a smaller font (.tight), then tighter spacing (.dense), then icons instead
+ *     of names (when its buttons have both), and as a last resort it is shown as a drop-down list (a <select> placed after it that drives the buttons).
  *  2. A single-line button whose text spills out of it gets a slightly smaller font (not below 78 % of the normal size).
  * Everything is measured on the real screen, so it works for every language, font and screen width; it runs again when the language,
  * the window size or the content changes.
@@ -19,7 +19,12 @@ function overflows(g: HTMLElement): boolean {
   const r = g.getBoundingClientRect();
   const pr = (g.parentElement ?? document.body).getBoundingClientRect();
   const limit = Math.min(window.innerWidth, pr.right) + 1;
-  return g.scrollWidth > g.clientWidth + 1 || r.right > limit + 1 || r.left < -1;
+  if (g.scrollWidth > g.clientWidth + 1 || r.right > limit + 1 || r.left < -1) return true;
+  // a button squeezed so narrow that its text spills over its neighbours (the row itself still fits)
+  for (const b of Array.from(g.querySelectorAll<HTMLElement>(":scope > button"))) {
+    if (b.scrollWidth > b.clientWidth + 1 && b.getBoundingClientRect().width > 0) return true;
+  }
+  return false;
 }
 
 function mirror(g: HTMLElement): HTMLSelectElement {
@@ -42,14 +47,20 @@ function mirror(g: HTMLElement): HTMLSelectElement {
 }
 
 function fitGroup(g: HTMLElement) {
-  g.classList.remove("tight", "dense", "as-select");
+  g.classList.remove("tight", "dense", "icons", "as-select");
   if (!visible(g) || g.querySelectorAll(":scope > button").length < 2 || !overflows(g)) return;
   g.classList.add("tight");
   if (!overflows(g)) return;
   g.classList.add("dense");
   if (!overflows(g)) return;
-  if (g.querySelectorAll(":scope > button").length >= 3 && g.querySelector(":scope > button:not(:has(svg:only-child))")) {
+  // buttons that have an icon as well as a name: icons only
+  if (g.querySelector(":scope > button .lbl") && g.querySelector(":scope > button svg")) {
     g.classList.remove("tight", "dense");
+    g.classList.add("icons");
+    if (!overflows(g) || g.closest(".tabsbar")) return; // (the tabs scroll sideways as the very last resort)
+  }
+  if (g.querySelectorAll(":scope > button").length >= 3 && g.querySelector(":scope > button:not(:has(svg:only-child))")) {
+    g.classList.remove("tight", "dense", "icons");
     g.classList.add("as-select");
     mirror(g);
   }

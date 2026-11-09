@@ -454,7 +454,6 @@ select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(-
 .pdfbar button { white-space: nowrap; }
 @media (max-width: 760px) { .pdfbar .zone.left, .pdfbar .zone.right { flex: 1 1 auto; } }
 .group.pair > button.secs { min-width: 64px; font-variant-numeric: tabular-nums; }
-.pdfwrap.single:not(.zoomed) { touch-action: pan-y pinch-zoom; }
 #app.pdffull { padding-top: env(safe-area-inset-top); }
 #app.pdffull .pdfchrome { display: none; }
 #app.pdffull.show .pdfchrome { display: block; position: fixed; top: 0; left: 0; right: 0; z-index: 30; background: var(--bg); padding-top: env(safe-area-inset-top); box-shadow: var(--shadow); }
@@ -482,7 +481,7 @@ select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(-
 @media (max-width: 359px) { .pdfbar { flex-wrap: wrap; } }
 .pdfbar.tools { flex-wrap: wrap; }
 /* a page shown at 100%: nothing to scroll (no scrollbar), every touch gesture is ours (swipe = turn the page; pinch still zooms) */
-.pdfwrap.single:not(.zoomed) { overflow: hidden; padding: 12px 0; touch-action: pinch-zoom; overscroll-behavior: none; }
+.pdfwrap.single:not(.zoomed) { overflow: hidden; padding: 12px 0; overscroll-behavior: none; }
 .pdfwrap.single.zoomed { padding: 12px 0; }
 .pageind { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; }
 
@@ -528,4 +527,34 @@ dialog.center button, .dlg button:not(.icon):not(.fnum) { white-space: normal; h
   .pdfbar .pageind { padding: 0 6px; min-width: 0; }
   .group.pair > button.secs { min-width: 48px; }
   .pdfbar > .zone > button.icon { min-width: 40px; padding: 0 8px; }
+}
+
+input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
+
+/* the page area takes every touch itself (swipe = turn the page, two fingers = zoom / move, one finger moves a zoomed page); the continuous view still scrolls natively */
+.pdfwrap.single { touch-action: none; }
+.pdfwrap:not(.single) { touch-action: pan-x pan-y; }
+
+/* tabs: label only; the favourites tab also shows its star on wide screens; when the labels do not fit, icons only */
+.tabsbar .tabicon { display: none; }
+.tabsbar .seg[data-k="fav"] .tabicon { display: inline-flex; opacity: .75; }
+.tabsbar .seg[data-k="fav"] .tabicon svg { fill: none; }
+@media (max-width: 560px) { .tabsbar .seg[data-k="fav"] .tabicon { display: none; } }
+.tabsbar .group.icons .tabicon { display: inline-flex !important; opacity: 1; }
+.tabsbar .group.icons .lbl { display: none; }
+.tabsbar .group.icons .seg { min-width: 0; padding: 0 8px; }
+
+/* the bottom bar on small screens: icons instead of names, "min" = play / pause + speed, hidden = only a small handle */
+.controls.min .mainrow { flex-wrap: nowrap; justify-content: flex-start; gap: 10px; }
+.controls.min .mainrow .speedbox { display: flex; order: 0; flex: 1 1 0; min-width: 80px; }
+.controls.min .speedlabel, .controls.min .pos { display: none; }
+.controls.min .morebtn { margin-left: 0; }
+.barhandle { position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 35; display: flex; gap: 6px; padding: 6px; border-radius: 30px; background: var(--bar-strong); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); box-shadow: var(--shadow-pop); }
+@media (max-width: 700px), (max-height: 480px) {
+  .controls .lbl { display: none; }
+  .controls { gap: 8px; padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .controls .play { width: 50px; height: 50px; }
+  .controls .icon.big { width: 44px; height: 44px; }
+  .controls .group > button { padding: 0 10px; min-width: 40px; }
+  .controls .morebtn { min-width: 44px; padding: 0 10px; }
 }

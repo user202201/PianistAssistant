@@ -781,14 +781,17 @@ async function renderHome() {
   type Tab = "all" | "duet" | "pdf" | "fav";
   const TABS: [Tab, string][] = [["all", "全部琴谱"], ["duet", "四手联弹"], ["pdf", "PDF 乐谱"], ["fav", "收藏"]];
   let tab: Tab = (TABS.map((t) => t[0]) as string[]).includes(getHomeTab()) ? (getHomeTab() as Tab) : "all";
+  const TAB_ICON: Record<string, string> = { all: "note", duet: "duet", pdf: "file", fav: "star" };
+  // every tab has an icon too: normally only the favourites tab shows its star, but when the names do not fit (small screen, long language)
+  // the tabs turn into icons (see fit.ts)
   const tabBtns = TABS.map(([k, label]) =>
-    h("button", { class: "seg" + (tab === k ? " on" : ""), onclick: () => {
+    h("button", { class: "seg" + (tab === k ? " on" : ""), "data-k": k, title: label, onclick: () => {
       tab = k;
       setHomeTab(k);
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
       renderList();
       listBox.scrollTop = 0;
-    } }, ...(k === "fav" ? [label, h("span", { class: "tabstar" }, ic("star", 18))] : [label])),
+    } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, label)),
   );
   const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
 
@@ -1423,6 +1426,7 @@ async function renderPlayer(name: string) {
     player.volume = settings.volume;
     player.expressive = settings.expressive;
     player.countIn = settings.countIn;
+    player.clickLevel = settings.clickVolume;
     pushRecent(name);
     clearNew(name);
     busyCheck = () => player.playing || tools.editing || tools.dirty;
@@ -1554,6 +1558,7 @@ async function renderDuet(pair: api.Pair) {
     player.volume = settings.volume;
     player.expressive = settings.expressive;
     player.countIn = settings.countIn;
+    player.clickLevel = settings.clickVolume;
     pushRecent(pairKey(pair));
     // two independent scores: each screen has its own fingering tools and saves to its own file
     const tools = new FingerGroup(views.map((v, g) => new FingerTools(v.osmd, v.holder, xmls[g])));
@@ -1616,6 +1621,11 @@ function buildControls(
   const osmd = views[0].osmd; // single view: the score itself (fingering editing works on it)
   const playBtn = h("button", { class: "primary play", title: "播放 / 暂停 (空格)" }, ic("play", 30));
   const stopBtn = h("button", { class: "icon big", title: "回到开头" }, ic("skip-back", 24));
+  // small screens: the bar can be hidden completely; this little handle (play / pause + "show the bar") stays
+  const miniPlay = h("button", { class: "icon big miniplay", title: "播放 / 暂停 (空格)", onclick: () => playBtn.click() }, ic("play", 22));
+  const expandBtn = h("button", { class: "icon big expandbtn", title: "显示工具栏", onclick: () => setBar("min") }, ic("chevron-up", 22));
+  const handle = h("div", { class: "barhandle", hidden: true }, miniPlay, expandBtn);
+  document.body.append(handle);
   const speed = h("input", { type: "range", min: "20", max: "150", step: "5", value: "100", class: "speed" });
   const speedLabel = h("span", { class: "speedlabel" });
   const pos = h("span", { class: "pos" });
@@ -1684,18 +1694,24 @@ function buildControls(
     sync();
   };
   for (const el of [cbCount, cbMetro, cbLoop, from, to, cbRamp, rampStep, rampMax]) el.addEventListener("change", applyPractice);
+  const clickSlider = h("input", { type: "range", min: "0", max: "100", value: String(Math.round(settings.clickVolume * 100)), class: "clickvol", title: "节拍器音量", "aria-label": "节拍器音量" }) as HTMLInputElement;
+  clickSlider.addEventListener("input", () => {
+    settings.clickVolume = Number(clickSlider.value) / 100;
+    player.clickLevel = settings.clickVolume;
+    saveSettings(settings);
+  });
   const useCurrent = h("button", { onclick: () => { from.value = String(player.measureIndex + 1); if (Number(to.value) < Number(from.value)) to.value = from.value; applyPractice(); } }, "起点＝当前小节");
   const panel = h(
     "div",
     { class: "panel", hidden: true },
     h("label", { class: "inline" }, cbExpr, "按乐谱表情演奏（力度、断奏、踏板）"),
     h("label", { class: "inline" }, cbCount, "开始前倒数一小节"),
-    h("label", { class: "inline" }, cbMetro, "节拍器"),
+    h("div", { class: "line" }, h("label", { class: "inline" }, cbMetro, "节拍器"), clickSlider),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbLoop, "循环小节"), from, "到", to, useCurrent),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbRamp, "每遍加速"), rampStep, "% ，上限", rampMax, "%"),
   );
   // same look as the fingering button next to it: a neutral pill, blue while its panel is open
-  const practiceBtn = h("button", { class: "toggle", title: "练习", onclick: () => (panel.hidden = !panel.hidden) }, ic("sliders", 20), "练习");
+  const practiceBtn = h("button", { class: "toggle", title: "练习", onclick: () => (panel.hidden = !panel.hidden) }, ic("sliders", 20), h("span", { class: "lbl" }, "练习"));
   const practiceGroup = h("div", { class: "group" }, practiceBtn);
   new MutationObserver(() => practiceBtn.classList.toggle("on", !panel.hidden)).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
 
@@ -1751,7 +1767,7 @@ function buildControls(
     h("p", { class: "muted small" }, "优先级：乐谱里的指法 > 自动建议。自己标注的指法保存后写进乐谱文件，之后读取以它为准。"),
     editBtn,
   );
-  const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, ic("hand", 20), "指法");
+  const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, ic("hand", 20), h("span", { class: "lbl" }, "指法"));
   const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, ic("chevron-down", 18));
   const fingerBtn = h("div", { class: "group pair" }, fingerToggle, fingerOpts);
   function setFingers(on: boolean) {
@@ -2005,6 +2021,7 @@ function buildControls(
     syncViews();
     followView();
     playBtn.replaceChildren(ic(player.playing ? "pause" : "play", 30));
+    miniPlay.replaceChildren(ic(player.playing ? "pause" : "play", 22));
     speed.style.setProperty("--p", `${((Number(speed.value) - Number(speed.min)) / (Number(speed.max) - Number(speed.min))) * 100}%`);
     const bpm = Math.round(score.baseBpm * player.speed);
     speed.value = String(Math.round(player.speed * 100));
@@ -2049,38 +2066,46 @@ function buildControls(
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("resize", onResizeBar);
+    handle.remove();
     window.removeEventListener("resize", relayout);
     clearTimeout(relayoutTimer);
     prevDispose?.();
   };
 
-  // split view: the bar can shrink to play / pause (+ a button that brings everything back)
+  // small screens: the bar can shrink to the essentials (play / pause and speed) or hide completely (the little handle brings it back)
   const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" });
+  const hideBtn = h("button", { class: "icon hidebtn", title: "隐藏工具栏", onclick: () => setBar("hidden") }, ic("chevron-down", 20));
   // on a wide screen everything fits in one row, so there is nothing to fold away
-  const narrow = () => window.innerWidth < 820;
-  const refreshMore = () => {
-    const min = split && narrow() && settings.splitControlsMin;
-    bar.classList.toggle("min", min);
-    bar.classList.toggle("splitwide", split && !narrow());
-    moreBtn.hidden = !(split && narrow());
-    moreBtn.replaceChildren(ic(min ? "chevron-up" : "chevron-down", 18), min ? "更多" : "收起");
-  };
-  const onResizeBar = () => refreshMore();
-  window.addEventListener("resize", onResizeBar);
-  moreBtn.addEventListener("click", () => {
-    settings.splitControlsMin = !settings.splitControlsMin;
+  const narrow = () => window.innerWidth < 820 || window.innerHeight <= 480;
+  const barMode = (): "full" | "min" | "hidden" => (!narrow() ? "full" : settings.barMode ?? (split ? "min" : "full"));
+  const setBar = (m: "full" | "min" | "hidden") => {
+    settings.barMode = m;
     saveSettings(settings);
     panel.hidden = true;
     fpanel.hidden = true;
     refreshMore();
-  });
+  };
+  const refreshMore = () => {
+    const m = barMode();
+    bar.classList.toggle("min", m === "min");
+    bar.classList.toggle("splitwide", split && !narrow());
+    bar.hidden = m === "hidden";
+    handle.hidden = m !== "hidden";
+    moreBtn.hidden = !narrow() || m === "hidden";
+    hideBtn.hidden = !narrow() || m !== "min";
+    moreBtn.replaceChildren(ic(m === "min" ? "chevron-up" : "chevron-down", 18), h("span", { class: "lbl" }, m === "min" ? "更多" : "收起"));
+    setTimeout(() => followView(false), 60);
+  };
+  const onResizeBar = () => refreshMore();
+  window.addEventListener("resize", onResizeBar);
+  moreBtn.addEventListener("click", () => setBar(barMode() === "min" ? "full" : "min"));
   const bar = h(
     "footer",
     { class: "controls" },
     panel,
     fpanel,
     editbar,
-    h("div", { class: "row mainrow" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos, ...(split ? [moreBtn] : [])),
+    h("div", { class: "row mainrow" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos, moreBtn, hideBtn),
     h(
       "div",
       { class: "row wrap" },
@@ -2253,10 +2278,52 @@ async function renderPdf(name: string) {
       else if (app.classList.contains("pdffull")) showChrome(!app.classList.contains("show"));
     }
   });
+  // Two fingers zoom and move the page (also while annotating, even with "finger draws too"): the stroke the first finger had started is dropped.
+  // One finger moves a zoomed page. (touch-action is "none" on the page area, so these events reach us instead of the browser's own pinch.)
+  const fingers = new Map<number, { x: number; y: number }>();
+  let pinch: { d0: number; z0: number; cx: number; cy: number } | null = null;
+  const pair = () => { const [a, b] = Array.from(fingers.values()); return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+  wrap.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch") return;
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (fingers.size === 2) {
+      if (book) book.pinching = true;
+      book?.abortStrokes();
+      down = null;
+      const p = pair();
+      pinch = { d0: p.d, z0: zoom, cx: p.cx, cy: p.cy };
+    }
+  }, true);
+  wrap.addEventListener("pointermove", (e) => {
+    const f = fingers.get(e.pointerId);
+    if (!f) return;
+    const dx = e.clientX - f.x, dy = e.clientY - f.y;
+    f.x = e.clientX;
+    f.y = e.clientY;
+    if (pinch && fingers.size === 2) {
+      const p = pair();
+      e.preventDefault();
+      setZoom(pinch.z0 * (p.d / pinch.d0), p.cx, p.cy);
+    } else if (fingers.size === 1 && mode === "single" && zoom > 1.01 && !(book?.enabled && book.fingerDraw)) {
+      wrap.scrollLeft -= dx;
+      wrap.scrollTop -= dy;
+    }
+  }, true);
+  const liftFinger = (e: PointerEvent) => {
+    fingers.delete(e.pointerId);
+    if (fingers.size < 2) pinch = null;
+    if (fingers.size === 0 && book) book.pinching = false;
+  };
+  wrap.addEventListener("pointerup", liftFinger, true);
+  wrap.addEventListener("pointercancel", liftFinger, true);
   // mouse wheel / trackpad: one page per scroll (only when the whole page fits; when zoomed in the wheel scrolls the page as usual)
   let wheelAcc = 0, wheelLock = 0;
   wrap.addEventListener("wheel", (e) => {
-    if (!fitsScreen() || e.ctrlKey) return;
+    if (e.ctrlKey) { // a trackpad pinch (or ctrl + wheel): zoom around the pointer
+      e.preventDefault();
+      return setZoom(zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+    }
+    if (!fitsScreen()) return;
     e.preventDefault();
     if (Date.now() < wheelLock) return;
     wheelAcc += e.deltaY || e.deltaX;
@@ -2469,7 +2536,20 @@ async function renderPdf(name: string) {
     if (m === "scroll") { const sh = sheets[cur - 1]; if (sh) wrap.scrollTo({ top: sh.offsetTop - 12 }); }
   } }, ic(m === "single" ? "page" : "scroll", 20), h("span", { class: "lbl" }, label));
   const viewGroup = h("div", { class: "group" }, viewBtn("single", "单页"), viewBtn("scroll", "连续"));
-  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); wrap.classList.toggle("zoomed", zoom > 1.01); layout(); };
+  /** zoom the pages; the point (cx, cy) on the screen stays where it is (a pinch zooms around the fingers) */
+  function setZoom(z: number, cx?: number, cy?: number) {
+    z = Math.min(4, Math.max(0.5, z));
+    const r = wrap.getBoundingClientRect();
+    const px = (cx ?? r.left + r.width / 2) - r.left, py = (cy ?? r.top + r.height / 2) - r.top;
+    const fx = (wrap.scrollLeft + px) / Math.max(1, wrap.scrollWidth), fy = (wrap.scrollTop + py) / Math.max(1, wrap.scrollHeight);
+    zoom = z;
+    pages.style.setProperty("--z", String(z));
+    wrap.classList.toggle("zoomed", z > 1.01);
+    layout();
+    wrap.scrollLeft = fx * wrap.scrollWidth - px;
+    wrap.scrollTop = fy * wrap.scrollHeight - py;
+  }
+  const bump = (d: number) => setZoom(zoom + d);
   pages.style.setProperty("--z", "1");
   app.replaceChildren(
     h(

@@ -35,3 +35,8 @@
 37-layout-ja
 37-layout-ko
 38-peek-grand-staff-cut-off
+39-metronome-level
+37-layout-fr
+37-layout-en
+40-tabs-fit
+41-bottom-bar-small-screen
