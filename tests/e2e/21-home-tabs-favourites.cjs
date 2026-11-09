@@ -9,12 +9,17 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map(c => c.querySelector('.mq')?.textContent));
   const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.querySelector('.lbl').innerText.trim()));
   ok(tabs.join() === '全部琴谱,四手联弹,PDF 乐谱,收藏', `tabs: ${tabs.join(' | ')}`);
-  // the look: square bar, only the chosen tab is rounded, a size bigger than the rest of the text, no icons / numbers shown
-  const look = await page.evaluate(() => { const g = document.querySelector('.tabsbar .group'), on = document.querySelector('.tabsbar .seg.on'), off = document.querySelector('.tabsbar .seg:not(.on)'); const px = (e, p) => parseFloat(getComputedStyle(e)[p]);
-    return { bar: px(g, 'borderTopLeftRadius'), on: px(on, 'borderTopLeftRadius'), off: px(off, 'borderTopLeftRadius'), tab: px(on, 'fontSize'), body: px(document.querySelector('.card .mq') || document.body, 'fontSize'), icon: [...document.querySelectorAll('.tabsbar .tabicon')].some(e => e.getBoundingClientRect().width > 0), count: [...document.querySelectorAll('.tabsbar .tabcount')].some(e => e.getBoundingClientRect().width > 0) }; });
-  ok(look.bar === 0 && look.off === 0 && look.on >= 8, `the tab bar is square, only the chosen tab is rounded (bar ${look.bar}px, other tabs ${look.off}px, chosen ${look.on}px)`);
-  ok(look.tab >= look.body * 1.15, `on a tablet the tab text is a size bigger (${look.tab}px vs ${look.body}px)`);
-  ok(!look.icon && !look.count, 'icons and numbers are not shown');
+  // the look: the grey and the rounding of the cards, as tall as a card, text a size bigger; only the favourites tab shows its star
+  const look = await page.evaluate(() => { const g = document.querySelector('.tabsbar .group'), on = document.querySelector('.tabsbar .seg.on'), card = document.querySelector('.listbox .card'); const px = (e, p) => parseFloat(getComputedStyle(e)[p]);
+    return { bg: getComputedStyle(g).backgroundColor, cardBg: getComputedStyle(card).backgroundColor, r: px(g, 'borderTopLeftRadius'), cardR: px(card, 'borderTopLeftRadius'), h: g.getBoundingClientRect().height, cardH: card.getBoundingClientRect().height, tab: px(on, 'fontSize'), body: px(card.querySelector('.mq') || document.body, 'fontSize'),
+      icons: [...document.querySelectorAll('.tabsbar .tabicon')].filter(e => e.getBoundingClientRect().width > 0).map(e => e.closest('.seg').getAttribute('data-k')), count: [...document.querySelectorAll('.tabsbar .tabcount')].some(e => e.getBoundingClientRect().width > 0) }; });
+  ok(look.bg === look.cardBg, `the tab bar has the same grey as the cards (${look.bg})`);
+  ok(look.r === look.cardR && look.r > 0, `and the same rounded corners (${look.r}px)`);
+  ok(Math.abs(look.h - look.cardH) <= 1, `on a tablet it is as tall as a card (${Math.round(look.h)}px vs ${Math.round(look.cardH)}px)`);
+  ok(look.tab >= look.body * 1.15, `the tab text is a size bigger (${look.tab}px vs ${look.body}px)`);
+  const starAfter = await page.evaluate(() => { const b = document.querySelector('.tabsbar .seg[data-k=fav]'); return b.querySelector('.tabicon').getBoundingClientRect().left >= b.querySelector('.tl-full').getBoundingClientRect().right - 1; });
+  ok(starAfter, 'the star of the favourites tab is after its name');
+  ok(look.icons.join() === 'fav' && !look.count, `the only icon is the favourites star (${look.icons.join() || 'none'}), no numbers`);
   // every tab shows how many items are behind it; the number is always what the tab then lists
   const counts = () => page.evaluate(() => [...document.querySelectorAll('.tabsbar .seg')].map(b => ({ k: b.getAttribute('data-k'), n: Number(b.querySelector('.tabcount').textContent || 0), shown: !b.querySelector('.tabcount').hidden })));
   for (const k of ['all', 'duet', 'pdf', 'fav']) { await page.click(`.tabsbar .seg[data-k=${k}]`); await page.waitForTimeout(250); const c = (await counts()).find(x => x.k === k); ok(c.n === (await titles()).length, `tab "${k}" shows the number ${c.n} = the ${(await titles()).length} cards it lists`); }

@@ -562,14 +562,16 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .tl-short { display: none; }
 @media (max-width: 560px) { .tabsbar .tl-full { display: none; } .tabsbar .tl-short { display: inline; } }
 
-/* the tab bar is the main navigation of the home screen: square, a size bigger on tablets, only the chosen tab is rounded */
-.tabsbar .group { background: var(--fill-2); border: 1px solid var(--sep); border-radius: 0; padding: 3px; }
-.tabsbar .seg { min-height: 46px; font-size: 1rem; font-weight: 600; border-radius: 0; gap: 8px; }
-.tabsbar .seg.on { border-radius: 12px; }
+/* the tab bar is the main navigation of the home screen: the grey of the cards, the same rounding, as tall as a card on a tablet, text a size bigger */
+.tabsbar .group { --tab-pad: 3px; background: var(--surface); border: 0; border-radius: var(--r-card); box-shadow: var(--shadow); padding: var(--tab-pad); }
+.tabsbar .seg { min-height: 46px; font-size: 1rem; font-weight: 600; border-radius: calc(var(--r-card) - 6px); gap: 8px; }
 .tabsbar .seg:not(.on) { color: var(--text); }
-@media (min-width: 744px) { .tabsbar .seg { font-size: 1.2rem; min-height: 52px; } }
+@media (min-width: 744px) { .tabsbar .group { --tab-pad: 6px; } .tabsbar .seg { font-size: 1.2rem; min-height: 60px; } } /* 6 + 60 + 6 = the 72px of a card */
 .tabsbar .tabcount { display: none; font-size: .78rem; font-weight: 700; min-width: 22px; padding: 1px 7px; border-radius: 11px; text-align: center; background: var(--fill); color: var(--muted); }
 .tabsbar .seg.on .tabcount { background: rgba(255, 255, 255, .3); color: var(--on-accent); }
+/* the favourites tab keeps its star on wide screens (the other icons are hidden) */
+.tabsbar .seg[data-k="fav"] .tabicon { display: inline-flex; opacity: .75; order: 1; } /* after the name */
+@media (max-width: 560px) { .tabsbar .seg[data-k="fav"] .tabicon { display: none; } }
 
 /* ---- small screens: short hand names, one row of controls, icons only in the part bars ---- */
 .seg .sh { display: none; }
@@ -603,3 +605,9 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
   .controls .row.wrap .icon { width: 34px; min-width: 34px; height: 34px; }
   .controls .row.wrap .group > button { padding: 0 6px; min-width: 32px; }
 }
+
+/* the highlight of the chosen tab is a block that slides (see moveBlob in main.ts) */
+.tabsbar .group { position: relative; }
+.tabsbar .tabblob { position: absolute; top: var(--tab-pad); bottom: var(--tab-pad); left: 0; width: 0; border-radius: calc(var(--r-card) - 6px); background: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); z-index: 0; pointer-events: none; }
+.tabsbar .seg { position: relative; z-index: 1; }
+.tabsbar .seg.on { background: transparent; box-shadow: none; }

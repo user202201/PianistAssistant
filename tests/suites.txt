@@ -42,3 +42,4 @@
 41-bottom-bar-small-screen
 42-fingering-patterns
 43-fourhand-small-screen
+44-tab-slide

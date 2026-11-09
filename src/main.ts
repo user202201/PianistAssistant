@@ -791,11 +791,50 @@ async function renderHome() {
       tab = k;
       setHomeTab(k);
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
+      moveBlob(true);
       renderList();
       listBox.scrollTop = 0;
     } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, h("span", { class: "tl-full" }, label), h("span", { class: "tl-short" }, TAB_SHORT[k])), h("span", { class: "tabcount" })),
   );
-  const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
+  // the highlight of the chosen tab is a separate block that slides over to the new tab: first stretched across both (like a drop of water
+  // being pulled), then it settles with a little bounce. (Reduced-motion setting: it just jumps.)
+  const tabBlob = h("span", { class: "tabblob" });
+  const tabGroup = h("div", { class: "group wide" }, tabBlob, ...tabBtns);
+  const tabsBar = h("div", { class: "tabsbar" }, tabGroup);
+  const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  function moveBlob(animate: boolean) {
+    const on = tabBtns.find((b) => b.classList.contains("on"));
+    if (!on || !on.offsetWidth) return;
+    const L1 = on.offsetLeft, W1 = on.offsetWidth;
+    const L0 = parseFloat(tabBlob.style.left) || L1, W0 = parseFloat(tabBlob.style.width) || W1;
+    tabBlob.style.left = `${L1}px`;
+    tabBlob.style.width = `${W1}px`;
+    if (!animate || reducedMotion() || !tabBlob.animate || (Math.abs(L0 - L1) < 1 && Math.abs(W0 - W1) < 1)) return;
+    const Ls = Math.min(L0, L1), Ws = Math.max(L0 + W0, L1 + W1) - Ls; // stretched over the old and the new tab
+    tabBlob.getAnimations().forEach((a) => a.cancel());
+    // jelly: after the slide the front edge overshoots a little (at most ~12 px), the back edge follows less, then they wobble back and forth
+    // with less and less, and rest. (Restrained on purpose: it should feel like a real object, not like a show.)
+    const dir = L1 >= L0 ? 1 : -1;
+    const R1 = L1 + W1;
+    const o = Math.min(12, Math.max(4, Math.abs(L1 - L0) * 0.04));
+    const wobble = (lead: number, trail: number) => {
+      const front = dir * lead * o, back = dir * trail * o;
+      const left = dir > 0 ? L1 + back : L1 + front, right = dir > 0 ? R1 + front : R1 + back;
+      return { left: `${left}px`, width: `${right - left}px` };
+    };
+    tabBlob.animate(
+      [
+        { left: `${L0}px`, width: `${W0}px`, easing: "cubic-bezier(.3, 0, .2, 1)" },
+        { left: `${Ls}px`, width: `${Ws}px`, offset: 0.3, easing: "cubic-bezier(.3, 0, .3, 1)" },
+        { ...wobble(1, 0.4), offset: 0.52, easing: "ease-in-out" },
+        { ...wobble(-0.45, -0.15), offset: 0.68, easing: "ease-in-out" },
+        { ...wobble(0.2, 0.08), offset: 0.83, easing: "ease-in-out" },
+        { left: `${L1}px`, width: `${W1}px` },
+      ],
+      { duration: 640 },
+    );
+  }
+  new ResizeObserver(() => moveBlob(false)).observe(tabGroup); // (first display, window size, language)
 
   // favourites: a star on every card; kept on the device and synced through the scores repository
   let favs = new Set(getFavs());
