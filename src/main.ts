@@ -57,6 +57,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
   for (const [k, v] of Object.entries(props)) {
     if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v as EventListener);
     else if (k === "class") el.className = String(v);
+    else if ((k.startsWith("data-") || k.startsWith("aria-")) && v !== undefined && v !== false) el.setAttribute(k, String(v));
     else if (v !== undefined && v !== false) (el as unknown as Record<string, unknown>)[k] = v;
   }
   for (const k of kids) if (k) el.append(k);
@@ -618,14 +619,25 @@ async function renderHome() {
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
       renderList();
       listBox.scrollTop = 0;
-    } }, ...(k === "fav" ? [h("span", { class: "tabstar" }, ic("star", 16)), label] : [label])),
+    } }, ...(k === "fav" ? [label, h("span", { class: "tabstar" }, ic("star", 18))] : [label])),
   );
   const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
 
   // favourites: a star on every card; kept on the device and synced through the scores repository
   let favs = new Set(getFavs());
-  let favDirty = false;
+  let favDirty = false; // a change of ours is not on the server yet
   let favTimer = 0;
+  let favVersion = 0;
+  let favWroteAt = 0;
+  /** save soon (several taps in a row make one write); the newest write decides when we are "clean" again */
+  const saveFavsSoon = () => {
+    favDirty = true;
+    const mine = ++favVersion;
+    clearTimeout(favTimer);
+    favTimer = window.setTimeout(() => {
+      api.writeFavs([...favs]).then(() => { favWroteAt = Date.now(); if (mine === favVersion) favDirty = false; }).catch(() => toast("保存失败"));
+    }, 600);
+  };
   const favKey = { score: (n: string) => `s:${n}`, pair: (p: { a: string; b: string }) => `p:${p.a}|${p.b}`, pdf: (n: string) => `f:${n}` };
   const starState = (b: Element, k: string) => {
     b.classList.toggle("on", favs.has(k));
@@ -634,11 +646,9 @@ async function renderHome() {
   const toggleFav = (k: string) => {
     if (favs.has(k)) favs.delete(k); else favs.add(k);
     setFavs([...favs]);
-    favDirty = true;
     document.querySelectorAll(".star[data-k]").forEach((b) => { if (b.getAttribute("data-k") === k) starState(b, k); });
     if (tab === "fav") renderList();
-    clearTimeout(favTimer);
-    favTimer = window.setTimeout(() => { api.writeFavs([...favs]).then(() => { favDirty = false; }).catch(() => toast("保存失败")); }, 600);
+    saveFavsSoon();
   };
   /** an item was renamed / re-paired: its favourite mark moves with it */
   const moveFav = (from: string, to: string) => {
@@ -646,9 +656,7 @@ async function renderHome() {
     favs.delete(from);
     favs.add(to);
     setFavs([...favs]);
-    favDirty = true;
-    clearTimeout(favTimer);
-    favTimer = window.setTimeout(() => { api.writeFavs([...favs]).then(() => { favDirty = false; }).catch(() => toast("保存失败")); }, 600);
+    saveFavsSoon();
   };
   const starBtn = (k: string) => {
     const b = h("button", { class: "star", "data-k": k, onclick: () => toggleFav(k) }, ic("star", 20));
@@ -969,7 +977,7 @@ async function renderHome() {
       allScores = scores.map((x) => x.name);
       // four-hand pairs (a record whose file was deleted elsewhere is ignored)
       pairs = (await api.readPairs().catch(() => pairs)).filter((p) => names.has(p.a) && names.has(p.b));
-      if (!favDirty) { const rf = await api.readFavs(); if (rf) { favs = new Set(rf); setFavs(rf); } } // favourites follow you between devices
+      if (!favDirty && Date.now() - favWroteAt > 20000) { const rf = await api.readFavs(); if (rf) { favs = new Set(rf); setFavs(rf); } } // favourites follow you between devices
       if (token !== renderSeq) return;
       const inPair = new Set(pairs.flatMap((p) => [p.a, p.b]));
       // every score stays in the list (each part can be practised alone); a combined piece is an extra card
@@ -982,6 +990,7 @@ async function renderHome() {
         if (kept.length !== favs.size) {
           favs = new Set(kept);
           setFavs(kept);
+          favWroteAt = Date.now();
           void api.writeFavs(kept).catch(() => {});
         }
       }

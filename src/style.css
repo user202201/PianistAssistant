@@ -395,5 +395,5 @@ select option, select optgroup { background: var(--surface); color: var(--text);
 
 /* the favourites tab carries a filled yellow star */
 .tabsbar .seg { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-.tabstar { display: inline-flex; color: #ff9f0a; }
-.tabstar svg { fill: currentColor; }
+.tabstar { display: inline-flex; opacity: .75; }
+.tabstar svg { fill: none; }
