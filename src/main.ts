@@ -9,12 +9,12 @@ import { Player } from "./player";
 import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
-import odePrimo from "./samples/Ode_Primo.musicxml?raw";
-import odeSecondo from "./samples/Ode_Secondo.musicxml?raw";
+import { setLang } from "./i18n";
 import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
+setLang(settings.lang); // texts are translated as they appear on screen
 settings.volume = 1; // loudness is the iPad's own volume; the app always plays at full level
 
 /** light / dark: the system decides unless the user picked one */
@@ -43,6 +43,7 @@ function armMarquee() {
   });
 }
 window.addEventListener("resize", () => armMarquee());
+window.addEventListener("pianist-lang", () => armMarquee());
 
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -204,6 +205,16 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       themeBtns.forEach((b, i) => b.classList.toggle("on", (["system", "light", "dark"] as const)[i] === t));
     } }, t === "system" ? "跟随系统" : t === "light" ? "浅色" : "深色"),
   );
+  const langs = [["auto", "跟随系统"], ["zh", "中文"], ["en", "English"], ["fr", "Français"]] as const;
+  const langBtns = langs.map(([code, label]) =>
+    h("button", { class: "seg" + (settings.lang === code ? " on" : ""), onclick: () => {
+      settings.lang = code;
+      saveSettings(settings);
+      setLang(code);
+      langBtns.forEach((b, i) => b.classList.toggle("on", langs[i][0] === code));
+      dispatchEvent(new Event("pianist-lang")); // re-measure anything whose text got longer / shorter
+    } }, label),
+  );
   const a = api.getAuth();
   dlg.append(
     // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
@@ -212,13 +223,13 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("label", {}, "钢琴音色", sound),
     h("h3", {}, "外观"),
     h("div", { class: "group wide" }, ...themeBtns),
+    h("h3", {}, "语言 / Language"),
+    h("div", { class: "group wide" }, ...langBtns),
     h("h3", {}, "乐谱显示"),
     h("label", {}, "画面怎么跟着播放走", scrollSelect),
     h("label", { class: "inline" }, "高亮正在弹的这一行", hlBox),
     h("label", { class: "inline" }, "提前显示下一行（浮在下方，翻页后消失）", peekBox),
     ...(onLayout ? [h("label", { class: "inline" }, "多声部（四手联弹）分屏显示", splitBox)] : []),
-    h("h3", {}, "示例"),
-    h("button", { class: "rowbtn", id: "add-samples", onclick: () => { dlg.close(); void addSamples(); } }, ic("note", 20), "添加示例乐谱（欢乐颂，含四手联弹）"),
     h("h3", {}, "应用"),
     h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
     h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
@@ -423,24 +434,6 @@ function openPairDialog(opts: {
     document.body.append(dlg);
     dlg.showModal();
   });
-}
-
-/** Built-in test pieces: "Ode to Joy" as two four-hand parts (already paired) so the four-hand mode can be tried at once. */
-async function addSamples() {
-  const a = "欢乐颂示例 Primo.musicxml";
-  const b = "欢乐颂示例 Secondo.musicxml";
-  try {
-    toast("正在添加示例乐谱…", 6000);
-    await api.putScoreText(a, odePrimo, "Add sample: Ode to Joy (Primo)");
-    await api.putScoreText(b, odeSecondo, "Add sample: Ode to Joy (Secondo)");
-    const ps = await api.readPairs();
-    if (!ps.some((p) => p.a === a && p.b === b)) await api.writePairs([...ps, { name: "欢乐颂（四手联弹示例）", a, b }]);
-    toast("已添加示例：欢乐颂（四手联弹）", 5000);
-    refreshHome?.();
-  } catch (e) {
-    if (e instanceof api.AuthExpired) return renderLogin(e.message);
-    showError("添加示例失败", e);
-  }
 }
 
 /** A failure the user can read, with what to try, and copy to send to someone. */
@@ -862,9 +855,7 @@ async function renderHome() {
         ...(scores.length
           ? []
           : [
-              "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。也可以先 ",
-              h("button", { class: "linkbtn", onclick: () => void addSamples() }, "添加示例乐谱"),
-              " 试一试，里面有四手联弹。",
+              "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。",
             ]),
       );
       // "these two look like the two parts of one piece" (only a suggestion, never merged automatically)
@@ -901,7 +892,7 @@ async function renderHome() {
           return names.has(k) ? card(k) : null;
         })
         .filter((x): x is HTMLDivElement => !!x)
-        .slice(0, 3); // only the last three
+        .slice(0, 4); // only the last four
       recent.replaceChildren(...rec);
       recentSec.hidden = rec.length === 0;
       allFold.count.textContent = `${items.length}`;
@@ -1299,7 +1290,7 @@ function buildControls(
   }
 
   /** Controls of one player (part): name = sound on/off, right hand, left hand. Used under each screen in split view. */
-  interface PartUi { g: number; group: HTMLElement; snd: HTMLElement; r: HTMLElement; l: HTMLElement }
+  interface PartUi { g: number; group: HTMLElement; snd: HTMLElement; b: HTMLElement; r: HTMLElement; l: HTMLElement }
   const partUi: PartUi[] = [];
   function partControls(g: number): HTMLElement {
     const multi = score.parts.length > 1;
@@ -1309,17 +1300,17 @@ function buildControls(
       if (!player.partOn.some(Boolean)) player.partOn[g] = true; // keep at least one part audible
       sync();
     } }, label);
-    const hand = (key: "right" | "left", text: string) => h("button", { class: "seg", onclick: () => {
-      const hs = player.partHands[g];
-      hs[key] = !hs[key];
-      if (!hs.right && !hs.left) hs[key === "right" ? "left" : "right"] = true; // a part always plays at least one hand
+    // same as for a single score: both hands / right only / left only (one choice, not two switches)
+    const hand = (r: boolean, l: boolean, text: string) => h("button", { class: "seg", onclick: () => {
+      player.partHands[g] = { right: r, left: l };
       sync();
     } }, text);
-    const r = hand("right", "右手");
-    const l = hand("left", "左手");
+    const b = hand(true, true, "双手");
+    const r = hand(true, false, "右手");
+    const l = hand(false, true, "左手");
     const two = score.staffCounts[g] >= 2;
-    const group = h("div", { class: "group pgroup" }, snd, ...(two ? [r, l] : []));
-    partUi.push({ g, group, snd, r, l });
+    const group = h("div", { class: "group pgroup" }, snd, ...(two ? [b, r, l] : []));
+    partUi.push({ g, group, snd, b, r, l });
     return group;
   }
 
@@ -1631,8 +1622,10 @@ function buildControls(
     for (const [k, b] of Object.entries(handBtns)) b.classList.toggle("on", k === mode);
     partUi.forEach((u) => {
       u.snd.classList.toggle("on", player.partOn[u.g]);
-      u.r.classList.toggle("on", player.partHands[u.g].right);
-      u.l.classList.toggle("on", player.partHands[u.g].left);
+      const ph = player.partHands[u.g];
+      u.b.classList.toggle("on", ph.right && ph.left);
+      u.r.classList.toggle("on", ph.right && !ph.left);
+      u.l.classList.toggle("on", ph.left && !ph.right);
       u.group.classList.toggle("muted", !player.partOn[u.g]);
     });
     if (player.playing) void keepAwake(); else releaseWake();
@@ -1661,16 +1654,23 @@ function buildControls(
   disposePlayer = () => {
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("resize", onResizeBar);
     prevDispose?.();
   };
 
   // split view: the bar can shrink to play / pause (+ a button that brings everything back)
   const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" });
+  // on a wide screen everything fits in one row, so there is nothing to fold away
+  const narrow = () => window.innerWidth < 820;
   const refreshMore = () => {
-    const min = split && settings.splitControlsMin;
+    const min = split && narrow() && settings.splitControlsMin;
     bar.classList.toggle("min", min);
+    bar.classList.toggle("splitwide", split && !narrow());
+    moreBtn.hidden = !(split && narrow());
     moreBtn.replaceChildren(ic(min ? "chevron-up" : "chevron-down", 18), min ? "更多" : "收起");
   };
+  const onResizeBar = () => refreshMore();
+  window.addEventListener("resize", onResizeBar);
   moreBtn.addEventListener("click", () => {
     settings.splitControlsMin = !settings.splitControlsMin;
     saveSettings(settings);

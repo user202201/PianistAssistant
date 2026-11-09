@@ -370,3 +370,11 @@ select option, select optgroup { background: var(--surface); color: var(--text);
 .fold.closed .foldbody { display: none; }
 .foldcount { font-weight: 500; font-size: .8rem; background: var(--fill, rgba(120, 120, 128, .18)); border-radius: 999px; padding: 0 8px; }
 .foldbody.scroll { max-height: min(50vh, 460px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 2px 4px 8px 2px; }
+
+/* split screen on a wide screen: the whole bar in one row (no "more" button) */
+.controls.splitwide { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
+.controls.splitwide .mainrow { flex: 1 1 auto; min-width: 0; }
+.controls.splitwide > .row.wrap { flex: 0 0 auto; }
+.controls.splitwide .morebtn { display: none; }
+/* home: the scrollbar sits at the screen edge, the content stays centred */
+.home { max-width: none; padding-left: max(20px, calc((100% - 1040px) / 2)); padding-right: max(20px, calc((100% - 1040px) / 2)); }
