@@ -11,6 +11,15 @@ export interface NoteEvent {
   staff: number;
   /** cursor step index this note starts on */
   step: number;
+  /** source measure index and onset inside it (whole notes): lets MusicXML info be mapped to this note */
+  measure: number;
+  onset: number;
+  /** seconds per whole note at this point (for pedal / articulation lengths) */
+  spw: number;
+  /** MIDI velocity (0-127), shaped by dynamics / articulation by applyExpression */
+  vel: number;
+  /** length as written, before articulation / pedal */
+  dur0: number;
 }
 
 export interface StepInfo {
@@ -30,6 +39,8 @@ export interface ParsedScore {
   measureCount: number;
   /** time signature of the first measure (for the metronome) */
   timeSig: { num: number; den: number };
+  /** what applyExpression found in the MusicXML */
+  expression?: { dynamics: number; articulations: number; pedals: number; wedges: number };
 }
 
 /** Turn uploaded bytes (.mxl zip or plain XML) into MusicXML text. */
@@ -64,16 +75,18 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
   const it: any = cursor.Iterator;
   const defaultBpm: number = sheet.DefaultStartTempoInBpm > 0 ? sheet.DefaultStartTempoInBpm : 100;
 
-  const parts: string[] = sheet.Instruments.map(
+  const rawNames: string[] = sheet.Instruments.map(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (i: any, idx: number) => i.Name || `Part ${idx + 1}`,
+    (i: any, idx: number) => (i.Name || "").trim() || `声部 ${idx + 1}`,
   );
+  // four-hand scores often name both parts "Piano": number them so the buttons can be told apart
+  const parts: string[] = rawNames.map((nm, i) => (rawNames.filter((x) => x === nm).length > 1 ? `${nm} ${rawNames.slice(0, i + 1).filter((x) => x === nm).length}` : nm));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const staffCounts: number[] = sheet.Instruments.map((i: any) => i.Staves.length);
 
   interface Raw { beat: number; bpm: number; measure: number }
   const raws: Raw[] = [];
-  interface RawNote { beat: number; lenBeats: number; midi: number; part: number; staff: number; step: number }
+  interface RawNote { beat: number; lenBeats: number; midi: number; part: number; staff: number; step: number; measure: number; rel: number }
   const notes: RawNote[] = [];
 
   // NOTE: iterator.currentTimeStamp is *source* time: it jumps back when a repeat is taken.
@@ -114,7 +127,7 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           for (const tn of tie.Notes as any[]) len += tn.Length.RealValue;
         }
-        notes.push({ beat, lenBeats: len * 4, midi: n.halfTone + 12, part, staff, step });
+        notes.push({ beat, lenBeats: len * 4, midi: n.halfTone + 12, part, staff, step, measure, rel: (ts - mAbs) / 4 });
       }
     }
     cursor.next();
@@ -147,6 +160,11 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
       part: n.part,
       staff: n.staff,
       step: n.step,
+      measure: n.measure,
+      onset: n.rel,
+      spw: 240 / raws[n.step].bpm,
+      vel: 80,
+      dur0: Math.max(0.05, beatToSec(n.beat + n.lenBeats) - s),
     };
   });
   const duration = Math.max(

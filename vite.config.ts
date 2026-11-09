@@ -2,11 +2,12 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  define: { __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")) },
   // GitHub Pages project site: https://<user>.github.io/PianistAssistant/
   base: process.env.BASE_PATH ?? "/PianistAssistant/",
   plugins: [
     VitePWA({
-      registerType: "autoUpdate",
+      registerType: "prompt", // the app decides when it is safe to reload (not while playing / editing)
       manifest: {
         name: "Pianist Assistant",
         short_name: "Pianist",

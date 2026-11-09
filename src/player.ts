@@ -22,6 +22,8 @@ export class Player {
   partOn: boolean[];
   handOn = { right: true, left: true };
   metronome = false;
+  /** follow dynamics / articulation / pedal from the score (off = every note at the same strength) */
+  expressive = true;
   countIn = false;
   volume = 0.8;
   /** loop between measures (0-based, inclusive) */
@@ -207,8 +209,8 @@ export class Player {
       this.inst.start({
         note: e.midi,
         time: Math.max(at(e.sec), now),
-        duration: e.dur / this.speed,
-        velocity: 80,
+        duration: (this.expressive ? e.dur : e.dur0) / this.speed,
+        velocity: this.expressive ? e.vel : 80,
       });
     }
     // metronome

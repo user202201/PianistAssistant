@@ -122,31 +122,42 @@ export class FingerTools {
       }),
     );
     const show = this.visible || this.editing;
+    // chord notes share one stacked badge (like printed fingering) instead of overlapping each other
+    const groups = new Map<string, Spot[]>();
     for (const s of this.spots) {
-      const idx = s.note.idx;
-      let text: string | null = null;
-      let cls = "";
-      if (!show) {
-        text = null;
-      } else if (this.pending.has(idx)) {
-        const v = this.pending.get(idx);
-        text = v === null || v === undefined ? "✕" : String(v);
-        cls = "pend";
-      } else if (this.showAuto && s.note.fingering === null && this.auto.has(idx)) {
-        text = String(this.auto.get(idx));
-        cls = "auto";
-      }
-      if (text !== null) {
+      const g = `${s.note.part}|${s.note.staff}|${s.note.measure}|${Math.round(s.note.onset * 3840)}`;
+      (groups.get(g) ?? groups.set(g, []).get(g)!).push(s);
+    }
+    if (show) {
+      for (const members of groups.values()) {
+        const lines: { text: string; pend: boolean }[] = [];
+        members.sort((a, b) => b.note.midi - a.note.midi); // highest note first
+        for (const m of members) {
+          const idx = m.note.idx;
+          if (this.pending.has(idx)) {
+            const v = this.pending.get(idx);
+            lines.push({ text: v === null || v === undefined ? "✕" : String(v), pend: true });
+          } else if (this.showAuto && m.note.fingering === null && this.auto.has(idx)) {
+            lines.push({ text: String(this.auto.get(idx)), pend: false });
+          } else lines.push({ text: "·", pend: false }); // placeholder keeps the stack aligned
+        }
+        if (lines.every((l) => l.text === "·")) continue;
+        const hand = members[0].note.hand;
+        const x = members.reduce((acc, m) => acc + m.x, 0) / members.length;
+        const top = Math.min(...members.map((m) => m.y));
+        const bottom = Math.max(...members.map((m) => m.y));
         const b = document.createElement("div");
-        b.className = `fbadge ${cls}`;
-        b.textContent = text;
-        b.style.left = `${s.x}px`;
-        b.style.top = `${s.y + (s.note.hand === "R" ? -34 : 20)}px`;
+        b.className = `fbadge ${lines.some((l) => l.pend) ? "pend" : "auto"}`;
+        b.textContent = lines.map((l) => l.text).join("\n");
+        b.style.left = `${x}px`;
+        b.style.top = `${hand === "R" ? top - 12 - 20 * lines.length : bottom + 12}px`;
         this.layer.append(b);
       }
-      if (this.editing) {
+    }
+    if (this.editing) {
+      for (const s of this.spots) {
         const ring = document.createElement("div");
-        ring.className = "fhit" + (idx === this.selected ? " sel" : "");
+        ring.className = "fhit" + (s.note.idx === this.selected ? " sel" : "");
         ring.style.left = `${s.x}px`;
         ring.style.top = `${s.y}px`;
         this.layer.append(ring);

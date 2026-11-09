@@ -3,12 +3,13 @@ export interface Settings {
   volume: number; // 0..1
   zoom: number; // score zoom
   fingers: boolean; // show fingering (master switch)
+  expressive: boolean; // play dynamics / articulation / pedal from the score
 }
 const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true });
+const defaults = (): Settings => ({ sound: "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true });
 
 export function loadSettings(): Settings {
   try {

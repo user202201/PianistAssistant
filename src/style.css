@@ -73,7 +73,7 @@ label.inline { flex-direction: row; display: inline-flex; align-items: center; g
 /* ---------- fingering ---------- */
 .score { position: relative; }
 .flayer { position: absolute; inset: 0; pointer-events: none; }
-.fbadge { position: absolute; transform: translateX(-50%); min-width: 20px; height: 22px; line-height: 22px; text-align: center;
+.fbadge { position: absolute; transform: translateX(-50%); min-width: 20px; white-space: pre; line-height: 20px; text-align: center;
   font: italic 700 16px/22px system-ui, sans-serif; border-radius: 6px; padding: 0 3px; }
 .fbadge.auto { color: #2563eb; background: #fffffff0; }
 .fbadge.pend { color: #fff; background: #ea580c; font-style: normal; }
@@ -133,3 +133,6 @@ button.danger { background: #7f1d1d; border-color: #b91c1c; }
 .card.stalled { border-color: #d97706; }
 .newtag { display: inline-block; background: var(--accent); color: #052e16; font-size: .72rem; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-right: 8px; vertical-align: 1px; }
 .grid.wide { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+
+.updatebar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 130px); z-index: 60; display: flex; gap: 12px; align-items: center;
+  background: #172554; border: 1px solid #2563eb; border-radius: 12px; padding: 10px 14px; box-shadow: 0 6px 24px #0008; max-width: 92vw; }

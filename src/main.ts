@@ -5,6 +5,7 @@ import * as api from "./api";
 import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { FingerTools } from "./fingerui";
 import { Player } from "./player";
+import { applyExpression } from "./expression";
 import { extractScore, toMusicXml } from "./score";
 import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
 
@@ -137,6 +138,13 @@ function openSettings(onSound?: () => void) {
     h("h2", {}, "设置"),
     h("label", {}, "钢琴音色", sound),
     h("label", {}, "音量", vol),
+    h("h3", {}, "应用版本"),
+    h(
+      "div",
+      { class: "row wrap" },
+      h("span", { class: "muted" }, `版本 ${__BUILD__}`),
+      h("button", { id: "check-update", onclick: () => void checkUpdate() }, "检查更新"),
+    ),
     h("h3", {}, "登录与设备"),
     h(
       "p",
@@ -307,6 +315,7 @@ async function renderHome() {
       { class: "top" },
       h("h1", {}, "🎹 我的琴谱"),
       h("div", { class: "grow" }),
+      h("button", { title: "刷新列表并检查更新", onclick: () => { void load(); void checkUpdate(true); } }, "↻"),
       h("button", { class: "primary", onclick: () => file.click() }, "＋ 上传琴谱"),
       h("button", { onclick: () => openSettings(), title: "设置" }, "⚙"),
     ),
@@ -429,16 +438,27 @@ async function renderHome() {
     }
   }
   load();
+  // coming back to the app (iPad: from another app / after sleep) -> refresh without a manual reload
+  homeVis = () => {
+    if (!document.hidden) { void load(); void checkUpdate(true); }
+  };
+  document.addEventListener("visibilitychange", homeVis);
 }
 
 // ---------- player ----------
 let disposePlayer: (() => void) | null = null;
+/** true while an update must not reload the page (playing, editing, unsaved fingering) */
+let busyCheck: () => boolean = () => false;
 let homeTimer = 0;
+let homeVis: (() => void) | null = null;
 /** queued PDFs the server has not listed yet, and which ones were converting at the last check */
 const optimistic = new Map<string, number>();
 let prevPending = new Set<string>();
 function cleanup() {
   clearTimeout(homeTimer);
+  if (homeVis) document.removeEventListener("visibilitychange", homeVis);
+  homeVis = null;
+  busyCheck = () => false;
   disposePlayer?.();
   disposePlayer = null;
 }
@@ -489,11 +509,14 @@ async function renderPlayer(name: string) {
     tools.refresh();
     leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
     const score = extractScore(osmd, displayName(name));
+    applyExpression(score, xml);
     const inst = await getInstrument(settings.sound, (s) => (status.textContent = s));
     player = new Player(osmd, score, audioCtx(), inst);
     player.volume = settings.volume;
+    player.expressive = settings.expressive;
     pushRecent(name);
     clearNew(name);
+    busyCheck = () => player.playing || tools.editing || tools.dirty;
 
     // expose for tests / debugging
     (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools };
@@ -567,6 +590,18 @@ function buildControls(
   );
 
   // practice panel
+  const cbExpr = h("input", { type: "checkbox", checked: settings.expressive });
+  cbExpr.addEventListener("change", () => {
+    settings.expressive = cbExpr.checked;
+    saveSettings(settings);
+    player.expressive = cbExpr.checked;
+  });
+  const ex = score.expression;
+  const exprNote = ex
+    ? ex.dynamics + ex.wedges + ex.articulations + ex.pedals === 0
+      ? "这份谱子没有力度/踏板记号（从 PDF 转换时常会丢失），按强弱拍和旋律层次演奏。"
+      : `乐谱里的表情记号：力度 ${ex.dynamics} 个、渐强渐弱 ${ex.wedges} 处、断奏/重音等 ${ex.articulations} 个、踏板 ${ex.pedals} 处。`
+    : "";
   const cbCount = h("input", { type: "checkbox" });
   const cbMetro = h("input", { type: "checkbox" });
   const cbLoop = h("input", { type: "checkbox" });
@@ -589,6 +624,8 @@ function buildControls(
   const panel = h(
     "div",
     { class: "panel", hidden: true },
+    h("label", { class: "inline" }, cbExpr, "按乐谱表情演奏（力度、断奏、踏板）"),
+    h("p", { class: "muted small" }, exprNote),
     h("label", { class: "inline" }, cbCount, "开始前倒数一小节"),
     h("label", { class: "inline" }, cbMetro, "节拍器"),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbLoop, "循环小节"), from, "到", to, useCurrent),
@@ -779,6 +816,69 @@ function route() {
 window.addEventListener("hashchange", route);
 route();
 
+// ---------- app updates (an installed iPad app has no reload button) ----------
+let updateReady = false;
+let applyUpdate: (() => void) | null = null;
+let swReg: ServiceWorkerRegistration | null = null;
+let updateBanner: HTMLElement | null = null;
+
+function showUpdateBanner() {
+  if (updateBanner) return;
+  updateBanner = h("div", { class: "updatebar" }, h("span", {}, "新版本已就绪，播放/编辑结束后会自动更新"), h("button", { class: "primary", onclick: () => applyUpdate?.() }, "立即更新"));
+  document.body.append(updateBanner);
+}
+function tryApplyUpdate() {
+  if (!updateReady || !applyUpdate) return;
+  if (busyCheck()) showUpdateBanner();
+  else applyUpdate();
+}
+/** @param quiet no toast when already up to date (used by automatic checks) */
+async function checkUpdate(quiet = false) {
+  if (!swReg) {
+    if (!quiet) toast("当前环境不支持自动更新，请手动刷新页面");
+    return;
+  }
+  try {
+    await swReg.update();
+  } catch {
+    if (!quiet) toast("检查更新失败，请检查网络");
+    return;
+  }
+  if (updateReady) tryApplyUpdate();
+  else if (!quiet) toast("已是最新版本");
+}
+
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  import("virtual:pwa-register").then(({ registerSW }) => registerSW({ immediate: true })).catch(() => {});
+  import("virtual:pwa-register")
+    .then(({ registerSW }) => {
+      const updateSW = registerSW({
+        immediate: true,
+        onNeedRefresh() {
+          updateReady = true;
+          tryApplyUpdate();
+        },
+        onRegisteredSW(_url, reg) {
+          swReg = reg ?? null;
+          // First visit: the page is not controlled yet, so a new worker activates immediately
+          // and never reports "waiting". Treat that activation as "a new version is ready" too.
+          reg?.addEventListener("updatefound", () => {
+            const w = reg.installing;
+            w?.addEventListener("statechange", () => {
+              if (w.state === "activated" && !navigator.serviceWorker.controller) {
+                updateReady = true;
+                applyUpdate = () => location.reload();
+                tryApplyUpdate();
+              }
+            });
+          });
+        },
+      });
+      applyUpdate = () => void updateSW(true);
+      setInterval(() => void checkUpdate(true), 60_000); // look for a new version every minute
+      setInterval(tryApplyUpdate, 5_000); // apply it as soon as nothing is playing / being edited
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) void checkUpdate(true);
+      });
+    })
+    .catch(() => {});
 }
