@@ -86,6 +86,15 @@ fi
 echo "Audiveris: $AUD" | tee -a "$LOG"
 td=$(find /usr/share -name eng.traineddata 2>/dev/null | head -1)
 [ -n "$td" ] && export TESSDATA_PREFIX="$(dirname "$td")"
+# Ubuntu's English model cannot be loaded by Audiveris ("Could not initialize TessBaseAPI ... legacy mode"), so titles, tempo marks and
+# other text were lost. The full model from the Tesseract project works (measured in the OCR lab, .github/workflows/ocr-lab.yml).
+mkdir -p /tmp/tessdata-full
+if curl -fsSL --retry 3 -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata && [ "$(wc -c < /tmp/tessdata-full/eng.traineddata)" -gt 1000000 ]; then
+  export TESSDATA_PREFIX=/tmp/tessdata-full
+  echo "using the full English text model" >> "$LOG"
+else
+  echo "could not download the full English text model, using the system one" >> "$LOG"
+fi
 export JAVA_TOOL_OPTIONS="-Djava.awt.headless=true"
 echo "TESSDATA_PREFIX=${TESSDATA_PREFIX:-unset}" >> "$LOG"
 
