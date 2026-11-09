@@ -25,6 +25,25 @@ function applyTheme() {
 applyTheme();
 
 // ---------- tiny helpers ----------
+/** a one-line text that glides back and forth when it is too long for its box (armed by armMarquee once it is on screen) */
+function marquee(text: string): HTMLElement {
+  return h("span", { class: "mq", title: text }, h("span", { class: "mqi" }, text));
+}
+function armMarquee() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll<HTMLElement>(".mq").forEach((m) => {
+      const i = m.firstElementChild as HTMLElement;
+      const over = i.scrollWidth - m.clientWidth;
+      if (over > 2 && m.clientWidth > 0) {
+        m.style.setProperty("--d", `-${over + 6}px`);
+        m.style.setProperty("--t", `${Math.max(4, (over / 28) * 1).toFixed(1)}s`);
+        m.classList.add("glide");
+      } else m.classList.remove("glide");
+    });
+  });
+}
+window.addEventListener("resize", () => armMarquee());
+
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   props: Record<string, unknown> = {},
@@ -578,11 +597,10 @@ async function renderHome() {
     },
   });
   const pairCard = (p: api.Pair) => {
-    const [la, lb] = pairLabels(p.a, p.b);
     return h(
       "div",
       { class: "card pair" },
-      h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", {}, h("div", {}, h("span", { class: "newtag duet" }, "四手"), p.name), h("div", { class: "muted small sub" }, `A · ${la}　B · ${lb}`))),
+      h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, h("span", { class: "newtag duet" }, "四手"), marquee(p.name)))),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
         { label: "重命名…", icon: "pencil", run: async () => {
           const v = await askText("重命名这首四手联弹", p.name, "保存");
@@ -608,8 +626,8 @@ async function renderHome() {
     h(
       "div",
       { class: "card" },
-      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, h("span", {}, h("div", {}, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
-        partOf(name).length ? h("div", { class: "muted small sub" }, partOf(name).map((p) => `${p.a === name ? "A" : "B"} 声部 · 四手联弹「${p.name}」`).join("；")) : null)),
+      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, marquee(displayName(name))),
+        partOf(name).length ? h("div", { class: "muted small sub" }, marquee(partOf(name).map((p) => `${p.a === name ? "A" : "B"} 声部 · 四手联弹「${p.name}」`).join("；"))) : null)),
       withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
           { label: "重命名…", icon: "pencil", run: async () => {
@@ -783,6 +801,7 @@ async function renderHome() {
         .filter((x): x is HTMLDivElement => !!x);
       recent.replaceChildren(...rec);
       recentSec.hidden = rec.length === 0;
+      armMarquee();
     } catch (e) {
       if (e instanceof api.AuthExpired) return renderLogin(e.message);
       status.textContent = (e as Error).message;

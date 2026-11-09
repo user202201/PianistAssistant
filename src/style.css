@@ -323,3 +323,15 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 
 /* preview floating at the top (over the lines already played) */
 .peek.top { border-top: 0; border-bottom: 3px solid var(--accent); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); }
+
+/* long names glide so they can be read in full */
+.card .open { min-width: 0; }
+.card .open > .ttl { flex: 1; min-width: 0; display: block; }
+.trow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.trow .newtag { flex: none; }
+.mq { display: block; min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mqi { display: inline-block; }
+.mq.glide { text-overflow: clip; -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent); }
+.mq.glide .mqi { animation: mqglide var(--t, 6s) ease-in-out 1.2s infinite alternate; }
+@keyframes mqglide { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--d)); } }
+@media (prefers-reduced-motion: reduce) { .mq.glide .mqi { animation: none; } .mq.glide { text-overflow: ellipsis; -webkit-mask-image: none; mask-image: none; } }

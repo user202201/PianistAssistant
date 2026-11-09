@@ -96,11 +96,24 @@ function headers(a: Auth, accept = "application/vnd.github+json"): HeadersInit {
 }
 
 async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Response> {
-  let res: Response;
-  try {
-    res = await fetch(url, init);
-  } catch {
-    throw new ApiError("网络请求失败：连不上 GitHub（网络断了，或被网络拦截）", 0);
+  let res: Response | undefined;
+  const big = typeof init.body === "string" && init.body.length > 1_500_000;
+  let why = "";
+  // a dropped connection (common with big uploads on iPad Wi-Fi / cellular) is retried before giving up
+  for (let i = 0; i < (init.method === "PUT" ? 3 : 2) && !res; i++) {
+    try {
+      res = await fetch(url, init);
+    } catch (e) {
+      why = e instanceof Error ? e.message : String(e);
+      await sleep(900 * (i + 1));
+    }
+  }
+  if (!res) {
+    const size = typeof init.body === "string" ? `（这次上传约 ${(init.body.length * 0.75 / 1048576).toFixed(1)} MB）` : "";
+    throw new ApiError(
+      `网络请求失败（${why || "未知"}）${size}：${big ? "文件较大，上传过程中连接被中断，换个网络或把文件压缩/缩小后再试；" : ""}也可能是网络断了或被拦截。`,
+      0,
+    );
   }
   if (res.status === 401) {
     logout();
@@ -205,6 +218,15 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(bin);
 }
 
+/** reading can fail for files that live only in iCloud / another app and are not downloaded to the device yet */
+async function readFile(file: File): Promise<ArrayBuffer> {
+  try {
+    return await file.arrayBuffer();
+  } catch {
+    throw new Error(`读不到「${file.name}」的内容。如果它在 iCloud 云盘里，请先在“文件”App 里点它让它下载到本机（图标上的云消失），再重新选择上传。`);
+  }
+}
+
 async function put(dir: string, name: string, data: ArrayBuffer, message: string) {
   const a = need();
   const content = toBase64(data);
@@ -274,7 +296,7 @@ export async function uploadScore(file: File, onConflict?: OnConflict): Promise<
       if (choice === "keep")
         name = await freeName(name, async (c) => (await exists(INBOX, c)) || (await exists(SCORES, stemOf(c) + ".musicxml")));
     }
-    await put(INBOX, name, await file.arrayBuffer(), `Queue for conversion: ${name}`);
+    await put(INBOX, name, await readFile(file), `Queue for conversion: ${name}`);
     return { kind: "inbox", name };
   }
 
@@ -286,7 +308,7 @@ export async function uploadScore(file: File, onConflict?: OnConflict): Promise<
   if (!name) throw new Error(`不支持的文件：${file.name}。支持 MusicXML（.musicxml / .xml / .mxl）、PDF 和图片。`);
   let data: ArrayBuffer;
   try {
-    data = await file.arrayBuffer();
+    data = await readFile(file);
   } catch {
     throw new Error(`读不到文件「${file.name}」。如果它在 iCloud 里，请先在“文件”App 里点一下把它下载到本机，再重新选择。`);
   }
