@@ -144,6 +144,7 @@ function openSettings(onSound?: () => void) {
       { class: "row wrap" },
       h("span", { class: "muted" }, `版本 ${__BUILD__}`),
       h("button", { id: "check-update", onclick: () => void checkUpdate() }, "检查更新"),
+      h("button", { id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, "强制刷新（清除缓存）"),
     ),
     h("h3", {}, "登录与设备"),
     h(
@@ -438,6 +439,27 @@ async function renderHome() {
     }
   }
   load();
+  // pull down at the top of the list to refresh (the iPad way)
+  const main = app.querySelector("main.home") as HTMLElement;
+  const ptr = h("div", { class: "ptr" }, "↓ 下拉刷新");
+  main.prepend(ptr);
+  let y0: number | null = null;
+  let dy = 0;
+  main.addEventListener("touchstart", (e) => { y0 = main.scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  main.addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    ptr.style.height = `${Math.min(dy, 90) * 0.6}px`;
+    ptr.textContent = dy > 80 ? "↑ 松开刷新" : "↓ 下拉刷新";
+  }, { passive: true });
+  const endPull = () => {
+    const go = y0 !== null && dy > 80;
+    y0 = null;
+    ptr.style.height = "0px";
+    if (go) { toast("正在刷新…", 1200); void load(); void checkUpdate(true); }
+  };
+  main.addEventListener("touchend", endPull, { passive: true });
+  main.addEventListener("touchcancel", endPull, { passive: true });
   // coming back to the app (iPad: from another app / after sleep) -> refresh without a manual reload
   homeVis = () => {
     if (!document.hidden) { void load(); void checkUpdate(true); }
@@ -477,6 +499,7 @@ async function renderPlayer(name: string) {
       h("h1", {}, displayName(name)),
       h("div", { class: "grow" }),
       status,
+      h("button", { title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
       h("button", { onclick: () => openSettings(() => void applySound()), title: "设置" }, "⚙"),
     ),
     h("div", { class: "scorewrap" }, holder),
@@ -817,6 +840,25 @@ window.addEventListener("hashchange", route);
 route();
 
 // ---------- app updates (an installed iPad app has no reload button) ----------
+/** Forget the offline copy of the app and load the newest one. The login (localStorage) is kept. */
+async function hardRefresh() {
+  try {
+    const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+    await Promise.all(regs.map((r) => r.unregister()));
+  } catch {
+    /* no service worker */
+  }
+  try {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+  } catch {
+    /* no cache storage */
+  }
+  // a changed query string also skips the browser's own HTTP cache for index.html
+  location.replace(`${location.pathname}?r=${Date.now()}${location.hash}`);
+}
+
+
 let updateReady = false;
 let applyUpdate: (() => void) | null = null;
 let swReg: ServiceWorkerRegistration | null = null;

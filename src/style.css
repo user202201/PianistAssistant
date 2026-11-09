@@ -136,3 +136,6 @@ button.danger { background: #7f1d1d; border-color: #b91c1c; }
 
 .updatebar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 130px); z-index: 60; display: flex; gap: 12px; align-items: center;
   background: #172554; border: 1px solid #2563eb; border-radius: 12px; padding: 10px 14px; box-shadow: 0 6px 24px #0008; max-width: 92vw; }
+
+.ptr { height: 0; overflow: hidden; text-align: center; color: var(--muted); font-size: .9rem; transition: height .15s; }
+.home { overscroll-behavior-y: contain; }
