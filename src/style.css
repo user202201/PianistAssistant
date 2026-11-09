@@ -536,10 +536,9 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .pdfwrap:not(.single) { touch-action: pan-x pan-y; }
 
 /* tabs: label only; the favourites tab also shows its star on wide screens; when the labels do not fit, icons only */
-.tabsbar .tabicon { display: none; }
-.tabsbar .seg[data-k="fav"] .tabicon { display: inline-flex; opacity: .75; }
-.tabsbar .seg[data-k="fav"] .tabicon svg { fill: none; }
-@media (max-width: 560px) { .tabsbar .seg[data-k="fav"] .tabicon { display: none; } }
+.tabsbar .tabicon { display: inline-flex; }
+.tabsbar .tabicon svg { fill: none; }
+@media (max-width: 560px) { .tabsbar .tabicon, .tabsbar .tabcount { display: none; } }
 .tabsbar .group.icons .tabicon { display: inline-flex !important; opacity: 1; }
 .tabsbar .group.icons .lbl { display: none; }
 .tabsbar .group.icons .seg { min-width: 0; padding: 0 8px; }
@@ -562,3 +561,11 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 /* tab names: the full name on a wide screen, the short one on a small screen */
 .tabsbar .tl-short { display: none; }
 @media (max-width: 560px) { .tabsbar .tl-full { display: none; } .tabsbar .tl-short { display: inline; } }
+
+/* the tab bar is the main navigation of the home screen: taller, framed, an icon + a number on every tab */
+.tabsbar .group { background: var(--fill-2); border: 1px solid var(--sep); border-radius: 18px; padding: 4px; }
+.tabsbar .seg { min-height: 46px; font-size: 1rem; font-weight: 600; border-radius: 14px; gap: 8px; }
+.tabsbar .seg:not(.on) { color: var(--text); }
+.tabsbar .tabcount { font-size: .78rem; font-weight: 700; min-width: 22px; padding: 1px 7px; border-radius: 11px; text-align: center; background: var(--fill); color: var(--muted); }
+.tabsbar .seg.on .tabcount { background: rgba(255, 255, 255, .3); color: var(--on-accent); }
+.tabsbar .group.icons .tabcount { display: none; }

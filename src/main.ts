@@ -793,7 +793,7 @@ async function renderHome() {
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
       renderList();
       listBox.scrollTop = 0;
-    } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, h("span", { class: "tl-full" }, label), h("span", { class: "tl-short" }, TAB_SHORT[k]))),
+    } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, h("span", { class: "tl-full" }, label), h("span", { class: "tl-short" }, TAB_SHORT[k])), h("span", { class: "tabcount" })),
   );
   const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
 
@@ -821,6 +821,7 @@ async function renderHome() {
     if (favs.has(k)) favs.delete(k); else favs.add(k);
     setFavs([...favs]);
     document.querySelectorAll(".star[data-k]").forEach((b) => { if (b.getAttribute("data-k") === k) starState(b, k); });
+    updateTabCounts();
     if (tab === "fav") renderList();
     saveFavsSoon();
     toast(favs.has(k) ? "已加入收藏" : "已取消收藏", 1500);
@@ -1123,7 +1124,18 @@ async function renderHome() {
     void checkUpdate(true);
   }
   /** fill the list for the chosen tab */
+  /** the number of items behind every tab (a quick overview, and the tab bar is easier to see) */
+  function updateTabCounts() {
+    const all = [...pairs.map((p) => favKey.pair(p)), ...lastScores.map((x) => favKey.score(x.name))];
+    const pdfKeys = lastPdfs.map((x) => favKey.pdf(x.name));
+    const counts: Record<string, number> = { all: all.length, duet: pairs.length, pdf: pdfKeys.length, fav: [...all, ...pdfKeys].filter((k) => favs.has(k)).length };
+    tabBtns.forEach((b, i) => {
+      const c = b.querySelector(".tabcount") as HTMLElement | null;
+      if (c) { c.textContent = String(counts[TABS[i][0]]); c.hidden = counts[TABS[i][0]] === 0; }
+    });
+  }
   function renderList() {
+    updateTabCounts();
     const scoreItems = lastScores.map((x) => ({ key: displayName(x.name), k: favKey.score(x.name), el: () => card(x.name, true) }));
     const pairItems = pairs.map((p) => ({ key: `${p.name}\u0000`, k: favKey.pair(p), el: () => pairCard(p) }));
     const pdfItems = lastPdfs.map((x) => ({ key: x.name, k: favKey.pdf(x.name), el: () => pdfCard(x.name) }));
