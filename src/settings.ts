@@ -106,3 +106,11 @@ export function clearNew(name: string) {
     /* ignore */
   }
 }
+
+export function renameRecent(from: string, to: string) {
+  try {
+    localStorage.setItem(RKEY, JSON.stringify(getRecent().map((n) => (n === from ? to : n))));
+  } catch {
+    /* ignore */
+  }
+}

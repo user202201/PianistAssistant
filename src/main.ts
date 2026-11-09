@@ -4,15 +4,18 @@ import type { Smplr } from "smplr";
 import * as api from "./api";
 import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { icon as ic } from "./icons";
-import { FingerTools } from "./fingerui";
+import { FingerGroup, FingerTools, type FingerApi } from "./fingerui";
 import { Player } from "./player";
 import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
-import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
+import odePrimo from "./samples/Ode_Primo.musicxml?raw";
+import odeSecondo from "./samples/Ode_Secondo.musicxml?raw";
+import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
+settings.volume = 1; // loudness is the iPad's own volume; the app always plays at full level
 
 /** light / dark: the system decides unless the user picked one */
 function applyTheme() {
@@ -136,12 +139,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     saveSettings(settings);
     onSound?.();
   });
-  const vol = h("input", { type: "range", min: "0", max: "1", step: "0.05", value: String(settings.volume) });
-  vol.addEventListener("input", () => {
-    settings.volume = Number(vol.value);
-    saveSettings(settings);
-    onSound?.();
-  });
   const scrollSelect = h(
     "select",
     {},
@@ -187,7 +184,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("h2", { tabIndex: -1, autofocus: true }, "设置"),
     h("h3", {}, "声音"),
     h("label", {}, "钢琴音色", sound),
-    h("label", {}, "音量", vol),
     h("h3", {}, "外观"),
     h("div", { class: "group wide" }, ...themeBtns),
     h("h3", {}, "乐谱显示"),
@@ -195,6 +191,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("label", { class: "inline" }, "高亮正在弹的这一行", hlBox),
     h("label", { class: "inline" }, "提前显示下一行（浮在下方，翻页后消失）", peekBox),
     ...(onLayout ? [h("label", { class: "inline" }, "多声部（四手联弹）分屏显示", splitBox)] : []),
+    h("h3", {}, "示例"),
+    h("button", { class: "rowbtn", id: "add-samples", onclick: () => { dlg.close(); void addSamples(); } }, ic("note", 20), "添加示例乐谱（欢乐颂，含四手联弹）"),
     h("h3", {}, "应用"),
     h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
     h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
@@ -374,6 +372,73 @@ function openPairDialog(opts: {
   });
 }
 
+/** Built-in test pieces: "Ode to Joy" as two four-hand parts (already paired) so the four-hand mode can be tried at once. */
+async function addSamples() {
+  const a = "欢乐颂示例 Primo.musicxml";
+  const b = "欢乐颂示例 Secondo.musicxml";
+  try {
+    toast("正在添加示例乐谱…", 6000);
+    await api.putScoreText(a, odePrimo, "Add sample: Ode to Joy (Primo)");
+    await api.putScoreText(b, odeSecondo, "Add sample: Ode to Joy (Secondo)");
+    const ps = await api.readPairs();
+    if (!ps.some((p) => p.a === a && p.b === b)) await api.writePairs([...ps, { name: "欢乐颂（四手联弹示例）", a, b }]);
+    toast("已添加示例：欢乐颂（四手联弹）", 5000);
+    refreshHome?.();
+  } catch (e) {
+    if (e instanceof api.AuthExpired) return renderLogin(e.message);
+    showError("添加示例失败", e);
+  }
+}
+
+/** A failure the user can read, with what to try, and copy to send to someone. */
+function showError(title: string, e: unknown) {
+  const err = e as Error & { status?: number };
+  const msg = err.message || String(e);
+  const hint =
+    err.status === 403 ? "GitHub 拒绝了请求：可能是令牌没有“Contents: Read and write”权限，或短时间内操作太频繁，等一两分钟再试。"
+    : err.status === 404 ? "找不到仓库或目录：检查令牌是否只授权了正确的私有仓库，以及仓库名有没有改过。"
+    : err.status === 409 || err.status === 422 ? "GitHub 上的文件刚刚被别处改过，已自动重试仍未成功：请刷新后再试一次。"
+    : err.status === 413 ? "文件太大。"
+    : err.status === 0 ? "请检查 iPad 的网络，或公司网络是否拦截了 api.github.com。"
+    : "";
+  const dlg = h(
+    "dialog",
+    { class: "dlg" },
+    h("h2", { tabIndex: -1, autofocus: true }, title),
+    h("pre", { class: "log" }, msg),
+    hint ? h("p", { class: "muted" }, hint) : null,
+    h(
+      "div",
+      { class: "row wrap" },
+      h("button", { onclick: async () => { try { await navigator.clipboard.writeText(`${title}\n${msg}`); toast("已复制"); } catch { toast("复制失败"); } } }, "复制错误信息"),
+      h("div", { class: "grow" }),
+      h("button", { class: "primary", onclick: () => dlg.close() }, "知道了"),
+    ),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
+/** Ask for one line of text (rename). */
+function askText(title: string, value: string, okLabel = "好"): Promise<string | null> {
+  return new Promise((resolve) => {
+    let result: string | null = null;
+    const input = h("input", { type: "text", value });
+    const dlg = h(
+      "dialog",
+      { class: "dlg" },
+      h("h2", { tabIndex: -1, autofocus: true }, title),
+      input,
+      h("div", { class: "row wrap", style: "margin-top:14px" }, h("button", { onclick: () => dlg.close() }, "取消"), h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => { result = input.value.trim() || null; dlg.close(); } }, okLabel)),
+    );
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { result = input.value.trim() || null; dlg.close(); } });
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
 /** Small action sheet of a card. */
 function openCardMenu(title: string, actions: { label: string; icon: string; danger?: boolean; run: () => void }[]) {
   const dlg = h(
@@ -391,6 +456,7 @@ function openCardMenu(title: string, actions: { label: string; icon: string; dan
 // ---------- home ----------
 async function renderHome() {
   cleanup();
+  const token = renderSeq;
   const list = h("div", { class: "grid" });
   const recent = h("div", { class: "grid" });
   const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
@@ -442,7 +508,7 @@ async function renderHome() {
       toast(`保存失败：${(e as Error).message}`);
     }
   };
-  const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,application/pdf,image/*", multiple: true, hidden: true });
+  const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl,.zip,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,application/pdf,image/*,application/zip,application/vnd.recordare.musicxml,application/vnd.recordare.musicxml+xml,text/xml", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
     const stored: string[] = [];
     for (const f of Array.from(file.files ?? [])) {
@@ -461,7 +527,7 @@ async function renderHome() {
         }
       } catch (e) {
         if (e instanceof api.AuthExpired) return renderLogin(e.message);
-        toast((e as Error).message);
+        showError(`上传失败：${f.name}`, e);
       }
     }
     file.value = "";
@@ -498,6 +564,19 @@ async function renderHome() {
     h("main", { class: "home" }, queueSec, suggest, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
   );
 
+  const deleteAction = (label: string, run: () => Promise<void>) => ({
+    label,
+    icon: "trash",
+    danger: true,
+    run: async () => {
+      try {
+        await run();
+        void load();
+      } catch (e) {
+        toast((e as Error).message);
+      }
+    },
+  });
   const pairCard = (p: api.Pair) => {
     const [la, lb] = pairLabels(p.a, p.b);
     return h(
@@ -505,54 +584,54 @@ async function renderHome() {
       { class: "card pair" },
       h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", {}, h("div", {}, h("span", { class: "newtag duet" }, "四手"), p.name), h("div", { class: "muted small sub" }, `A · ${la}　B · ${lb}`))),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
+        { label: "重命名…", icon: "pencil", run: async () => {
+          const v = await askText("重命名这首四手联弹", p.name, "保存");
+          if (v && v !== p.name) void savePairs(pairs.map((q) => (q === p ? { ...q, name: v } : q)));
+        } },
         { label: "交换 A / B 声部", icon: "refresh", run: () => void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q))) },
-        { label: "修改 / 重新关联…", icon: "pencil", run: async () => {
+        { label: "重新选择 A / B 文件…", icon: "note", run: async () => {
           const r = await openPairDialog({ scores: allScores, a: p.a, b: p.b, name: p.name, title: "修改四手联弹", okLabel: "保存" });
           if (r) void savePairs(pairs.map((q) => (q === p ? r : q)));
         } },
         { label: "取消关联（两个文件各自保留）", icon: "x", run: () => void savePairs(pairs.filter((q) => q !== p)) },
-      ]) }, ic("ellipsis", 20)),
-      h("button", { class: "del", title: "删除", onclick: async () => {
-        if (!confirm(`删除这首四手联弹「${p.name}」？两个文件都会被删除。`)) return;
-        try {
+        deleteAction("删除这首四手联弹（两个文件都会删除）", async () => {
+          if (!confirm(`删除四手联弹「${p.name}」？两个文件都会被删除。`)) return;
           await api.writePairs(pairs.filter((q) => q !== p));
           await api.deleteScore(p.a);
           await api.deleteScore(p.b);
-          void load();
-        } catch (e) {
-          toast((e as Error).message);
-        }
-      } }, ic("trash", 20)),
+        }),
+      ]) }, ic("chevron-down", 20)),
     );
   };
-  const card = (name: string, del = false) =>
+  const card = (name: string, withMenu = false) =>
     h(
       "div",
       { class: "card" },
       h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
-      del &&
+      withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
+          { label: "重命名…", icon: "pencil", run: async () => {
+            const v = await askText("重命名", displayName(name), "保存");
+            if (!v || v === displayName(name)) return;
+            try {
+              const next = await api.renameScore(name, v);
+              renameRecent(name, next);
+              void load();
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          } },
           { label: "设为四手联弹…（与另一份合成）", icon: "note", run: async () => {
             const free = allScores.filter((n) => !pairs.some((p) => p.a === n || p.b === n));
             if (free.length < 2) { toast("需要至少有两份还没配对的谱子"); return; }
             const r = await openPairDialog({ scores: free, a: name, title: "设为四手联弹", intro: "选出两个人各自的谱子：A 在上面一屏，B 在下面一屏。", okLabel: "合成四手联弹" });
             if (r) void savePairs([...pairs, r]);
           } },
-        ]) }, ic("ellipsis", 20)),
-      del &&
-        h("button", {
-          class: "del",
-          title: "删除",
-          onclick: async () => {
+          deleteAction("删除这份乐谱", async () => {
             if (!confirm(`删除「${displayName(name)}」？`)) return;
-            try {
-              await api.deleteScore(name);
-              load();
-            } catch (e) {
-              toast((e as Error).message);
-            }
-          },
-        }, ic("trash", 20)),
+            await api.deleteScore(name);
+          }),
+        ]) }, ic("chevron-down", 20)),
     );
 
   const STALLED_MIN = 15;
@@ -610,10 +689,12 @@ async function renderHome() {
   }
 
   async function load() {
+    if (token !== renderSeq) return;
     clearTimeout(homeTimer);
     try {
       const listed = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
       const scores = await api.listScores();
+      if (token !== renderSeq) return;
       // a just-uploaded file may not show up in GitHub's listing for a few seconds: keep showing it
       const inbox = [...listed];
       for (const [n, ts] of optimistic) {
@@ -622,6 +703,7 @@ async function renderHome() {
         else inbox.push({ name: n, failed: false });
       }
       for (const it of inbox) if (!it.failed && !(it.name in since)) { const t = await api.queuedSince(it.name).catch(() => null); if (t) since[it.name] = t; }
+      if (token !== renderSeq) return;
       // finished or failed since the last check -> tell the user
       const pendingNow = new Set(inbox.filter((i) => !i.failed).map((i) => i.name));
       for (const n of prevPending) {
@@ -642,6 +724,7 @@ async function renderHome() {
       allScores = scores.map((x) => x.name);
       // four-hand pairs (a record whose file was deleted elsewhere is ignored)
       pairs = (await api.readPairs().catch(() => pairs)).filter((p) => names.has(p.a) && names.has(p.b));
+      if (token !== renderSeq) return;
       const inPair = new Set(pairs.flatMap((p) => [p.a, p.b]));
       const single = scores.filter((x) => !inPair.has(x.name));
       const items = [
@@ -649,7 +732,15 @@ async function renderHome() {
         ...single.map((x) => ({ key: displayName(x.name), el: () => card(x.name, true) })),
       ].sort((a, b) => a.key.localeCompare(b.key, "zh"));
       list.replaceChildren(...items.map((i) => i.el()));
-      status.textContent = scores.length ? "" : "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl）。";
+      status.replaceChildren(
+        ...(scores.length
+          ? []
+          : [
+              "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。也可以先 ",
+              h("button", { class: "linkbtn", onclick: () => void addSamples() }, "添加示例乐谱"),
+              " 试一试，里面有四手联弹。",
+            ]),
+      );
       // "these two look like the two parts of one piece" (only a suggestion, never merged automatically)
       const sugg = suggestPairs([...names], inPair, getDismissed());
       suggest.replaceChildren(
@@ -691,6 +782,7 @@ async function renderHome() {
       status.textContent = (e as Error).message;
     }
   }
+  refreshHome = () => void load();
   load();
   // pull down at the top of the list to refresh (the iPad way)
   const main = app.querySelector("main.home") as HTMLElement;
@@ -729,7 +821,13 @@ let homeVis: (() => void) | null = null;
 /** queued PDFs the server has not listed yet, and which ones were converting at the last check */
 const optimistic = new Map<string, number>();
 let prevPending = new Set<string>();
+/** bumped by every screen change: an async render that finds it changed has been overtaken and must not touch the page */
+let renderSeq = 0;
+/** set while the home screen is shown: reload its list */
+let refreshHome: (() => void) | null = null;
 function cleanup() {
+  renderSeq++;
+  refreshHome = null;
   clearTimeout(homeTimer);
   if (homeVis) document.removeEventListener("visibilitychange", homeVis);
   homeVis = null;
@@ -786,6 +884,8 @@ const partLetter = (i: number) => String.fromCharCode(65 + i);
 
 async function renderPlayer(name: string) {
   cleanup();
+  const token = renderSeq;
+  const stale = () => token !== renderSeq;
   // OSMD owns (and clears) scoreBox on every render, so overlays live in the outer holder instead
   const scoreBox = h("div", { class: "osmd" });
   const band = h("div", { class: "linehl" });
@@ -801,7 +901,7 @@ async function renderPlayer(name: string) {
       h("h1", {}, displayName(name)),
       h("div", { class: "grow" }),
       status,
-      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
+      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, ic("refresh")),
       h("button", { class: "icon", onclick: () => openSettings(() => void applySound(), () => void renderPlayer(name)), title: "设置" }, ic("sliders")),
     ),
     viewbox,
@@ -810,8 +910,11 @@ async function renderPlayer(name: string) {
   let osmd: OpenSheetMusicDisplay;
   let player: Player;
   let leaveGuard: () => boolean = () => true;
+  const undo: (() => void)[] = []; // what to throw away if this render gets overtaken
+  const bail = () => undo.forEach((f) => { try { f(); } catch { /* already gone */ } });
   try {
     const buf = await api.downloadScore(name);
+    if (stale()) return;
     osmd = new OpenSheetMusicDisplay(scoreBox, {
       autoResize: true,
       backend: "svg",
@@ -821,17 +924,21 @@ async function renderPlayer(name: string) {
     });
     const xml = toMusicXml(buf);
     await osmd.load(xml);
+    if (stale()) return;
+    undo.push(() => osmd.clear());
     // four hands: one screen per part. The full score then only acts as the (hidden) playback model.
     const split = settings.splitView && osmd.Sheet.Instruments.length >= 2;
     let modelBox: HTMLElement | null = null;
     if (split) {
       modelBox = h("div", { class: "modelbox" }, scoreBox);
       document.body.append(modelBox);
+      undo.push(() => modelBox?.remove());
     }
     osmd.zoom = split ? 0.5 : settings.zoom;
     osmd.render();
     osmd.cursor.show();
     const tools = new FingerTools(osmd, holder, xml, !split);
+    undo.push(() => tools.dispose());
     tools.visible = settings.fingers;
     if (!tools.visible) {
       osmd.EngravingRules.RenderFingerings = false;
@@ -843,6 +950,7 @@ async function renderPlayer(name: string) {
     const score = extractScore(osmd, displayName(name));
     applyExpression(score, xml);
     const inst = await getInstrument(settings.sound, (s) => (status.textContent = s));
+    if (stale()) return bail();
     player = new Player(osmd, score, audioCtx(), inst);
     player.volume = settings.volume;
     player.expressive = settings.expressive;
@@ -873,6 +981,8 @@ async function renderPlayer(name: string) {
           cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
         });
         await o.load(xml);
+        undo.push(() => o.clear());
+        if (stale()) return bail();
         o.Sheet.Instruments.forEach((inst, i) => { inst.Visible = i === g; });
         o.zoom = settings.zoom;
         o.render();
@@ -885,7 +995,7 @@ async function renderPlayer(name: string) {
     // expose for tests / debugging
     (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools, views };
 
-    buildControls(player, score, views, status, tools, name);
+    buildControls(player, score, views, status, tools, [name]);
     let applying = 0;
     applySound = async () => {
       const id = ++applying;
@@ -914,17 +1024,22 @@ async function renderPlayer(name: string) {
 /** Four hands from two separate files: A on the upper screen, B on the lower one, one shared clock. */
 async function renderDuet(pair: api.Pair) {
   cleanup();
+  const token = renderSeq;
+  const stale = () => token !== renderSeq;
+  const undo: (() => void)[] = [];
+  const bail = () => undo.forEach((f) => { try { f(); } catch { /* already gone */ } });
+  let leaveGuard: () => boolean = () => true;
   const status = h("span", { class: "status" }, "加载乐谱…");
   const split = h("div", { class: "splitwrap" });
   app.replaceChildren(
     h(
       "header",
       { class: "top compact" },
-      h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
+      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), "返回"),
       h("h1", {}, pair.name),
       h("div", { class: "grow" }),
       status,
-      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { void checkUpdate(true); void renderDuet(pair); } }, ic("refresh")),
+      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderDuet(pair); } } }, ic("refresh")),
       h("button", { class: "icon", onclick: () => openSettings(() => void applySound()), title: "设置" }, ic("sliders")),
     ),
     split,
@@ -932,6 +1047,7 @@ async function renderDuet(pair: api.Pair) {
   try {
     const files = [pair.a, pair.b];
     const bufs = await Promise.all(files.map((f) => api.downloadScore(f)));
+    if (stale()) return;
     const xmls = bufs.map((b) => toMusicXml(b));
     const views: View[] = [];
     const parts: ReturnType<typeof extractScore>[] = [];
@@ -951,6 +1067,8 @@ async function renderDuet(pair: api.Pair) {
         cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
       });
       await o.load(xmls[g]);
+      undo.push(() => o.clear());
+      if (stale()) return bail();
       o.zoom = settings.zoom;
       o.render();
       o.cursor.show();
@@ -961,14 +1079,27 @@ async function renderDuet(pair: api.Pair) {
     }
     const score = mergeScores(parts[0], parts[1], pair.name, pairLabels(pair.a, pair.b));
     const inst = await getInstrument(settings.sound, (s) => (status.textContent = s));
+    if (stale()) return bail();
     const player = new Player(null, score, audioCtx(), inst); // each screen follows the shared clock itself
     player.volume = settings.volume;
     player.expressive = settings.expressive;
     pushRecent(pairKey(pair));
-    const tools = new FingerTools(views[0].osmd, views[0].holder, xmls[0], false); // fingering tools: single-file scores only
-    busyCheck = () => player.playing;
+    // two independent scores: each screen has its own fingering tools and saves to its own file
+    const tools = new FingerGroup(views.map((v, g) => new FingerTools(v.osmd, v.holder, xmls[g])));
+    undo.push(() => tools.dispose());
+    tools.visible = settings.fingers;
+    if (!tools.visible) {
+      for (const v of views) {
+        v.osmd.EngravingRules.RenderFingerings = false;
+        v.osmd.render();
+        v.osmd.cursor.show();
+      }
+    }
+    tools.refresh();
+    leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
+    busyCheck = () => player.playing || tools.editing || tools.dirty;
     (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd: views[0].osmd, tools, views, pair };
-    buildControls(player, score, views, status, tools, pair.a);
+    buildControls(player, score, views, status, tools, [pair.a, pair.b]);
     let applying = 0;
     applySound = async () => {
       const id = ++applying;
@@ -1013,9 +1144,10 @@ function buildControls(
   score: ReturnType<typeof extractScore>,
   views: View[],
   status: HTMLElement,
-  tools: FingerTools,
-  name: string,
+  tools: FingerApi,
+  files: string[], // file of each screen (fingering edits are saved back to it)
 ) {
+  const name = files[0];
   const split = views.length > 0 && views[0].steps !== undefined;
   const osmd = views[0].osmd; // single view: the score itself (fingering editing works on it)
   const playBtn = h("button", { class: "primary play", title: "播放 / 暂停 (空格)" }, ic("play", 30));
@@ -1168,26 +1300,31 @@ function buildControls(
     if (!tools.visible) setFingers(true);
     fpanel.hidden = true;
     editbar.hidden = false;
-    document.querySelector(".scorewrap")?.classList.add("editing");
+    document.querySelectorAll(".scorewrap, .panewrap").forEach((e) => e.classList.add("editing"));
     tools.setEditing(true);
   }
   function exitEdit() {
     if (tools.dirty && !confirm("有未保存的指法，放弃这些修改？")) return;
     tools.discard();
     editbar.hidden = true;
-    document.querySelector(".scorewrap")?.classList.remove("editing");
+    document.querySelectorAll(".scorewrap, .panewrap").forEach((e) => e.classList.remove("editing"));
     tools.setEditing(false);
   }
   async function saveFingering() {
     fsave.disabled = true;
     try {
-      const xml = await tools.save((x) => api.saveScoreText(name, x, `Fingering: ${displayName(name)}`));
-      await osmd.load(xml);
+      const sets = tools.parts();
+      for (let i = 0; i < sets.length; i++) {
+        if (!sets[i].dirty) continue;
+        const file = files[i] ?? name;
+        const xml = await sets[i].save((x) => api.saveScoreText(file, x, `Fingering: ${displayName(file)}`));
+        await views[i]?.osmd.load(xml);
+      }
       rerender();
       toast("指法已保存到乐谱");
     } catch (e) {
       if (e instanceof api.AuthExpired) return renderLogin(e.message);
-      toast(`保存失败：${(e as Error).message}`);
+      showError("指法保存失败", e);
     } finally {
       syncEdit();
     }

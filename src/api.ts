@@ -68,6 +68,23 @@ export function parseLink(text: string): { token: string; repo: string } | null 
 }
 
 export class AuthExpired extends Error {}
+/** An API failure with what GitHub said about it (shown to the user, not swallowed). */
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public detail = "") {
+    super(message);
+  }
+}
+async function apiError(r: Response, what: string): Promise<ApiError> {
+  let detail = "";
+  try {
+    const j = (await r.clone().json()) as { message?: string };
+    detail = j.message ?? "";
+  } catch {
+    /* not JSON */
+  }
+  return new ApiError(`${what} (${r.status})${detail ? `：${detail}` : ""}`, r.status, detail);
+}
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export type Kind = "score" | "inbox";
 
 function headers(a: Auth, accept = "application/vnd.github+json"): HeadersInit {
@@ -79,7 +96,12 @@ function headers(a: Auth, accept = "application/vnd.github+json"): HeadersInit {
 }
 
 async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, init);
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch {
+    throw new ApiError("网络请求失败：连不上 GitHub（网络断了，或被网络拦截）", 0);
+  }
   if (res.status === 401) {
     logout();
     throw new AuthExpired("登录已失效，请重新登录");
@@ -185,12 +207,22 @@ function toBase64(buf: ArrayBuffer): string {
 
 async function put(dir: string, name: string, data: ArrayBuffer, message: string) {
   const a = need();
-  const r = await gh(a, url(a, dir, name), {
-    method: "PUT",
-    headers: headers(a),
-    body: JSON.stringify({ message, content: toBase64(data), branch: a.branch, sha: await sha(a, dir, name) }),
-  });
-  if (!r.ok) throw new Error(`保存失败 (${r.status})`);
+  const content = toBase64(data);
+  let last: ApiError | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = await gh(a, url(a, dir, name), {
+      method: "PUT",
+      headers: headers(a),
+      body: JSON.stringify({ message, content, branch: a.branch, sha: await sha(a, dir, name) }),
+    });
+    if (r.ok) return;
+    last = await apiError(r, "保存失败");
+    // the branch moved under us (409), a stale sha (422) or a hiccup on GitHub's side: try again
+    const retry = r.status === 409 || r.status >= 500 || (r.status === 422 && /sha/i.test(last.detail));
+    if (!retry || attempt === 3) break;
+    await sleep(700 * attempt);
+  }
+  throw last!;
 }
 
 export interface Uploaded {
@@ -246,14 +278,31 @@ export async function uploadScore(file: File, onConflict?: OnConflict): Promise<
     return { kind: "inbox", name };
   }
 
-  let name = cleanName(file.name);
-  if (!name) throw new Error(`不支持的文件：${file.name}（支持 MusicXML、.mxl、PDF、图片）`);
-  let data = await file.arrayBuffer();
+  // iPadOS sometimes renames a downloaded .mxl to "x.mxl.zip": it is the same container
+  const isZip = /\.zip$/i.test(file.name);
+  let raw = isZip ? file.name.replace(/\.zip$/i, "") : file.name;
+  if (isZip && !SCORE_EXT.test(raw)) raw += ".mxl";
+  let name = cleanName(raw);
+  if (!name) throw new Error(`不支持的文件：${file.name}。支持 MusicXML（.musicxml / .xml / .mxl）、PDF 和图片。`);
+  let data: ArrayBuffer;
+  try {
+    data = await file.arrayBuffer();
+  } catch {
+    throw new Error(`读不到文件「${file.name}」。如果它在 iCloud 里，请先在“文件”App 里点一下把它下载到本机，再重新选择。`);
+  }
   if (data.byteLength > MAX_BYTES) throw new Error("文件超过 10 MB");
-  if (/\.mxl$/i.test(name)) {
-    const xml = toMusicXml(data); // unzip so the stored file is readable and editable
+  if (/\.mxl$/i.test(name) || isZip) {
+    let xml = "";
+    try {
+      xml = toMusicXml(data); // unzip so the stored file is readable and editable
+    } catch {
+      /* handled below */
+    }
+    if (!looksLikeMusicXml(xml)) throw new Error(`「${file.name}」不是有效的 MusicXML 压缩包（.mxl），文件可能已损坏。请换成 .musicxml 或 .xml 再试。`);
     data = new TextEncoder().encode(xml).buffer as ArrayBuffer;
-    name = name.replace(/\.mxl$/i, ".musicxml");
+    name = name.replace(/\.(mxl|musicxml|xml)$/i, ".musicxml");
+  } else if (!looksLikeMusicXml(new TextDecoder("utf-8").decode(data))) {
+    throw new Error(`「${file.name}」的内容不是 MusicXML（找不到 score-partwise），没有上传。请确认导出的是 MusicXML 格式。`);
   }
   if (await exists(SCORES, name)) {
     const choice = await ask(name, name, "score");
@@ -262,6 +311,11 @@ export async function uploadScore(file: File, onConflict?: OnConflict): Promise<
   }
   await put(SCORES, name, data, `Upload score: ${name}`);
   return { kind: "score", name };
+}
+
+/** Does this look like a MusicXML document? (so garbage never gets stored as a score) */
+export function looksLikeMusicXml(text: string): boolean {
+  return /<score-(partwise|timewise)[\s>]/.test(text.slice(0, 200_000));
 }
 
 /** Overwrite an existing score with edited MusicXML text (e.g. after adding fingering). */
@@ -280,7 +334,7 @@ async function remove(dir: string, name: string, message: string) {
     headers: headers(a),
     body: JSON.stringify({ message, sha: s, branch: a.branch }),
   });
-  if (!r.ok) throw new Error(`删除失败 (${r.status})`);
+  if (!r.ok) throw await apiError(r, "删除失败");
 }
 export const deleteScore = (name: string) => remove(SCORES, name, `Delete score: ${name}`);
 export async function deleteInbox(name: string) {
@@ -347,3 +401,24 @@ export async function writePairs(pairs: Pair[]) {
   await put(CONFIG, "pairs.json", new TextEncoder().encode(text).buffer as ArrayBuffer, "Update four-hand pairs");
 }
 export const downloadAny = (name: string) => downloadScore(name);
+
+/** Rename a score: GitHub has no rename in the contents API, so copy to the new name and delete the old one. */
+export async function renameScore(old: string, base: string): Promise<string> {
+  const ext = old.match(/\.[^.]+$/)?.[0] ?? ".musicxml";
+  const name = cleanName(base.trim().replace(/\.(musicxml|xml|mxl)$/i, "") + ext);
+  if (!name) throw new Error("这个名称不能用（不要包含 / \\ : * ? \" < > |）");
+  if (name === old) return old;
+  if (await exists(SCORES, name)) throw new Error("已经有同名的乐谱了，请换一个名字");
+  const data = await getBytes(SCORES, old);
+  await put(SCORES, name, data, `Rename score: ${old} -> ${name}`);
+  await remove(SCORES, old, `Rename score: ${old} -> ${name}`);
+  return name;
+}
+
+/** Write a score from text (used for the built-in samples); replaces a file of the same name. */
+export async function putScoreText(name: string, xml: string, message: string) {
+  const n = cleanName(name);
+  if (!n) throw new Error("文件名不可用");
+  await put(SCORES, n, new TextEncoder().encode(xml).buffer as ArrayBuffer, message);
+  return n;
+}

@@ -55,7 +55,7 @@ export const noteName = (midi: number) => `${NAMES[midi % 12]}${Math.floor(midi 
  *   2. rule-based suggestion (blue overlay, reference only)
  *   3. edits made here (orange overlay until saved; saving writes them into the MusicXML)
  */
-export class FingerTools {
+export class FingerTools implements FingerApi {
   readonly doc: Document;
   readonly notes: XNote[];
   private byKey = new Map<string, XNote>();
@@ -348,6 +348,10 @@ export class FingerTools {
     this.onChange();
   }
 
+  parts() {
+    return [this];
+  }
+
   /** Writes pending edits into the MusicXML and persists via `write`. Returns the new XML text. */
   async save(write: (xml: string) => Promise<void>): Promise<string> {
     for (const [idx, f] of this.pending) setFingering(this.notes[idx].el, f);
@@ -360,4 +364,62 @@ export class FingerTools {
     this.onChange();
     return xml;
   }
+}
+
+
+/** What the controls need from the fingering tools: one score, or several (paired four-hand files, one tool set per screen). */
+export interface FingerApi {
+  readonly supported: boolean;
+  readonly xmlCount: number;
+  visible: boolean;
+  showXml: boolean;
+  readonly showAuto: boolean;
+  readonly editing: boolean;
+  readonly dirty: boolean;
+  readonly pending: { size: number };
+  onChange: () => void;
+  setAuto(on: boolean): void;
+  setEditing(on: boolean): void;
+  apply(f: number | null): void;
+  undo(): void;
+  discard(): void;
+  describeSelected(): string;
+  refresh(): void;
+  dispose(): void;
+  /** the individual tool sets, in screen order (for saving each to its own file) */
+  parts(): FingerTools[];
+}
+
+/** Independent fingering tools per screen, driven together: shared switches, edits go to the screen last tapped. */
+export class FingerGroup implements FingerApi {
+  private active = 0;
+  constructor(private tools: FingerTools[]) {}
+  get supported() { return this.tools.some((t) => t.supported); }
+  get xmlCount() { return this.tools.reduce((n, t) => n + t.xmlCount, 0); }
+  get visible() { return this.tools[0]?.visible ?? true; }
+  set visible(v: boolean) { this.tools.forEach((t) => (t.visible = v)); }
+  get showXml() { return this.tools[0]?.showXml ?? true; }
+  set showXml(v: boolean) { this.tools.forEach((t) => (t.showXml = v)); }
+  get showAuto() { return this.tools[0]?.showAuto ?? false; }
+  get editing() { return this.tools.some((t) => t.editing); }
+  get dirty() { return this.tools.some((t) => t.dirty); }
+  get pending() { return { size: this.tools.reduce((n, t) => n + t.pending.size, 0) }; }
+  set onChange(fn: () => void) {
+    this.tools.forEach((t, i) => (t.onChange = () => {
+      if (t.selected !== null) this.active = i; // edits go to the screen of the last selected note
+      fn();
+    }));
+  }
+  setAuto(on: boolean) { this.tools.forEach((t) => t.setAuto(on)); }
+  setEditing(on: boolean) { this.tools.forEach((t) => t.setEditing(on)); }
+  apply(f: number | null) { this.tools[this.active]?.apply(f); }
+  undo() { this.tools[this.active]?.undo(); }
+  discard() { this.tools.forEach((t) => t.discard()); }
+  describeSelected() {
+    const t = this.tools[this.active];
+    return t ? `${this.tools.length > 1 ? `${String.fromCharCode(65 + this.active)} 声部 · ` : ""}${t.describeSelected()}` : "";
+  }
+  refresh() { this.tools.forEach((t) => t.refresh()); }
+  dispose() { this.tools.forEach((t) => t.dispose()); }
+  parts() { return this.tools; }
 }
