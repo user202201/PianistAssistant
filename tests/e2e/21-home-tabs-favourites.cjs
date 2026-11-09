@@ -7,7 +7,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 }, hasTouch: true, isMobile: true } });
   await page.waitForSelector('.card'); await page.waitForTimeout(800);
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map(c => c.querySelector('.mq')?.textContent));
-  const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.textContent));
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.innerText.trim()));
   ok(tabs.join() === '全部琴谱,四手联弹,PDF 乐谱,收藏', `tabs: ${tabs.join(' | ')}`);
   ok((await titles()).includes('Alpha') && (await titles()).includes('Ode'), `all: scores and the four-hand piece: ${(await titles()).join(', ')}`);
   await page.click('.tabsbar button:has-text("四手联弹")'); ok((await titles()).join() === 'Ode', 'four hands tab: only the pair');
@@ -22,7 +22,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.tabsbar button:has-text("收藏")'); ok((await titles()).length === 2, `favourites tab shows the two: ${(await titles()).join(', ')}`);
   await page.click('.listbox .card:has-text("Beta") .star'); ok((await titles()).join() === 'Ode', 'removing a favourite takes it off the tab');
   await page.reload(); await page.waitForSelector('.card'); await page.waitForTimeout(800);
-  ok(await page.evaluate(() => document.querySelector('.tabsbar button.on')?.textContent) === '收藏', 'the chosen tab is remembered');
+  ok(await page.evaluate(() => document.querySelector('.tabsbar button.on')?.innerText.trim()) === '收藏', 'the chosen tab is remembered');
   // only one scrollbar: the page itself does not scroll
   ok(await page.evaluate(() => { const m = document.querySelector('.home'); return m.scrollHeight <= m.clientHeight + 1; }), 'the page itself has no scrollbar (only the list scrolls)');
   // rename / delete keep the favourites in step

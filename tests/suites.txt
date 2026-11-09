@@ -40,3 +40,4 @@
 37-layout-en
 40-tabs-fit
 41-bottom-bar-small-screen
+42-fingering-patterns
