@@ -7,7 +7,8 @@ import { icon as ic } from "./icons";
 import { FingerTools } from "./fingerui";
 import { Player } from "./player";
 import { applyExpression } from "./expression";
-import { extractScore, toMusicXml } from "./score";
+import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
+import { extractScore, mergeScores, toMusicXml } from "./score";
 import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -299,6 +300,94 @@ function askConflict(info: { name: string; existing: string; kind: "score" | "co
   });
 }
 
+// ---------- four hands from two files ----------
+const dismissedKey = "pianist.pair.dismissed";
+const getDismissed = (): Set<string> => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(dismissedKey) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+};
+const dismissPair = (a: string, b: string) => {
+  const d = getDismissed();
+  d.add(`${a}|${b}`);
+  try {
+    localStorage.setItem(dismissedKey, JSON.stringify([...d]));
+  } catch {
+    /* private mode */
+  }
+};
+const duetHash = (p: { a: string; b: string }) => `#/duet/${encodeURIComponent(p.a)}/${encodeURIComponent(p.b)}`;
+const pairKey = (p: { a: string; b: string }) => `pair:${p.a}|${p.b}`;
+
+/** Choose which file is A (upper / Primo) and which is B (lower / Secondo), and the name of the piece. */
+function openPairDialog(opts: {
+  scores: string[];
+  a?: string;
+  b?: string;
+  name?: string;
+  title: string;
+  intro?: string;
+  okLabel: string;
+  cancelLabel?: string;
+}): Promise<{ a: string; b: string; name: string } | null> {
+  return new Promise((resolve) => {
+    let result: { a: string; b: string; name: string } | null = null;
+    const options = (sel?: string) => opts.scores.map((n) => h("option", { value: n, selected: n === sel }, displayName(n)));
+    const selA = h("select", {}, ...options(opts.a));
+    const selB = h("select", {}, ...options(opts.b ?? opts.scores.find((n) => n !== opts.a)));
+    const nameIn = h("input", { type: "text", value: opts.name ?? "", placeholder: "这首歌的名字" });
+    const err = h("p", { class: "error small" }, "");
+    const swap = h("button", { class: "icon", title: "交换 A / B", onclick: () => { const t = selA.value; selA.value = selB.value; selB.value = t; } }, ic("refresh", 20));
+    const touched = { name: !!opts.name };
+    nameIn.addEventListener("input", () => (touched.name = true));
+    const autoName = () => { if (!touched.name) nameIn.value = defaultPairName(selA.value, selB.value); };
+    selA.addEventListener("change", autoName);
+    selB.addEventListener("change", autoName);
+    if (!opts.name) autoName();
+    const dlg = h(
+      "dialog",
+      { class: "dlg" },
+      h("h2", { tabIndex: -1, autofocus: true }, opts.title),
+      opts.intro ? h("p", { class: "muted" }, opts.intro) : null,
+      h("label", {}, "A 声部（上面一屏，Primo / 高音）", selA),
+      h("div", { class: "row", style: "justify-content:center" }, swap, h("span", { class: "muted small" }, "交换 A / B")),
+      h("label", {}, "B 声部（下面一屏，Secondo / 低音）", selB),
+      h("label", {}, "名称", nameIn),
+      err,
+      h(
+        "div",
+        { class: "row wrap" },
+        h("button", { onclick: () => dlg.close() }, opts.cancelLabel ?? "取消"),
+        h("div", { class: "grow" }),
+        h("button", { class: "primary", onclick: () => {
+          if (selA.value === selB.value) { err.textContent = "A 和 B 不能是同一个文件"; return; }
+          result = { a: selA.value, b: selB.value, name: nameIn.value.trim() || defaultPairName(selA.value, selB.value) };
+          dlg.close();
+        } }, opts.okLabel),
+      ),
+    );
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
+/** Small action sheet of a card. */
+function openCardMenu(title: string, actions: { label: string; icon: string; danger?: boolean; run: () => void }[]) {
+  const dlg = h(
+    "dialog",
+    { class: "dlg" },
+    h("h2", { tabIndex: -1, autofocus: true }, title),
+    ...actions.map((a) => h("button", { class: "rowbtn" + (a.danger ? " danger" : ""), onclick: () => { dlg.close(); a.run(); } }, ic(a.icon, 20), a.label)),
+    h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "关闭")),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+}
+
 // ---------- home ----------
 async function renderHome() {
   cleanup();
@@ -340,8 +429,22 @@ async function renderHome() {
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
   );
   const status = h("p", { class: "muted" }, "加载中…");
+  let pairs: api.Pair[] = [];
+  let allScores: string[] = [];
+  const suggest = h("div", { class: "suggest" });
+  const savePairs = async (next: api.Pair[]) => {
+    try {
+      await api.writePairs(next);
+      pairs = next;
+      void load();
+    } catch (e) {
+      if (e instanceof api.AuthExpired) return void renderLogin(e.message);
+      toast(`保存失败：${(e as Error).message}`);
+    }
+  };
   const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,application/pdf,image/*", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
+    const stored: string[] = [];
     for (const f of Array.from(file.files ?? [])) {
       try {
         toast(`上传中：${f.name}`);
@@ -352,14 +455,33 @@ async function renderHome() {
           markQueued(up.name);
           toast(`已加入转换队列：${up.name}`);
           prevPending.add(up.name);
-        } else toast(`已上传：${up.name}`);
+        } else {
+          toast(`已上传：${up.name}`);
+          stored.push(up.name);
+        }
       } catch (e) {
         if (e instanceof api.AuthExpired) return renderLogin(e.message);
         toast((e as Error).message);
       }
     }
     file.value = "";
-    load();
+    await load();
+    // two score files picked together: is it one four-hand piece (a part per file)?
+    if (stored.length === 2) {
+      const ra = roleOf(stored[0]);
+      const rb = roleOf(stored[1]);
+      const swapped = !!(ra && rb && ra.role === "B" && rb.role === "A");
+      const [a, b] = swapped ? [stored[1], stored[0]] : [stored[0], stored[1]];
+      const r = await openPairDialog({
+        scores: allScores.filter((n) => !pairs.some((p) => p.a === n || p.b === n)),
+        a, b,
+        title: "这是一首四手联弹吗？",
+        intro: "你一次上传了两个文件。如果它们是同一首歌里两个人弹的部分，合成后可以分屏一起练习。",
+        okLabel: "合成四手联弹",
+        cancelLabel: "不是，分开保存",
+      });
+      if (r) await savePairs([...pairs, r]);
+    }
   });
 
   app.replaceChildren(
@@ -373,14 +495,50 @@ async function renderHome() {
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
-    h("main", { class: "home" }, queueSec, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
+    h("main", { class: "home" }, queueSec, suggest, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
   );
 
+  const pairCard = (p: api.Pair) => {
+    const [la, lb] = pairLabels(p.a, p.b);
+    return h(
+      "div",
+      { class: "card pair" },
+      h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", {}, h("div", {}, h("span", { class: "newtag duet" }, "四手"), p.name), h("div", { class: "muted small sub" }, `A · ${la}　B · ${lb}`))),
+      h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
+        { label: "交换 A / B 声部", icon: "refresh", run: () => void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q))) },
+        { label: "修改 / 重新关联…", icon: "pencil", run: async () => {
+          const r = await openPairDialog({ scores: allScores, a: p.a, b: p.b, name: p.name, title: "修改四手联弹", okLabel: "保存" });
+          if (r) void savePairs(pairs.map((q) => (q === p ? r : q)));
+        } },
+        { label: "取消关联（两个文件各自保留）", icon: "x", run: () => void savePairs(pairs.filter((q) => q !== p)) },
+      ]) }, ic("ellipsis", 20)),
+      h("button", { class: "del", title: "删除", onclick: async () => {
+        if (!confirm(`删除这首四手联弹「${p.name}」？两个文件都会被删除。`)) return;
+        try {
+          await api.writePairs(pairs.filter((q) => q !== p));
+          await api.deleteScore(p.a);
+          await api.deleteScore(p.b);
+          void load();
+        } catch (e) {
+          toast((e as Error).message);
+        }
+      } }, ic("trash", 20)),
+    );
+  };
   const card = (name: string, del = false) =>
     h(
       "div",
       { class: "card" },
       h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
+      del &&
+        h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
+          { label: "设为四手联弹…（与另一份合成）", icon: "note", run: async () => {
+            const free = allScores.filter((n) => !pairs.some((p) => p.a === n || p.b === n));
+            if (free.length < 2) { toast("需要至少有两份还没配对的谱子"); return; }
+            const r = await openPairDialog({ scores: free, a: name, title: "设为四手联弹", intro: "选出两个人各自的谱子：A 在上面一屏，B 在下面一屏。", okLabel: "合成四手联弹" });
+            if (r) void savePairs([...pairs, r]);
+          } },
+        ]) }, ic("ellipsis", 20)),
       del &&
         h("button", {
           class: "del",
@@ -481,10 +639,52 @@ async function renderHome() {
       stalledBanner.hidden = !inbox.some(isStalled);
       if (pendingNow.size) homeTimer = window.setTimeout(load, 10000); // poll while converting
       const names = new Set(scores.map((s) => s.name));
-      list.replaceChildren(...scores.sort((a, b) => a.name.localeCompare(b.name, "zh")).map((s) => card(s.name, true)));
+      allScores = scores.map((x) => x.name);
+      // four-hand pairs (a record whose file was deleted elsewhere is ignored)
+      pairs = (await api.readPairs().catch(() => pairs)).filter((p) => names.has(p.a) && names.has(p.b));
+      const inPair = new Set(pairs.flatMap((p) => [p.a, p.b]));
+      const single = scores.filter((x) => !inPair.has(x.name));
+      const items = [
+        ...pairs.map((p) => ({ key: p.name, el: () => pairCard(p) })),
+        ...single.map((x) => ({ key: displayName(x.name), el: () => card(x.name, true) })),
+      ].sort((a, b) => a.key.localeCompare(b.key, "zh"));
+      list.replaceChildren(...items.map((i) => i.el()));
       status.textContent = scores.length ? "" : "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl）。";
-      const rec = getRecent().filter((n) => names.has(n));
-      recent.replaceChildren(...rec.map((n) => card(n)));
+      // "these two look like the two parts of one piece" (only a suggestion, never merged automatically)
+      const sugg = suggestPairs([...names], inPair, getDismissed());
+      suggest.replaceChildren(
+        ...sugg.map((g) =>
+          h(
+            "div",
+            { class: "banner info" },
+            h("div", { class: "warnicon" }, ic("note", 26)),
+            h(
+              "div",
+              { class: "grow" },
+              h("b", {}, `「${g.name}」像是四手联弹的两个声部`),
+              h("div", { class: "small" }, `A（上）：${displayName(g.a)}　B（下）：${displayName(g.b)}`),
+              h("div", { class: "row wrap sugbtn" },
+                h("button", { class: "primary", onclick: () => void savePairs([...pairs, { name: g.name, a: g.a, b: g.b }]) }, "合成四手联弹"),
+                h("button", { onclick: async () => {
+                  const r = await openPairDialog({ scores: [...names].filter((n) => !inPair.has(n)), a: g.a, b: g.b, name: g.name, title: "确认四手联弹", okLabel: "合成四手联弹" });
+                  if (r) void savePairs([...pairs, r]);
+                } }, "修改…"),
+                h("button", { onclick: () => { dismissPair(g.a, g.b); void load(); } }, "不是"),
+              ),
+            ),
+          ),
+        ),
+      );
+      const rec = getRecent()
+        .map((k) => {
+          if (k.startsWith("pair:")) {
+            const p = pairs.find((q) => pairKey(q) === k);
+            return p ? pairCard(p) : null;
+          }
+          return names.has(k) && !inPair.has(k) ? card(k) : null;
+        })
+        .filter((x): x is HTMLDivElement => !!x);
+      recent.replaceChildren(...rec);
       recentSec.hidden = rec.length === 0;
     } catch (e) {
       if (e instanceof api.AuthExpired) return renderLogin(e.message);
@@ -710,6 +910,87 @@ async function renderPlayer(name: string) {
     scoreBox.replaceChildren(h("p", { class: "error pad" }, `无法打开乐谱：${(e as Error).message}`));
   }
 }
+
+/** Four hands from two separate files: A on the upper screen, B on the lower one, one shared clock. */
+async function renderDuet(pair: api.Pair) {
+  cleanup();
+  const status = h("span", { class: "status" }, "加载乐谱…");
+  const split = h("div", { class: "splitwrap" });
+  app.replaceChildren(
+    h(
+      "header",
+      { class: "top compact" },
+      h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
+      h("h1", {}, pair.name),
+      h("div", { class: "grow" }),
+      status,
+      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { void checkUpdate(true); void renderDuet(pair); } }, ic("refresh")),
+      h("button", { class: "icon", onclick: () => openSettings(() => void applySound()), title: "设置" }, ic("sliders")),
+    ),
+    split,
+  );
+  try {
+    const files = [pair.a, pair.b];
+    const bufs = await Promise.all(files.map((f) => api.downloadScore(f)));
+    const xmls = bufs.map((b) => toMusicXml(b));
+    const views: View[] = [];
+    const parts: ReturnType<typeof extractScore>[] = [];
+    for (let g = 0; g < 2; g++) {
+      const pBand = h("div", { class: "linehl" });
+      const pBox = h("div", { class: "osmd" });
+      const pHolder = h("div", { class: "score" }, pBand, pBox);
+      const pWrap = h("div", { class: "panewrap" }, pHolder);
+      const section = h("section", { class: "pane" }, h("div", { class: "panehead" }), pWrap);
+      section.dataset.part = String(g);
+      split.append(section);
+      const o = new OpenSheetMusicDisplay(pBox, {
+        autoResize: true,
+        backend: "svg",
+        drawTitle: g === 0,
+        followCursor: false,
+        cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
+      });
+      await o.load(xmls[g]);
+      o.zoom = settings.zoom;
+      o.render();
+      o.cursor.show();
+      const ps = extractScore(o, displayName(files[g]));
+      applyExpression(ps, xmls[g]); // dynamics / pedal of this player's own file
+      parts.push(ps);
+      views.push({ wrap: pWrap, holder: pHolder, band: pBand, osmd: o, steps: ps.steps, cur: 0, box: section, peek: makePeek(section) });
+    }
+    const score = mergeScores(parts[0], parts[1], pair.name, pairLabels(pair.a, pair.b));
+    const inst = await getInstrument(settings.sound, (s) => (status.textContent = s));
+    const player = new Player(null, score, audioCtx(), inst); // each screen follows the shared clock itself
+    player.volume = settings.volume;
+    player.expressive = settings.expressive;
+    pushRecent(pairKey(pair));
+    const tools = new FingerTools(views[0].osmd, views[0].holder, xmls[0], false); // fingering tools: single-file scores only
+    busyCheck = () => player.playing;
+    (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd: views[0].osmd, tools, views, pair };
+    buildControls(player, score, views, status, tools, pair.a);
+    let applying = 0;
+    applySound = async () => {
+      const id = ++applying;
+      const i = await getInstrument(settings.sound, (s) => (status.textContent = s));
+      if (id === applying) player.setInstrument(i);
+      player.volume = settings.volume;
+      i.output.setVolume(Math.round(settings.volume * 127));
+    };
+    inst.output.setVolume(Math.round(settings.volume * 127));
+    disposePlayer = () => {
+      player.dispose();
+      tools.dispose();
+      for (const v of views) v.osmd.clear();
+      releaseWake();
+    };
+  } catch (e) {
+    if (e instanceof api.AuthExpired) return renderLogin(e.message);
+    status.textContent = "";
+    split.replaceChildren(h("p", { class: "error pad" }, `无法打开四手联弹：${(e as Error).message}`));
+  }
+}
+
 let applySound: () => Promise<void> = async () => {};
 /** set by the score view: re-apply scroll / highlight settings after they changed in the settings dialog */
 let onViewSetting: () => void = () => {};
@@ -1174,6 +1455,13 @@ async function signInFromLink(hash: string) {
 function route() {
   if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
   if (!api.getAuth()) return renderLogin();
+  const d = location.hash.match(/^#\/duet\/([^/]+)\/([^/]+)$/);
+  if (d) {
+    const a = decodeURIComponent(d[1]);
+    const b = decodeURIComponent(d[2]);
+    void api.readPairs().then((ps) => renderDuet(ps.find((p) => p.a === a && p.b === b) ?? { name: defaultPairName(a, b), a, b }));
+    return;
+  }
   const m = location.hash.match(/^#\/score\/(.+)$/);
   if (m) void renderPlayer(decodeURIComponent(m[1]));
   else void renderHome();

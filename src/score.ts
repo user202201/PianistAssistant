@@ -189,3 +189,29 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
     },
   };
 }
+
+/**
+ * Four hands from two files: file A and file B each hold one player's part. The merged score plays both;
+ * `part` becomes the file index (0 / 1), steps are the union of both files' steps (matched by time).
+ */
+export function mergeScores(a: ParsedScore, b: ParsedScore, title: string, labels: [string, string]): ParsedScore {
+  const remap = (s: ParsedScore, part: number): NoteEvent[] => s.events.map((e) => ({ ...e, part }));
+  const steps = [...a.steps, ...b.steps].sort((x, y) => x.sec - y.sec);
+  const merged: StepInfo[] = [];
+  for (const st of steps) if (!merged.length || st.sec - merged[merged.length - 1].sec > 1e-4) merged.push(st);
+  const sum = (s: ParsedScore) => s.staffCounts.reduce((x, y) => x + y, 0);
+  const ea = a.expression;
+  const eb = b.expression;
+  return {
+    title,
+    parts: [...labels],
+    staffCounts: [sum(a), sum(b)],
+    events: [...remap(a, 0), ...remap(b, 1)],
+    steps: merged,
+    duration: Math.max(a.duration, b.duration),
+    baseBpm: a.baseBpm,
+    measureCount: Math.max(a.measureCount, b.measureCount),
+    timeSig: a.timeSig,
+    expression: ea && eb ? { dynamics: ea.dynamics + eb.dynamics, articulations: ea.articulations + eb.articulations, pedals: ea.pedals + eb.pedals, wedges: ea.wedges + eb.wedges } : (ea ?? eb),
+  };
+}

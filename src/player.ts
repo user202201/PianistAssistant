@@ -52,7 +52,8 @@ export class Player {
   private paused = 0;
 
   constructor(
-    private osmd: OpenSheetMusicDisplay,
+    /** the score whose cursor mirrors the step counter; null when the screens follow the clock on their own (paired four-hand files) */
+    private osmd: OpenSheetMusicDisplay | null,
     private score: ParsedScore,
     private ctx: AudioContext,
     private inst: Smplr,
@@ -94,9 +95,11 @@ export class Player {
 
   // ---- cursor ----
   private placeCursor(step: number) {
-    const c = this.osmd.cursor;
-    c.reset();
-    for (let i = 0; i < step; i++) c.next();
+    if (this.osmd) {
+      const c = this.osmd.cursor;
+      c.reset();
+      for (let i = 0; i < step; i++) c.next();
+    }
     this.stepIdx = step;
   }
 
@@ -261,7 +264,7 @@ export class Player {
     const steps = this.score.steps;
     let moved = false;
     while (this.stepIdx + 1 < steps.length && steps[this.stepIdx + 1].sec <= pos + 1e-6) {
-      this.osmd.cursor.next();
+      this.osmd?.cursor.next();
       this.stepIdx++;
       moved = true;
     }

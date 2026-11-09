@@ -318,3 +318,32 @@ export async function queuedSince(name: string): Promise<number | null> {
   sinceCache.set(name, ts);
   return ts;
 }
+
+/** Four-hand pieces made of two separately uploaded files (stored in the private repo as config/pairs.json). */
+export interface Pair {
+  name: string;
+  a: string; // file of player A (upper / Primo)
+  b: string; // file of player B (lower / Secondo)
+}
+const CONFIG = "config";
+const validPair = (p: unknown): p is Pair => {
+  const q = p as Pair;
+  return !!q && typeof q.a === "string" && typeof q.b === "string" && typeof q.name === "string";
+};
+export async function readPairs(): Promise<Pair[]> {
+  const a = need();
+  const r = await gh(a, url(a, CONFIG, "pairs.json") + ref(a), { headers: headers(a, "application/vnd.github.raw+json"), cache: "no-store" });
+  if (r.status === 404) return [];
+  if (!r.ok) throw new Error(`读取四手联弹配置失败 (${r.status})`);
+  try {
+    const j = JSON.parse(await r.text()) as { pairs?: unknown[] };
+    return Array.isArray(j.pairs) ? j.pairs.filter(validPair) : [];
+  } catch {
+    return [];
+  }
+}
+export async function writePairs(pairs: Pair[]) {
+  const text = JSON.stringify({ pairs }, null, 2) + "\n";
+  await put(CONFIG, "pairs.json", new TextEncoder().encode(text).buffer as ArrayBuffer, "Update four-hand pairs");
+}
+export const downloadAny = (name: string) => downloadScore(name);
