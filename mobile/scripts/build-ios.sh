@@ -41,6 +41,18 @@ mkdir -p "$OUT"
 cd "$ROOT/mobile"
 zip -qr "$OUT/PianistAssistant-ios-xcode-project.zip" ios -x 'ios/App/Pods/*' -x 'ios/App/build/*' -x '*/DerivedData/*'
 
+# An UNSIGNED .ipa: lets you try the app on your own iPad from a Windows PC with a free Apple ID (a tool such as Sideloadly / AltStore signs it
+# on your PC; it then runs for 7 days). Not for the App Store. A failure here must not stop the real build.
+if ! (
+  cd "$ROOT/mobile/ios/App"
+  WS=(-project App.xcodeproj); [ -d App.xcworkspace ] && WS=(-workspace App.xcworkspace)
+  xcodebuild "${WS[@]}" -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+    -archivePath "$PWD/build/unsigned.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
+  rm -rf build/Payload && mkdir -p build/Payload
+  cp -R build/unsigned.xcarchive/Products/Applications/*.app build/Payload/
+  (cd build && zip -qry "$OUT/PianistAssistant-unsigned.ipa" Payload)
+); then echo "warning: the unsigned .ipa could not be built"; fi
+
 # optional: signed .ipa (needs an Apple Developer account)
 if [ -n "${IOS_CERT_P12_B64:-}" ] && [ -n "${IOS_PROFILE_B64:-}" ]; then
   KC=build.keychain; KP="$(openssl rand -hex 12)"

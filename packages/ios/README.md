@@ -52,7 +52,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 ## 已知限制
 
-- 钢琴音色第一次用要联网下载，之后由系统缓存。
+- 默认钢琴音色（FluidR3）已打包进 App，离线可用；商店版只提供已打包的音色。
 - 谱子目前存在 GitHub 私有仓库，App 里会保留离线副本。
 
 ## 上架前自查清单（苹果审核常见问题）
@@ -112,3 +112,19 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables
 
 ### 开关
 `PAYWALL=0 bash mobile/scripts/build-ios.sh` 构建不带试用/购买的版本（比如给朋友的内测包）。默认带。
+
+
+## 只有 Windows 电脑，怎么在自己的 iPad 上试？
+
+Xcode 只能装在 Mac 上，所以 Windows 上有两条路：
+
+**A. 免费：自己侧载（只给自己试，7 天后要重装）**
+1. 从发布页 [app-builds](https://github.com/user202201/PianistAssistant/releases/tag/app-builds) 下载 `PianistAssistant-unsigned.ipa`（未签名，GitHub 的 Mac 机器自动生成，每次打包都会更新）。
+2. 在 Windows 上装 Sideloadly 之类的侧载工具（需要 iTunes / Apple 设备驱动），用数据线连 iPad，用你自己的 Apple ID 给这个 .ipa 签名并安装。
+3. iPad：设置 → 通用 → VPN 与设备管理 → 信任你的 Apple ID；如果提示，打开“开发者模式”。
+- 免费 Apple ID 的限制：签名 7 天过期、同时最多几个侧载 App。**侧载版测不了内购**（购买需要正式签名和沙盒账号），试用天数会按设备日期计；但 Apple Pencil 标注、自动翻页、离线、指法、播放都能测。
+- ⚠️ 侧载工具是第三方软件，不是我们和苹果提供的；用法以它们自己的说明为准。这个未签名 .ipa 我**没有在真机上验证过**（CI 只验证它能生成），第一次装不上请把提示发给我。
+
+**B. 付费（$99/年的 Apple Developer 账号）：TestFlight**
+- 完整测试内购、沙盒购买、和上架一致的包。步骤就是上面的“二、把机密交给自动打包”和“三、测试与上架”。
+- Windows 上做证书有点绕（证书请求要用 openssl 或在线工具生成），做到那一步卡住了，告诉我，我再写一份 Windows 专用的逐步说明。
