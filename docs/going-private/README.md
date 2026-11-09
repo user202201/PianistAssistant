@@ -19,7 +19,7 @@
 2. 下载 `scores-repo-bundle.zip`，在电脑上解压，会得到两个文件夹 `.github` 和 `tools`，还有一个说明。
    - 看不到 `.github`？它是隐藏文件夹：Windows 资源管理器 → 查看 → 勾选“隐藏的项目”；Mac 按 `Command + Shift + .`。
 3. 打开你的**私有谱子仓库**（`user202201/PianistScores`）的网页 → 点 **Add file → Upload files**。
-4. 把 `.github` 和 `tools` 两个文件夹整个拖进去（如果浏览器不允许拖隐藏文件夹，就进到 `.github/workflows` 里把 `convert.yml` 拖进去，再把 `tools` 里的 4 个文件拖进去，路径要保持 `tools/convert.sh`、`tools/convert-one.sh`、`tools/convert-homr.sh`、`tools/merge-pages.py`、`.github/workflows/convert.yml`）。
+4. 把 `.github` 和 `tools` 两个文件夹整个拖进去（如果浏览器不允许拖隐藏文件夹，就进到 `.github/workflows` 里把 `convert.yml` 拖进去，再把 `tools` 里的 5 个文件拖进去，路径要保持 `tools/convert.sh`、`tools/convert-one.sh`、`tools/convert-homr.sh`、`tools/convert-oemer.sh`、`tools/merge-pages.py`、`.github/workflows/convert.yml`）。
 5. 页面下方点 **Commit changes**（直接提交到 main）。
 6. 验证：在 App 里上传一个小 PDF 选“转换”，几分钟后出现在谱子列表里，就说明好了。打开谱子仓库 → Actions → 最近一次 convert，日志里应该能看到 `bash tools/convert.sh`。
 

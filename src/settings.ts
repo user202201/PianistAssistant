@@ -20,7 +20,7 @@ export interface Settings {
   /** one bar of clicks before playback starts, so you can get ready */
   countIn: boolean;
   /** cloud conversion of PDFs / photos: which recogniser (see api.OcrEngine) */
-  ocrEngine: "audiveris" | "homr" | "both";
+  ocrEngine: "audiveris" | "homr" | "oemer" | "both" | "all";
 }
 const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */

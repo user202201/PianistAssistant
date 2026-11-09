@@ -17,12 +17,13 @@ for src in Four-Hands-Test Test-Piece Expression-Test Long3; do
   img2pdf /tmp/sc/s-*.jpg -o "$OUT/$src-scan.pdf" 2>&1 | tail -n 1
   for variant in clean scan; do
     in="$pdf"; [ "$variant" = scan ] && in="$OUT/$src-scan.pdf"
-    for engine in audiveris homr; do
+    for engine in audiveris homr oemer; do
       res="$OUT/$src.$variant.$engine.musicxml"; t0=$(date +%s)
       if [ "$engine" = audiveris ]; then AUD="$AUD" bash scores-repo-template/convert-one.sh "$in" "$res" > "$OUT/$src.$variant.$engine.log" 2>&1
-      else bash scores-repo-template/convert-homr.sh "$in" "$res" > "$OUT/$src.$variant.$engine.log" 2>&1; fi
+      elif [ "$engine" = homr ]; then bash scores-repo-template/convert-homr.sh "$in" "$res" > "$OUT/$src.$variant.$engine.log" 2>&1
+      else bash scores-repo-template/convert-oemer.sh "$in" "$res" > "$OUT/$src.$variant.$engine.log" 2>&1; fi
       secs=$(( $(date +%s) - t0 ))
-      echo "[$src $variant $engine] $(tail -n 1 "$OUT/$src.$variant.$engine.log" | short)"
+      echo "[$src $variant $engine] $(grep -E "FAILED|recognised" "$OUT/$src.$variant.$engine.log" | tail -n 2 | short | tr '\n' ' ')"
       if [ -s "$res" ]; then
         row=$(python3 scripts/ocr-compare.py "samples/ocr-lab/$src.musicxml" "$res" "$src" "$variant / $engine" 2>/dev/null | head -n 1)
         echo "$row $secs s |" >> "$ROWS"
@@ -36,5 +37,5 @@ echo; echo "================ RESULT"
 echo "| file | input / engine | measures (truth→result) | notes (truth→result) | recall by measure | precision | recall anywhere | time |"
 echo "|---|---|---|---|---|---|---|---|"
 cat "$ROWS"
-echo; echo "--- homr model files"
-find / -name "*.onnx" -path "*homr*" -size +500k -printf "%s %p\n" 2>/dev/null | awk '{printf "%.1f MB  %s\n", $1/1048576, $2}'
+echo; echo "--- model files"
+find / -name "*.onnx" \( -path "*homr*" -o -path "*oemer*" \) -size +500k -printf "%s %p\n" 2>/dev/null | awk '{printf "%.1f MB  %s\n", $1/1048576, $2}'

@@ -15,8 +15,12 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(store.has('inbox/Default.pdf') && !store.has('inbox/Default.pdf.engine.txt'), 'default engine (Audiveris): no engine note, as before');
   await up('Deep.pdf', 'homr');
   ok(store.has('inbox/Deep.pdf') && store.get('inbox/Deep.pdf.engine.txt')?.toString() === 'homr', 'homr chosen: the engine note says homr and the PDF is queued');
+  await up('Oemer.pdf', 'oemer');
+  ok(store.get('inbox/Oemer.pdf.engine.txt')?.toString() === 'oemer', 'oemer chosen: "oemer"');
+  await up('All.pdf', 'all');
+  ok(store.get('inbox/All.pdf.engine.txt')?.toString() === 'all', 'all three chosen: "all"');
   await up('Both.pdf', 'both');
-  ok(store.get('inbox/Both.pdf.engine.txt')?.toString() === 'both', 'both chosen: "both"');
+  ok(store.get('inbox/Both.pdf.engine.txt')?.toString() === 'both', 'Audiveris + homr chosen: "both"');
   // the choice is remembered; the order of the two commits matters (the note first, then the file that starts the converter)
   await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', { name: 'Again.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")');

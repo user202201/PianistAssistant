@@ -12,6 +12,7 @@ case "$(echo "$ext" | tr A-Z a-z)" in
   *)   cp "$IN" "/tmp/homr/pages/p-1.$ext" ;;
 esac
 n=0; ok=0
+shopt -s nullglob
 for page in /tmp/homr/pages/p-*; do
   n=$((n+1))
   name=$(printf 'p-%03d' "$n")
@@ -24,6 +25,6 @@ for page in /tmp/homr/pages/p-*; do
   fi
 done
 echo "homr: $ok of $n page(s) recognised"
-[ "$ok" -ge 1 ] || exit 1
+[ "$ok" -ge 1 ] || { echo "no page could be read from the file"; exit 1; }
 python3 "$here/merge-pages.py" /tmp/homr/res "$OUT" "$stem"
 [ -s "$OUT" ]

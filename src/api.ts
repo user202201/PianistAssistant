@@ -405,7 +405,7 @@ async function freeName(name: string, taken: (candidate: string) => Promise<bool
  * If something with the same name would be overwritten, `onConflict` decides. Returns null when skipped.
  */
 /** engine = which recogniser the cloud converter uses for PDFs / photos: Audiveris (default), homr (deep learning) or both (to compare) */
-export type OcrEngine = "audiveris" | "homr" | "both";
+export type OcrEngine = "audiveris" | "homr" | "oemer" | "both" | "all";
 export async function uploadScore(file: File, onConflict?: OnConflict, engine: OcrEngine = "audiveris"): Promise<Uploaded | null> {
   if (isLocal() && INBOX_EXT.test(file.name)) throw new Error("本机模式不能把 PDF / 图片转换成可播放乐谱（转换需要联网，请连接 GitHub 同步后使用）。PDF 可以选择“只保留 PDF”。");
   const ask = async (name: string, existing: string, kind: "score" | "convert" | "queued"): Promise<Conflict> =>

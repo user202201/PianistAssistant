@@ -66,11 +66,14 @@ trap on_exit EXIT
 engine_of() {
   local e="audiveris"
   [ -f "$1.engine.txt" ] && e=$(tr -d ' \r\n' < "$1.engine.txt")
-  case "$e" in homr|both|audiveris) echo "$e" ;; *) echo audiveris ;; esac
+  case "$e" in homr|oemer|both|all|audiveris) echo "$e" ;; *) echo audiveris ;; esac
 }
-need_aud=0; need_homr=0
+need_aud=0; need_homr=0; need_oemer=0
 for f in "${todo[@]}"; do
-  case "$(engine_of "$f")" in audiveris) need_aud=1 ;; homr) need_homr=1 ;; both) need_aud=1; need_homr=1 ;; esac
+  case "$(engine_of "$f")" in
+    audiveris) need_aud=1 ;; homr) need_homr=1 ;; oemer) need_oemer=1 ;;
+    both) need_aud=1; need_homr=1 ;; all) need_aud=1; need_homr=1; need_oemer=1 ;;
+  esac
 done
 
 # ---- install Audiveris (unpack the .deb without running its desktop-menu post-install script) ----
@@ -121,8 +124,20 @@ install_homr() {
     command -v homr
   ) >> "$LOG" 2>&1 || fail_all "Installing homr failed"
 }
+# ---- install oemer (deep learning, MIT licence) ----
+install_oemer() {
+  (
+    set -e
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq poppler-utils libgl1
+    python3 -m pip install --upgrade pip
+    python3 -m pip install oemer
+    command -v oemer
+  ) >> "$LOG" 2>&1 || fail_all "Installing oemer failed"
+}
 [ "$need_aud" = 1 ] && install_audiveris
 [ "$need_homr" = 1 ] && install_homr
+[ "$need_oemer" = 1 ] && install_oemer
 
 # ---- convert ----
 mkdir -p scores
@@ -133,18 +148,26 @@ for f in "${todo[@]}"; do
   echo "== $base  (engine: $engine)"
   ok_any=0; report=""
   # Audiveris -> scores/<name>.musicxml ; homr -> scores/<name>.musicxml, or "<name> [homr].musicxml" when both engines run (to compare)
-  if [ "$engine" = audiveris ] || [ "$engine" = both ]; then
+  if [ "$engine" = audiveris ] || [ "$engine" = both ] || [ "$engine" = all ]; then
     rc=0
     AUD="$AUD" bash "$(dirname "$0")/convert-one.sh" "$f" "scores/$stem.musicxml" > /tmp/omr-run.txt 2>&1 || rc=$?
     cat /tmp/omr-run.txt
     if [ "$rc" -eq 0 ]; then ok_any=1; else report="$report"$'\n'"Audiveris failed (exit $rc):"$'\n'"$(tail -n 30 /tmp/omr-run.txt)"$'\n'"$(tail -n 60 /tmp/omr/log.txt 2>/dev/null)"; fi
   fi
-  if [ "$engine" = homr ] || [ "$engine" = both ]; then
-    out="scores/$stem.musicxml"; [ "$engine" = both ] && out="scores/$stem [homr].musicxml"
+  multi=0; { [ "$engine" = both ] || [ "$engine" = all ]; } && multi=1
+  if [ "$engine" = homr ] || [ "$multi" = 1 ]; then
+    out="scores/$stem.musicxml"; [ "$multi" = 1 ] && out="scores/$stem [homr].musicxml"
     rc=0
     bash "$(dirname "$0")/convert-homr.sh" "$f" "$out" > /tmp/homr-run.txt 2>&1 || rc=$?
     cat /tmp/homr-run.txt
     if [ "$rc" -eq 0 ]; then ok_any=1; else report="$report"$'\n'"homr failed (exit $rc):"$'\n'"$(tail -n 40 /tmp/homr-run.txt | cut -c1-300)"; fi
+  fi
+  if [ "$engine" = oemer ] || [ "$engine" = all ]; then
+    out="scores/$stem.musicxml"; [ "$multi" = 1 ] && out="scores/$stem [oemer].musicxml"
+    rc=0
+    bash "$(dirname "$0")/convert-oemer.sh" "$f" "$out" > /tmp/oemer-run.txt 2>&1 || rc=$?
+    cat /tmp/oemer-run.txt
+    if [ "$rc" -eq 0 ]; then ok_any=1; else report="$report"$'\n'"oemer failed (exit $rc):"$'\n'"$(tail -n 40 /tmp/oemer-run.txt | cut -c1-300)"; fi
   fi
   if [ "$ok_any" = 1 ]; then
     git rm -q -f "$f" 2>/dev/null || true; git rm -q -f "$f.engine.txt" 2>/dev/null || true

@@ -1,9 +1,11 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "oemer（深度学习，可内置 App）": "oemer (deep learning, can be built into the app)",
+  "Audiveris + homr（对比）": "Audiveris + homr (compare)",
+  "三个都转（对比）": "All three (compare)",
   "转换引擎": "Conversion engine",
   "Audiveris（默认）": "Audiveris (default)",
   "homr（深度学习，实验）": "homr (deep learning, experimental)",
-  "两个都转（对比）": "Convert with both (to compare)",
   "展开": "Expand",
   "展开这个声部的谱子": "Show this part's score",
   "收起这个声部的谱子": "Fold this part's score away",
@@ -337,10 +339,12 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "oemer（深度学习，可内置 App）": "oemer (apprentissage profond, intégrable dans l'app)",
+  "Audiveris + homr（对比）": "Audiveris + homr (comparer)",
+  "三个都转（对比）": "Les trois (comparer)",
   "转换引擎": "Moteur de conversion",
   "Audiveris（默认）": "Audiveris (par défaut)",
   "homr（深度学习，实验）": "homr (apprentissage profond, expérimental)",
-  "两个都转（对比）": "Convertir avec les deux (pour comparer)",
   "展开": "Déplier",
   "展开这个声部的谱子": "Afficher la partition de cette partie",
   "收起这个声部的谱子": "Replier la partition de cette partie",
