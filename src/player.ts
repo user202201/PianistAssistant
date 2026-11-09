@@ -121,7 +121,7 @@ export class Player {
     this.placeCursor(step);
     this.paused = this.score.steps[step]?.sec ?? 0;
     this.onChange();
-    if (wasPlaying) void this.play();
+    if (wasPlaying) void this.play(false); // carry on from the new place: no count-in again
   }
 
   seekMeasure(m: number) {
@@ -141,7 +141,7 @@ export class Player {
   }
 
   // ---- transport ----
-  async play() {
+  async play(withCountIn = true) {
     if (this.playing) return;
     await this.ctx.resume();
     const range = this.loopRange();
@@ -160,7 +160,7 @@ export class Player {
     const now = this.ctx.currentTime + 0.08;
     const beatSec = ((60 / this.score.baseBpm) * (4 / this.score.timeSig.den)) / this.speed;
     let lead = 0;
-    if (this.countIn) {
+    if (this.countIn && withCountIn) {
       const n = this.score.timeSig.num;
       for (let i = 0; i < n; i++) clickSound(this.ctx, now + i * beatSec, i === 0, this.volume);
       lead = n * beatSec;

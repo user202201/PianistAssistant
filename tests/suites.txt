@@ -28,3 +28,4 @@
 31-refresh-message
 32-fingering-options
 33-trial-purchase
+34-fingering-toggle-while-playing

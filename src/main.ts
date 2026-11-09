@@ -1401,16 +1401,12 @@ async function renderPlayer(name: string) {
       undo.push(() => modelBox?.remove());
     }
     osmd.zoom = split ? 0.5 : settings.zoom;
+    osmd.EngravingRules.RenderFingerings = false; // every number is drawn by our own overlay: showing / hiding needs no redraw of the score
     osmd.render();
     osmd.cursor.show();
     const tools = new FingerTools(osmd, holder, xml, !split);
     undo.push(() => tools.dispose());
     tools.visible = settings.fingers;
-    if (!tools.visible) {
-      osmd.EngravingRules.RenderFingerings = false;
-      osmd.render();
-      osmd.cursor.show();
-    }
     tools.refresh();
     leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
     const score = extractScore(osmd, displayName(name));
@@ -1537,6 +1533,7 @@ async function renderDuet(pair: api.Pair) {
       undo.push(() => o.clear());
       if (stale()) return bail();
       o.zoom = settings.zoom;
+      o.EngravingRules.RenderFingerings = false; // our own overlay draws the numbers
       o.render();
       o.cursor.show();
       const ps = extractScore(o, displayName(files[g]));
@@ -1556,13 +1553,6 @@ async function renderDuet(pair: api.Pair) {
     const tools = new FingerGroup(views.map((v, g) => new FingerTools(v.osmd, v.holder, xmls[g])));
     undo.push(() => tools.dispose());
     tools.visible = settings.fingers;
-    if (!tools.visible) {
-      for (const v of views) {
-        v.osmd.EngravingRules.RenderFingerings = false;
-        v.osmd.render();
-        v.osmd.cursor.show();
-      }
-    }
     tools.refresh();
     leaveGuard = () => !tools.dirty || confirm("有未保存的指法，确定离开？");
     busyCheck = () => player.playing || tools.editing || tools.dirty;
@@ -1763,7 +1753,7 @@ function buildControls(
     settings.fingers = on;
     saveSettings(settings);
     fingerToggle.classList.toggle("on", on);
-    rerender();
+    tools.refresh(); // the numbers are our own overlay: no need to redraw the score (which would also restart playback)
   }
   fingerToggle.classList.toggle("on", tools.visible);
   practiceBtn.addEventListener("click", () => (fpanel.hidden = true));
