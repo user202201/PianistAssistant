@@ -25,6 +25,7 @@ for src in Four-Hands-Test Test-Piece Expression-Test Long3; do
       secs=$(( $(date +%s) - t0 ))
       echo "[$src $variant $engine] $(grep -E "FAILED|recognised" "$OUT/$src.$variant.$engine.log" | tail -n 2 | short | tr '\n' ' ')"
       if [ -s "$res" ]; then
+        if [ "$variant" = clean ]; then echo "  -- structure of $src $engine:"; python3 scripts/xml-structure.py "$res" 2>&1 | cut -c1-400; fi
         row=$(python3 scripts/ocr-compare.py "samples/ocr-lab/$src.musicxml" "$res" "$src" "$variant / $engine" 2>/dev/null | head -n 1)
         echo "$row $secs s |" >> "$ROWS"
       else
