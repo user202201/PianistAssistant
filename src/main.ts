@@ -1664,15 +1664,12 @@ function buildControls(
   }
 
   // ---- fingering ----
-  const cbXml = h("input", { type: "checkbox", checked: tools.showXml, disabled: tools.xmlCount === 0 });
   const cbAuto = h("input", { type: "checkbox", checked: tools.showAuto });
-  cbXml.addEventListener("change", () => { tools.showXml = cbXml.checked; rerender(); });
   cbAuto.addEventListener("change", () => tools.setAuto(cbAuto.checked));
   const editBtn = h("button", { class: "primary", onclick: () => enterEdit() }, ic("pencil", 20), "编辑指法");
   const fpanel = h(
     "div",
     { class: "panel", hidden: true },
-    h("label", { class: "inline" }, cbXml, tools.xmlCount ? `显示乐谱里的指法（${tools.xmlCount} 个音符）` : "乐谱里没有指法信息"),
     h("label", { class: "inline" }, cbAuto, h("span", {}, "自动建议指法（", h("b", { class: "blue" }, "蓝色"), "，仅作参考；已有指法的音符不会被改动）")),
     h("p", { class: "muted small" }, "优先级：乐谱里的指法 > 自动建议。自己标注的指法保存后写进乐谱文件，之后读取以它为准。"),
     editBtn,

@@ -26,3 +26,4 @@
 29-conversion-engine
 30-fold-resize-blank
 31-refresh-message
+32-fingering-options
