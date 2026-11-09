@@ -352,3 +352,12 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 /* "new" = a green dot on the icon (takes no room from the name) */
 .card .open { position: relative; }
 .card .open.isnew::after { content: ""; position: absolute; left: 46px; top: 12px; width: 13px; height: 13px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--surface); }
+
+/* messages sit at the bottom: at the top they covered the first line of the score */
+.toast { top: auto; bottom: calc(env(safe-area-inset-bottom) + 170px); }
+
+#toasts { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 170px); z-index: 90; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+#toasts .toast { position: static; transform: none; pointer-events: auto; }
+
+/* the drop-down list of a <select> is drawn by the system: give it our colours so text is readable in dark mode */
+select option, select optgroup { background: var(--surface); color: var(--text); }

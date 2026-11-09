@@ -60,7 +60,13 @@ function h<K extends keyof HTMLElementTagNameMap>(
 }
 const toast = (msg: string, ms = 3500) => {
   const t = h("div", { class: "toast" }, msg);
-  document.body.append(t);
+  t.addEventListener("click", () => t.remove());
+  let box = document.getElementById("toasts");
+  if (!box) {
+    box = h("div", { id: "toasts" });
+    document.body.append(box);
+  }
+  box.append(t); // several messages stack instead of lying on top of each other
   setTimeout(() => t.remove(), ms);
   return () => t.remove(); // dismiss early (e.g. a "working…" message once the work is done)
 };
@@ -1463,9 +1469,12 @@ function buildControls(
     const wr = v.wrap.getBoundingClientRect();
     const top = cr.top - wr.top;
     const margin = 14;
+    // the cursor only spans the staves: fingering numbers, high notes, dynamics and bar numbers are drawn above and below it
+    const above = Math.round(58 * Math.max(1, settings.zoom));
+    const below = Math.round(34 * Math.max(1, settings.zoom));
     if (settings.scrollMode === "page") {
-      // only when the line is not fully visible: put it near the top, so the next line stays visible below
-      if (top < margin || cr.bottom - wr.top > wr.height - margin) v.wrap.scrollTop += top - margin;
+      // only when the line is not fully visible: put it near the top (with room for what is drawn above the staff)
+      if (top < above || cr.bottom - wr.top > wr.height - below) v.wrap.scrollTop += top - above;
     } else {
       const delta = top + cr.height / 2 - wr.height / 2;
       if (Math.abs(delta) > 40) v.wrap.scrollTo({ top: v.wrap.scrollTop + delta, behavior: "smooth" });
@@ -1495,20 +1504,23 @@ function buildControls(
     const vTop = v.wrap.scrollTop;
     // is the next line (mostly) on screen already? then there is nothing to preview
     const shown = Math.max(0, Math.min(next.top + next.h, vTop + viewH) - Math.max(next.top, vTop));
-    if (shown >= next.h * 0.65) return off();
+    if (shown >= next.h * 0.6) return off(); // the line is there to read (its cut-off part is mostly margin)
     // right under the current line (so the eye just continues downwards); if that runs past the bottom of the
     // score area it floats over the control bar, which is not needed while playing
     const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
     const wr = v.wrap.getBoundingClientRect();
     const room = (split ? wr.bottom : window.innerHeight) - 6 - (wr.top + y);
-    const h2 = Math.min(next.h + 20, room);
-    if (h2 < Math.min(110, next.h * 0.6)) return off();
+    const S = 0.85; // drawn a little smaller: it only has to be readable, and it covers less
+    // what is drawn above the staves (bar numbers, high notes, fingering) lies outside the system box: start higher
+    const pad = Math.round(44 * Math.max(1, settings.zoom));
+    const h2 = Math.min((next.h + pad + 24) * S, room);
+    if (h2 < Math.min(110, next.h * S * 0.6)) return off();
     // the preview is a window onto the same drawing (no copy of the score is made)
     if (!svg.id || document.querySelectorAll(`[id="${svg.id}"]`).length > 1) svg.id = `osmd-svg-${++svgSeq}`;
     const w = svg.getBoundingClientRect().width;
     v.peek.className = "peek";
     v.peek.style.cssText = `display:block;top:${v.wrap.offsetTop + y}px;height:${h2}px`;
-    v.peek.innerHTML = `<span class="tag">下一行</span><svg width="${w}" height="${h2}" viewBox="0 ${next.top - 10 - oy} ${w} ${h2}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
+    v.peek.innerHTML = `<span class="tag">下一行</span><svg width="${w * S}" height="${h2}" viewBox="0 ${next.top - pad - oy} ${w} ${h2 / S}" style="left:${sr.left - hr.left + (w * (1 - S)) / 2}px"><use href="#${svg.id}"/></svg>`;
   }
   function syncViews() {
     if (!split) return;

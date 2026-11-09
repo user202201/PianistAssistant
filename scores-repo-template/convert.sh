@@ -98,15 +98,47 @@ for f in "${todo[@]}"; do
   cp "$f" "/tmp/omr/in/score.$ext"   # ASCII name: safest for the OMR engine
   rc=0
   timeout 1500 "$AUD" -batch -transcribe -export -output /tmp/omr/out -- "/tmp/omr/in/score.$ext" > /tmp/omr/log.txt 2>&1 || rc=$?
-  res=$(find /tmp/omr/out -type f -name '*.mxl' | sort | head -1)
-  [ -n "$res" ] || res=$(find /tmp/omr/out -type f -name '*.xml' | sort | head -1)
-  if [ -n "$res" ]; then
-    case "$res" in
-      *.mxl)
-        inner=$(unzip -Z1 "$res" | grep -v '^META-INF' | grep -iE '\.(xml|musicxml)$' | head -1)
-        unzip -p "$res" "$inner" > "scores/$stem.musicxml" ;;
-      *) cp "$res" "scores/$stem.musicxml" ;;
+  # Audiveris may split a multi-page / multi-section score into several "movement" files (score.mvt1.mxl, score.mvt2.mxl ...):
+  # take ALL of them and join them in order (taking only the first one loses everything after the first section)
+  rm -rf /tmp/omr/x; mkdir -p /tmp/omr/x
+  n=0
+  while IFS= read -r m; do
+    n=$((n+1))
+    case "$m" in
+      *.mxl) inner=$(unzip -Z1 "$m" | grep -v '^META-INF' | grep -iE '\.(xml|musicxml)$' | head -1)
+             unzip -p "$m" "$inner" > "/tmp/omr/x/$(printf %03d $n).xml" ;;
+      *) cp "$m" "/tmp/omr/x/$(printf %03d $n).xml" ;;
     esac
+  done < <(find /tmp/omr/out -type f \( -name '*.mxl' -o -name '*.xml' \) | sort -V)
+  echo "movements found: $n" | tee -a "$LOG"
+  res=""
+  if [ "$n" -ge 1 ]; then
+    python3 - /tmp/omr/x "scores/$stem.musicxml" <<'PY' && res=ok
+import sys, glob
+import xml.etree.ElementTree as ET
+files = sorted(glob.glob(sys.argv[1] + "/*.xml"))
+base = ET.parse(files[0])
+root = base.getroot()
+parts = root.findall("part")
+for extra in files[1:]:
+    r = ET.parse(extra).getroot()
+    for i, part in enumerate(r.findall("part")):
+        if i >= len(parts):
+            break
+        last = 0
+        for m in parts[i].findall("measure"):
+            try:
+                last = max(last, int(m.get("number", "0")))
+            except ValueError:
+                last += 1
+        for m in part.findall("measure"):
+            last += 1
+            m.set("number", str(last))
+            parts[i].append(m)
+base.write(sys.argv[2], encoding="UTF-8", xml_declaration=True)
+PY
+  fi
+  if [ -n "$res" ]; then
     git rm -q -f "$f"
     echo "OK: $base"
   else
