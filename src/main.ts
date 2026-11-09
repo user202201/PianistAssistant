@@ -70,6 +70,11 @@ function h<K extends keyof HTMLElementTagNameMap>(
  * then the result is shown with a normal toast). Messages are tap-to-dismiss.
  */
 const toast = (msg: string, ms = 3500, working = false) => {
+  // the same "working…" message is shown once, not stacked
+  if (working) {
+    const same = [...document.querySelectorAll("#toasts .toast.working")].find((x) => x.textContent === msg);
+    if (same) return () => same.remove();
+  }
   const t = h("div", { class: "toast" + (working ? " working" : "") }, ...(working ? [h("div", { class: "spin small" })] : []), h("span", {}, msg));
   t.addEventListener("click", () => t.remove());
   let box = document.getElementById("toasts");
@@ -83,7 +88,7 @@ const toast = (msg: string, ms = 3500, working = false) => {
     box.hidePopover?.();
     box.showPopover?.(); // (re)open last so that it is above a dialog opened in the meantime
   } catch { /* browsers without popover: the fixed position still shows it */ }
-  setTimeout(() => t.remove(), working ? Math.max(ms, 120000) : ms);
+  setTimeout(() => t.remove(), ms);
   return () => t.remove(); // dismiss early (e.g. a "working…" message once the work is done)
 };
 const displayName = (n: string) => n.replace(/\.(musicxml|xml|mxl)$/i, "");
@@ -835,7 +840,7 @@ async function renderHome() {
       { class: "top" },
       h("h1", { class: "brand" }, h("span", { class: "logo" }, ic("note", 20)), "我的琴谱"),
       h("div", { class: "grow" }),
-      h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => { void load(); void checkUpdate(true); } }, ic("refresh")),
+      h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => doRefresh() }, ic("refresh")),
       h("button", { class: "primary", onclick: () => file.click() }, ic("plus", 20), "上传琴谱"),
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
@@ -1019,6 +1024,12 @@ async function renderHome() {
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   }
 
+  /** reload the list (and look for a new app version): a spinner message while it runs, gone when it is done */
+  function doRefresh() {
+    const close = toast("正在刷新…", 30000, true);
+    void load().finally(close);
+    void checkUpdate(true);
+  }
   /** fill the list for the chosen tab */
   function renderList() {
     const scoreItems = lastScores.map((x) => ({ key: displayName(x.name), k: favKey.score(x.name), el: () => card(x.name, true) }));
@@ -1157,7 +1168,7 @@ async function renderHome() {
     const go = y0 !== null && dy > 80;
     y0 = null;
     ptr.style.height = "0px";
-    if (go) { toast("正在刷新…", 1200, true); void load(); void checkUpdate(true); }
+    if (go) doRefresh();
   };
   main.addEventListener("touchend", endPull, { passive: true });
   main.addEventListener("touchcancel", endPull, { passive: true });
@@ -1606,7 +1617,10 @@ function buildControls(
     h("div", { class: "line" }, h("label", { class: "inline" }, cbLoop, "循环小节"), from, "到", to, useCurrent),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbRamp, "每遍加速"), rampStep, "% ，上限", rampMax, "%"),
   );
-  const practiceBtn = h("button", { title: "练习", onclick: () => (panel.hidden = !panel.hidden) }, ic("sliders", 20), "练习");
+  // same look as the fingering button next to it: a neutral pill, blue while its panel is open
+  const practiceBtn = h("button", { class: "toggle", title: "练习", onclick: () => (panel.hidden = !panel.hidden) }, ic("sliders", 20), "练习");
+  const practiceGroup = h("div", { class: "group" }, practiceBtn);
+  new MutationObserver(() => practiceBtn.classList.toggle("on", !panel.hidden)).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
 
   const zoomIn = h("button", { class: "icon", onclick: () => zoom(0.1), title: "放大" }, ic("plus", 20));
   const zoomOut = h("button", { class: "icon", onclick: () => zoom(-0.1), title: "缩小" }, ic("minus", 20));
@@ -1999,7 +2013,7 @@ function buildControls(
       ...(score.parts.length > 1 && !split ? score.parts.map((_, g) => partControls(g)) : []),
       h("div", { class: "grow" }),
       fingerBtn,
-      practiceBtn,
+      practiceGroup,
       zoomOut,
       zoomIn,
     ),

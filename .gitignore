@@ -11,3 +11,6 @@ mobile/ios/
 mobile/release.keystore
 dist-app/
 packages/*/out/
+
+# test output
+tests/out/

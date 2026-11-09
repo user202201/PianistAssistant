@@ -1,0 +1,28 @@
+const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
+let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
+(async () => {
+  const pdf = fs.readFileSync(D + 'Test-Piece-for-OCR.pdf');
+  const store = new Map([['scores/a.musicxml', fs.readFileSync(D + 'Ode_Primo.musicxml')]]);
+  const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 }, hasTouch: true, isMobile: true } });
+  await page.waitForSelector('.card'); await page.evaluate(() => (window.__noAuto = true));
+  await page.setInputFiles('input[type=file]', { name: 'Piece.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await page.waitForSelector('dialog.center');
+  const t = await page.textContent('dialog.center');
+  ok(t.includes('只保留 PDF') && t.includes('两个都要') && t.includes('只转换') && t.includes('取消'), 'PDF upload asks what to do');
+  await page.click('dialog.center button:has-text("只保留 PDF")');
+  await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf', { timeout: 15000 });
+  ok(store.has('pdfs/Piece.pdf') && !store.has('inbox/Piece.pdf'), 'kept as PDF only (not queued for conversion)');
+  ok((await page.textContent('.tabsbar')).includes('PDF 乐谱'), 'home has a "PDF 乐谱" tab');
+  await page.click('.card.pdf .open'); await page.waitForSelector('.pdfpage', { timeout: 20000 });
+  await page.waitForTimeout(1500);
+  const info = await page.evaluate(() => { const c = document.querySelector('.pdfpage'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let dark = 0; for (let i = 0; i < d.length; i += 40) if (d[i] < 100) dark++; return { w: c.width, dark }; });
+  ok(info.w > 500 && info.dark > 50, `PDF page drawn (${info.w}px wide, ${info.dark} dark samples)`);
+  await page.click('button[title=返回]'); await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf');
+  await page.setInputFiles('input[type=file]', { name: 'Both.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await page.waitForSelector('dialog.center'); await page.click('dialog.center button:has-text("两个都要")');
+  await page.waitForTimeout(2500);
+  ok(store.has('pdfs/Both.pdf') && store.has('inbox/Both.pdf'), 'both: kept AND queued for conversion');
+  await page.click('.card.pdf >> nth=0 >> button[title=更多]'); await page.click('dialog button:has-text("删除这份 PDF")');
+  page.on('dialog', d => d.accept());
+  await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
+})();

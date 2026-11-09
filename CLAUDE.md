@@ -10,7 +10,8 @@
    (offline cache, on-device storage for the mobile apps) can be swapped in without touching the UI.
 5. **Automate.** Anything that has to be done on every release (packaging, translations check, deploy) belongs in a workflow or script,
    not in a to-do list for the user.
-6. **Tests.** Playwright suites live outside the repo (scratchpad); keep adding a suite for each new feature and run all before pushing.
+6. **Tests.** The end-to-end suites are in `tests/` (see `tests/README.md`); `npm run test:e2e` runs them, and the mobile packaging workflow runs them first and
+   only builds when they pass. Every new feature and every fixed bug gets a suite (or a check) in the same change, and the test must fail on the old code.
 7. **Answer the user in Chinese, step by step, and be honest about what could not be tested** (real iPad, real piano samples, real Apple/Google accounts).
 8. **PDF conversion quality is measured, not guessed.** `.github/workflows/ocr-lab.yml` converts PDFs made from known scores (`samples/ocr-lab/`)
    and prints a per-measure comparison. Before changing `scores-repo-template/convert-one.sh`, run it (Actions → ocr-lab) and compare.

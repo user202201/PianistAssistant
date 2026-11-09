@@ -13,7 +13,11 @@ concurrency:
   group: mobile-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   android:
+    needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -34,6 +38,7 @@ jobs:
         with: { name: android, path: packages/android/out/*, if-no-files-found: error }
 
   ios:
+    needs: tests
     runs-on: macos-15
     timeout-minutes: 60
     steps:
@@ -55,6 +60,7 @@ jobs:
         with: { name: ios, path: packages/ios/out/*, if-no-files-found: error }
 
   harmonyos:
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
