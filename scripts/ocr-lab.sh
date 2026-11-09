@@ -11,12 +11,15 @@ echo "|---|---|---|---|---|---|---|" >> "$SUMMARY"
 
 score() { # $1 stem  $2 variant  $3 result.musicxml
   local truth="samples/ocr-lab/$1.musicxml"
-  if [ ! -s "$3" ]; then echo "| $1 | $2 | – | – | NO RESULT | | |" >> "$SUMMARY"; return; fi
-  python3 scripts/ocr-compare.py "$truth" "$3" | python3 -c '
-import json,sys
-r=json.load(sys.stdin); n=sys.argv[1:]
-print(f"| {n[0]} | {n[1]} | {r[\"measures_truth\"]}→{r[\"measures_result\"]} | {r[\"notes_truth\"]}→{r[\"notes_result\"]} | {r[\"recall_by_measure\"]} | {r[\"precision_by_measure\"]} | {r[\"recall_anywhere\"]} |")' "$1" "$2" >> "$SUMMARY"
+  if [ ! -s "$3" ]; then echo "| $1 | $2 | – | – | NO RESULT | | |" | tee -a "$SUMMARY"; return; fi
+  python3 scripts/ocr-compare.py "$truth" "$3" "$1" "$2" | tee -a "$SUMMARY"
+  # titles / tempo / text found?
+  echo "    text in result: title=$(grep -c '<work-title>' "$3") words=$(grep -c '<words' "$3") tempo=$(grep -c '<sound tempo\|<metronome' "$3")"
 }
+
+# language data for the text recognition: the one from Ubuntu ("distro") and the full English model from the Tesseract project
+mkdir -p /tmp/tess-full && curl -fsSL -o /tmp/tess-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata && echo "full eng model: $(wc -c < /tmp/tess-full/eng.traineddata) bytes"
+DISTRO_TESS="${TESSDATA_PREFIX:-}"
 
 for pdf in samples/ocr-lab/*.pdf; do
   stem=$(basename "$pdf" .pdf)
@@ -32,5 +35,9 @@ for pdf in samples/ocr-lab/*.pdf; do
   AUD="$AUD" bash scores-repo-template/convert-one.sh "$OUT/$stem.400.tif" "$OUT/$stem.tiff400.musicxml" 2>&1 | sed "s/^/[tiff400] /"
   cp /tmp/omr/log.txt "$OUT/$stem.tiff400.log" 2>/dev/null || true
   score "$stem" "400 dpi TIFF" "$OUT/$stem.tiff400.musicxml"
+  # 3. the PDF as is, with the full English text model
+  TESSDATA_PREFIX=/tmp/tess-full AUD="$AUD" bash scores-repo-template/convert-one.sh "$pdf" "$OUT/$stem.tessfull.musicxml" 2>&1 | sed "s/^/[tessfull] /"
+  cp /tmp/omr/log.txt "$OUT/$stem.tessfull.log" 2>/dev/null || true
+  score "$stem" "PDF + full text model" "$OUT/$stem.tessfull.musicxml"
 done
 cat "$SUMMARY" 2>/dev/null | tail -30

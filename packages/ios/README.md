@@ -44,7 +44,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 1. **TestFlight（自己和朋友测试）**：App Store Connect → TestFlight，添加内部测试员（用 Apple ID 邀请），对方在 iPhone 上装 TestFlight App 就能装你的 App。
 2. **提交上架**：App Store Connect → 你的 App → 准备提交：填简介、关键词、截图（iPhone 和 iPad 各需要几张）、**隐私政策网址**、年龄分级、版权信息；选择刚上传的构建版本；点“提交以供审核”。审核一般 1–3 天。
-3. ⚠️ **审核提示**：苹果审核员需要能登录使用 App。现在登录要 GitHub 令牌，审核员没有。所以**上架前要先做“仅本机存储”模式**（不需要登录，谱子存在手机里），否则很可能被拒。这个我会在上架前做好。
+3. **审核提示（已处理）**：苹果审核员没有 GitHub 令牌，所以 App 打开后第一个按钮是“**在本机使用（不需要账号）**”，不用登录就能上传谱子、播放、收藏、备份。GitHub 同步放在“高级”里，是可选功能。这符合苹果“不要强制登录”的规定。
 
 ## 没有 Mac 也行吗
 
@@ -54,3 +54,22 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 - 钢琴音色第一次用要联网下载，之后由系统缓存。
 - 谱子目前存在 GitHub 私有仓库，App 里会保留离线副本。
+
+## 上架前自查清单（苹果审核常见问题）
+
+| 项目 | 状态 |
+|---|---|
+| 不强制登录 | ✅ 默认“在本机使用”，不需要任何账号 |
+| 不是“只套了个网页” | ✅ 代码和默认钢琴音色都打包在 App 里，可完全离线使用，有本地文件存储、备份 |
+| 加密出口合规 | ✅ 已自动设置 `ITSAppUsesNonExemptEncryption = false`（只用系统自带的 HTTPS） |
+| 隐私政策网址 | ❌ 需要你提供一个网页地址。App 不收集任何数据；GitHub 同步是用户自己的账号。可以用 GitHub Pages 放一页文字 |
+| 隐私问卷（App Privacy） | 选“不收集数据”（App 没有统计、广告、第三方 SDK） |
+| 截图 | ❌ 需要 iPhone 和 iPad 的截图（我可以在模拟器里帮你截） |
+| 年龄分级、类别 | 类别选“音乐”；无不适内容 |
+| 评审备注 | 写明：“可点‘在本机使用’直接体验；需要乐谱文件可从 samples 下载” |
+
+> 风险提示：苹果有条规定（4.2）不喜欢“只是网站换壳”的 App。我们有离线、本地存储、文件导入导出，通常没问题，但最终由审核员判断，可能被要求补充说明。
+
+## 免费装到自己的设备（不上架）
+
+有 Mac + Xcode 的话，用免费的 Apple ID 就能装到自己的 iPhone/iPad：解压 `PianistAssistant-ios-xcode-project.zip` → 用 Xcode 打开 `ios/App/App.xcworkspace` → 选你的设备 → 在 Signing 里选你的 Apple ID（Personal Team）→ 点运行。免费签名**每 7 天过期一次**，要重新装一遍；也不能用 TestFlight。没有 Mac 就做不到（这是苹果的限制），可以继续用网页添加到主屏幕。

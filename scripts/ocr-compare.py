@@ -55,4 +55,7 @@ rep = {
     "precision_by_measure": round(matched / r_notes, 3) if r_notes else None,
     "recall_anywhere": round(whole / t_notes, 3) if t_notes else None,
 }
-print(json.dumps(rep))
+if len(sys.argv) >= 5:  # markdown table row: ocr-compare.py truth result stem variant
+    print(f"| {sys.argv[3]} | {sys.argv[4]} | {rep['measures_truth']}→{rep['measures_result']} | {rep['notes_truth']}→{rep['notes_result']} | {rep['recall_by_measure']} | {rep['precision_by_measure']} | {rep['recall_anywhere']} |")
+else:
+    print(json.dumps(rep))
