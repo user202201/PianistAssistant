@@ -1,5 +1,6 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "对本次选的全部文件都这样处理": "Do the same for all files selected now",
   "已加入收藏": "Added to favourites",
   "已取消收藏": "Removed from favourites",
   "正在删除…": "Deleting…",
@@ -333,6 +334,7 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "对本次选的全部文件都这样处理": "Faire de même pour tous les fichiers choisis",
   "已加入收藏": "Ajouté aux favoris",
   "已取消收藏": "Retiré des favoris",
   "正在删除…": "Suppression…",

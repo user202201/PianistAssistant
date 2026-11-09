@@ -413,17 +413,26 @@ async function showQr() {
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   }
 
+// ---------- several files at once: one question for the whole batch ----------
+/** set while a multi-file upload runs: the first answer (with "same for all" ticked) is reused for the other files */
+let batchCtx: { files: number; conflict: api.Conflict | null; pdf: "convert" | "keep" | "both" | null } = { files: 1, conflict: null, pdf: null };
+const sameForAll = () => h("input", { type: "checkbox", checked: true });
+const sameForAllRow = (box: HTMLInputElement) => (batchCtx.files > 1 ? h("label", { class: "inline" }, box, "对本次选的全部文件都这样处理") : null);
+
 // ---------- what to do with an uploaded PDF ----------
 function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
+  if (batchCtx.pdf) return Promise.resolve(batchCtx.pdf);
   return new Promise((resolve) => {
     let answer: "convert" | "keep" | "both" | "cancel" = "cancel";
-    const pick = (a: typeof answer) => () => { answer = a; dlg.close(); };
+    const all = sameForAll();
+    const pick = (a: typeof answer) => () => { answer = a; if (a !== "cancel" && all.checked && batchCtx.files > 1) batchCtx.pdf = a; dlg.close(); };
     const dlg = h(
       "dialog",
       { class: "dlg center" },
       h("h2", {}, "这份 PDF 怎么处理？"),
       h("p", { class: "small" }, name),
       h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
+      sameForAllRow(all),
       h(
         "div",
         { class: "row wrap stack" },
@@ -442,8 +451,10 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
 
 // ---------- same-name upload ----------
 function askConflict(info: { name: string; existing: string; kind: "score" | "convert" | "queued" }): Promise<api.Conflict> {
+  if (batchCtx.conflict) return Promise.resolve(batchCtx.conflict);
   return new Promise((resolve) => {
     let answer: api.Conflict = "skip";
+    const all = sameForAll();
     const msg =
       info.kind === "queued"
         ? `「${info.existing}」已经在转换队列中（转换通常需要 3–10 分钟），不需要重复上传。`
@@ -452,6 +463,7 @@ function askConflict(info: { name: string; existing: string; kind: "score" | "co
           : `已有同名文件「${displayName(info.existing)}」。`;
     const done = (a: api.Conflict) => () => {
       answer = a;
+      if (all.checked && batchCtx.files > 1) batchCtx.conflict = a; // the other files of this batch get the same answer
       dlg.close();
     };
     const dlg = h(
@@ -460,6 +472,7 @@ function askConflict(info: { name: string; existing: string; kind: "score" | "co
       h("h2", {}, "文件名重复"),
       h("p", {}, msg),
       h("p", { class: "muted small" }, "替换：用新文件覆盖旧的（旧版本仍可在 GitHub 历史里找回）。保留两份：新文件自动改名，比如“名称 (2)”。"),
+      sameForAllRow(all),
       h(
         "div",
         { class: "row wrap stack" },
@@ -740,7 +753,9 @@ async function renderHome() {
   const file = h("input", { type: "file", accept: ".musicxml,.xml,.mxl,.zip,.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,application/pdf,image/*,application/zip,application/vnd.recordare.musicxml,application/vnd.recordare.musicxml+xml,text/xml", multiple: true, hidden: true });
   file.addEventListener("change", async () => {
     const stored: string[] = [];
-    for (const f of Array.from(file.files ?? [])) {
+    const picked = Array.from(file.files ?? []);
+    batchCtx = { files: picked.length, conflict: null, pdf: null };
+    for (const f of picked) {
       let closeUp = () => {}; // the "uploading…" message stays until this file is done
       try {
         let mode: "convert" | "keep" | "both" = "convert";
@@ -780,6 +795,7 @@ async function renderHome() {
       }
     }
     file.value = "";
+    batchCtx = { files: 1, conflict: null, pdf: null };
     await load();
     // two score files picked together: is it one four-hand piece (a part per file)?
     if (stored.length === 2) {
