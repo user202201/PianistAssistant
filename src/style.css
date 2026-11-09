@@ -432,7 +432,7 @@ textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text
 .pageind { min-width: 56px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .turnbar { height: 3px; background: var(--fill); flex: none; }
 .turnbar .fill { height: 100%; width: 100%; background: var(--accent); }
-select.turnsecs { min-height: 40px; border: 0; border-left: .5px solid var(--sep); background: transparent; color: var(--text); font: inherit; padding: 0 8px; border-radius: 0 11px 11px 0; }
+select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(--sep); background: transparent; color: var(--text); font: inherit; padding: 0 8px; border-radius: 0 11px 11px 0; }
 .pdfsheet { position: relative; width: 100%; }
 .pdfsheet > .pdfpage { width: 100%; }
 .pdfsheet > .notes { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -441,3 +441,24 @@ select.turnsecs { min-height: 40px; border: 0; border-left: .5px solid var(--sep
 .pdfwrap.single .pdfpages { width: max-content; min-width: 100%; align-items: center; margin: 0; padding: 0 12px; box-sizing: border-box; }
 .swatch .dot { display: block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(128, 128, 128, .45); }
 .swatch.on .dot { border-color: var(--on-accent); }
+
+/* PDF viewer, 2nd version: three zones, full screen, seconds dialog */
+.pdfchrome { flex: none; }
+.pdfstage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pdfstage > .turnbar { position: absolute; top: 0; left: 0; right: 0; z-index: 4; }
+.pdfbar { gap: 12px; }
+.pdfbar .zone { display: flex; align-items: center; gap: 10px; }
+.pdfbar .zone.left { flex: 1 1 0; justify-content: flex-start; }
+.pdfbar .zone.mid { flex: 0 0 auto; justify-content: center; }
+.pdfbar .zone.right { flex: 1 1 0; justify-content: flex-end; }
+.pdfbar button { white-space: nowrap; }
+@media (max-width: 760px) { .pdfbar .zone.left, .pdfbar .zone.right { flex: 1 1 auto; } }
+.group.pair > button.secs { min-width: 64px; font-variant-numeric: tabular-nums; }
+.pdfwrap.single:not(.zoomed) { touch-action: pan-y pinch-zoom; }
+#app.pdffull { padding-top: env(safe-area-inset-top); }
+#app.pdffull .pdfchrome { display: none; }
+#app.pdffull.show .pdfchrome { display: block; position: fixed; top: 0; left: 0; right: 0; z-index: 30; background: var(--bg); padding-top: env(safe-area-inset-top); box-shadow: var(--shadow); }
+.stepper { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 14px 0; }
+.stepper button { min-width: 52px; min-height: 52px; }
+.stepper .secsinput { width: 96px; font-size: 28px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper span { font-size: 18px; }

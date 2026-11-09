@@ -2225,14 +2225,43 @@ async function renderPdf(name: string) {
     sheets.forEach((sh, i) => { if (sh.offsetTop - 12 <= wrap.scrollTop + wrap.clientHeight * 0.35) c = i + 1; });
     if (c !== cur) { cur = c; showPage(); }
   }, { passive: true });
-  // tap the left / right edge to turn the page (not while annotating)
-  wrap.addEventListener("click", (e) => {
-    if (mode !== "single" || book?.enabled) return;
-    const r = wrap.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    if (x < 0.22) goto(cur - 1);
-    else if (x > 0.78) goto(cur + 1);
+  // Touch gestures: a quick swipe sideways turns the page (the way you turn it while playing), a tap on the left / right edge too,
+  // a tap in the middle shows / hides the toolbar in full screen. A swipe and a tap are told apart by how far the finger moved.
+  const fitsScreen = () => mode === "single" && zoom <= 1.01;
+  let down: { x: number; y: number; t: number } | null = null;
+  wrap.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary || e.pointerType === "pen" || (e.pointerType === "mouse" && e.button !== 0)) return down = null;
+    down = { x: e.clientX, y: e.clientY, t: Date.now() };
   });
+  wrap.addEventListener("pointercancel", () => (down = null));
+  wrap.addEventListener("pointerup", (e) => {
+    const d = down;
+    down = null;
+    if (!d || e.pointerType === "pen") return;
+    const dx = e.clientX - d.x, dy = e.clientY - d.y, dt = Date.now() - d.t;
+    const drawing = book?.enabled && (e.pointerType === "mouse" || book.fingerDraw); // this pointer was writing, not navigating
+    if (drawing) return;
+    if (e.pointerType === "touch" && fitsScreen() && Math.abs(dx) >= 48 && Math.abs(dx) > 1.6 * Math.abs(dy) && dt < 900) return void goto(cur + (dx < 0 ? 1 : -1));
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 600) {
+      const r = wrap.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      if (mode === "single" && !book?.enabled && x < 0.22) goto(cur - 1);
+      else if (mode === "single" && !book?.enabled && x > 0.78) goto(cur + 1);
+      else if (app.classList.contains("pdffull")) showChrome(!app.classList.contains("show"));
+    }
+  });
+  // mouse wheel / trackpad: one page per scroll (only when the whole page fits; when zoomed in the wheel scrolls the page as usual)
+  let wheelAcc = 0, wheelLock = 0;
+  wrap.addEventListener("wheel", (e) => {
+    if (!fitsScreen() || e.ctrlKey) return;
+    e.preventDefault();
+    if (Date.now() < wheelLock) return;
+    wheelAcc += e.deltaY || e.deltaX;
+    if (Math.abs(wheelAcc) < 40) return;
+    goto(cur + (wheelAcc > 0 ? 1 : -1));
+    wheelAcc = 0;
+    wheelLock = Date.now() + 450; // a trackpad keeps sending events after the finger left: one page per gesture
+  }, { passive: false });
   const onKey = (e: KeyboardEvent) => {
     if ((e.target as HTMLElement)?.closest("input, textarea, select, dialog")) return;
     if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); goto(cur + 1); }
@@ -2247,27 +2276,41 @@ async function renderPdf(name: string) {
   const turnBtn = h("button", { class: "toggle", title: "每隔几秒自动翻到下一页", onclick: () => (turn.running ? turn.stop("user") : startTurn()) }, ic("timer", 20), "自动翻页");
   // every page has its own time (forScore keeps it per page too); pages without one use the default
   const secsFor = (page: number) => (book ? book.turnSeconds(page, settings.pdfTurnSeconds) : settings.pdfTurnSeconds);
-  const secSel = h("select", { class: "turnsecs", title: "这一页停留多久（每一页可以不同）" }) as HTMLSelectElement;
-  const fillSecs = () => {
-    const v = secsFor(cur);
-    const list = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300];
-    if (!list.includes(v)) list.push(v), list.sort((x, y) => x - y);
-    secSel.replaceChildren(...list.map((n) => h("option", { value: String(n), selected: n === v }, `本页 ${n} 秒`)));
-    secSel.value = String(v);
-  };
-  secSel.addEventListener("change", () => {
-    const n = Number(secSel.value);
-    if (book) book.setTurnSeconds([cur], n);
+  const secBtn = h("button", { class: "narrow secs", title: "自动翻页设置：每页停留多久", onclick: () => openTurnSettings() }, "") as HTMLButtonElement;
+  const fillSecs = () => { secBtn.textContent = `${secsFor(cur)} 秒`; };
+  const setSecs = (n: number, all = false) => {
+    n = Math.max(1, Math.min(600, Math.round(n) || 1));
+    if (all) {
+      settings.pdfTurnSeconds = n;
+      saveSettings(settings);
+      book?.setTurnSeconds(Array.from({ length: total }, (_, i) => i + 1), n);
+    } else if (book) book.setTurnSeconds([cur], n);
     else { settings.pdfTurnSeconds = n; saveSettings(settings); }
+    fillSecs();
     turn.reset();
-  });
-  const allBtn = h("button", { class: "narrow", title: "所有页都用现在这个时间", onclick: () => {
-    const n = Number(secSel.value);
-    settings.pdfTurnSeconds = n;
-    saveSettings(settings);
-    book?.setTurnSeconds(Array.from({ length: total }, (_, i) => i + 1), n);
-    toast(`已把每一页的停留时间都设为 ${n} 秒`);
-  } }, "全部页");
+  };
+  function openTurnSettings() {
+    const input = h("input", { type: "number", min: "1", max: "600", step: "1", inputMode: "numeric", class: "secsinput", value: String(secsFor(cur)) }) as HTMLInputElement;
+    const set = (n: number) => { input.value = String(Math.max(1, Math.min(600, Math.round(n) || 1))); setSecs(Number(input.value)); };
+    input.addEventListener("change", () => set(Number(input.value)));
+    input.addEventListener("wheel", (e) => { e.preventDefault(); set(Number(input.value) + (e.deltaY < 0 ? 1 : -1)); }, { passive: false });
+    const dlg = h(
+      "dialog",
+      { class: "dlg", id: "turn-settings" },
+      h("h2", { tabIndex: -1, autofocus: true }, "自动翻页"),
+      h("p", { class: "muted small" }, `第 ${cur} 页停留的时间。每一页可以不同：翻到那一页再设置。`),
+      h("div", { class: "stepper" }, h("button", { id: "secs-minus", onclick: () => set(Number(input.value) - 1) }, ic("minus", 22)), input, h("span", {}, "秒"), h("button", { id: "secs-plus", onclick: () => set(Number(input.value) + 1) }, ic("plus", 22))),
+      h("div", { class: "row" },
+        h("button", { id: "secs-all", onclick: () => { setSecs(Number(input.value), true); toast(`已把每一页的停留时间都设为 ${Number(input.value)} 秒`); } }, "应用到全部页"),
+        h("div", { class: "grow" }),
+        h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
+      ),
+    );
+    dlg.addEventListener("close", () => dlg.remove());
+    document.body.append(dlg);
+    dlg.showModal();
+    (document.activeElement as HTMLElement | null)?.blur();
+  }
   const turn = new AutoTurn({
     seconds: () => secsFor(cur),
     next: () => goto(cur + 1, false),
@@ -2378,9 +2421,42 @@ async function renderPdf(name: string) {
     if (book?.dirty) void api.writePdfNotes(name, book.serialize()).catch(() => {}); // leaving: save what is not saved yet
   };
 
-  // ---- screen
-  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); layout(); };
-  pages.style.setProperty("--z", "1");
+  // ---- full screen: the toolbars are hidden, a tap in the middle of the page brings them back for a moment
+  let chromeTimer = 0;
+  const showChrome = (on: boolean) => {
+    app.classList.toggle("show", on);
+    clearTimeout(chromeTimer);
+    if (on) chromeTimer = window.setTimeout(() => app.classList.remove("show"), 6000);
+  };
+  const fsBtn = h("button", { class: "icon", title: "全屏（隐藏工具栏）", onclick: () => setFull(!app.classList.contains("pdffull")) }, ic("fullscreen", 20));
+  function setFull(on: boolean) {
+    app.classList.toggle("pdffull", on);
+    app.classList.remove("show");
+    fsBtn.replaceChildren(ic(on ? "restore" : "fullscreen", 20));
+    if (on) {
+      toast("全屏：点一下屏幕中间显示工具栏，左右滑动翻页", 4500);
+      try { void document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* the page-level full screen is enough */ }
+    } else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    setTimeout(layout, 50);
+  }
+  let enteredByApi = false;
+  const onFsChange = () => {
+    if (document.fullscreenElement) enteredByApi = true;
+    else if (enteredByApi) { enteredByApi = false; if (app.classList.contains("pdffull")) setFull(false); } // left with Esc / the system gesture
+  };
+  document.addEventListener("fullscreenchange", onFsChange);
+  const onKeyEsc = (e: KeyboardEvent) => { if (e.key === "Escape" && app.classList.contains("pdffull") && !document.querySelector("dialog[open]")) setFull(false); };
+  document.addEventListener("keydown", onKeyEsc);
+  const prevDispose = disposePlayer;
+  disposePlayer = () => {
+    prevDispose?.();
+    document.removeEventListener("keydown", onKeyEsc);
+    document.removeEventListener("fullscreenchange", onFsChange);
+    clearTimeout(chromeTimer);
+    app.classList.remove("pdffull", "show");
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  };
+
   const viewBtn = (m: "single" | "scroll", label: string) => h("button", { class: mode === m ? "on" : "", "data-view": m, onclick: () => {
     mode = m;
     settings.pdfView = m;
@@ -2390,21 +2466,32 @@ async function renderPdf(name: string) {
     if (m === "scroll") { const sh = sheets[cur - 1]; if (sh) wrap.scrollTo({ top: sh.offsetTop - 12 }); }
   } }, label);
   const viewGroup = h("div", { class: "group" }, viewBtn("single", "单页"), viewBtn("scroll", "连续"));
+  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); wrap.classList.toggle("zoomed", zoom > 1.01); layout(); };
+  pages.style.setProperty("--z", "1");
   app.replaceChildren(
     h(
-      "header",
-      { class: "top compact" },
-      h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
-      h("h1", {}, name.replace(/\.pdf$/i, "")),
-      h("div", { class: "grow" }),
-      status,
-      h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
-      h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
+      "div",
+      { class: "pdfchrome" },
+      h(
+        "header",
+        { class: "top compact" },
+        h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
+        h("h1", {}, name.replace(/\.pdf$/i, "")),
+        h("div", { class: "grow" }),
+        status,
+        h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
+        h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
+        fsBtn,
+      ),
+      // three areas: annotate on the left, how to look at the pages in the middle, the automatic turn in the right corner
+      h("div", { class: "pdfbar" },
+        h("div", { class: "zone left" }, annotBtn),
+        h("div", { class: "zone mid" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn)),
+        h("div", { class: "zone right" }, h("div", { class: "group pair" }, turnBtn, secBtn)),
+      ),
+      toolsRow,
     ),
-    h("div", { class: "pdfbar" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn), h("div", { class: "group pair" }, turnBtn, secSel, allBtn), annotBtn),
-    toolsRow,
-    turnBar,
-    wrap,
+    h("div", { class: "pdfstage" }, turnBar, wrap),
   );
   try {
     let notesText: string | null = null;

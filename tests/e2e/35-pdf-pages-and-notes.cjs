@@ -4,12 +4,14 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 const PDF = fs.readFileSync(path.join(__dirname, '../../samples/ocr-lab/Long3.pdf')); // 3 pages
 const VP = { viewport: { width: 1194, height: 834 }, hasTouch: true, isMobile: true };
 const NOTES = 'pdfs/Long3.pdf.ann.json';
+const setSecsHelper = null;
 (async () => {
   const store = new Map([['pdfs/Long3.pdf', PDF]]);
   const { browser, page } = await h.start(store, { context: VP });
   // a fast turn for the test (1 s per page); the select shows it as an extra choice
   await page.evaluate(() => { const k = 'pianist.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); s.pdfTurnSeconds = 1; localStorage.setItem(k, JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/')); await page.reload(); await page.waitForSelector('.home');
+  const setSecs = async (n) => { await page.click('button.secs'); await page.fill('#turn-settings input', String(n)); await page.keyboard.press('Tab'); await page.click('#turn-settings button.primary'); await page.waitForTimeout(150); };
   const open = async () => { await page.evaluate(() => (location.hash = '#/pdf/Long3.pdf')); await page.waitForFunction(() => document.querySelectorAll('.pdfsheet').length === 3, null, { timeout: 30000 }); await page.waitForTimeout(500); };
   await open();
   const vis = () => page.evaluate(() => [...document.querySelectorAll('.pdfsheet')].map(s => !s.hidden));
@@ -21,6 +23,35 @@ const NOTES = 'pdfs/Long3.pdf.ann.json';
   await page.mouse.click(1194 - 60, 500); await page.waitForTimeout(200); ok((await ind()).trim() === '3 / 3', 'tapping the right edge turns the page');
   await page.mouse.click(60, 500); await page.waitForTimeout(200); ok((await ind()).trim() === '2 / 3', 'tapping the left edge turns back');
   await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(150); ok((await ind()).trim() === '1 / 3', 'arrow keys turn pages');
+
+  // swipe (touch) and mouse wheel turn pages
+  const swipe = (dx) => page.evaluate((dx) => { const w = document.querySelector('.pdfwrap'); const mk = (t, x) => new PointerEvent(t, { pointerType: 'touch', isPrimary: true, pointerId: 3, clientX: x, clientY: 400, button: 0, bubbles: true }); w.dispatchEvent(mk('pointerdown', 600)); w.dispatchEvent(mk('pointerup', 600 + dx)); }, dx);
+  await swipe(-150); await page.waitForTimeout(200); ok((await ind()).trim() === '2 / 3', 'swiping left turns to the next page');
+  await swipe(150); await page.waitForTimeout(200); ok((await ind()).trim() === '1 / 3', 'swiping right goes back');
+  await swipe(20); await page.waitForTimeout(200); ok((await ind()).trim() === '1 / 3', 'a tiny movement is not a swipe');
+  await page.mouse.move(600, 400); await page.mouse.wheel(0, 120); await page.waitForTimeout(700); ok((await ind()).trim() === '2 / 3', 'the mouse wheel turns the page');
+  await page.mouse.wheel(0, -120); await page.waitForTimeout(700); ok((await ind()).trim() === '1 / 3', 'wheel up goes back');
+  // the toolbar has three areas: annotate (left), view + page number (middle), automatic turn (right corner)
+  const xs = await page.evaluate(() => { const x = (sel) => document.querySelector(sel).getBoundingClientRect(); const w = innerWidth; return { annot: x('.zone.left button').left, view: x('.zone.mid').left + x('.zone.mid').width / 2, turn: x('.zone.right button.secs').right, w }; });
+  ok(xs.annot < 200 && Math.abs(xs.view - xs.w / 2) < 120 && xs.turn > xs.w - 200, `layout: annotate at the left (${Math.round(xs.annot)}), view + page in the middle (${Math.round(xs.view)}), auto turn at the right corner (${Math.round(xs.turn)} of ${xs.w})`);
+  // full screen: toolbars hidden, a tap in the middle shows them, swipes still turn pages
+  await page.click('button[title^=全屏]'); await page.waitForTimeout(300);
+  ok(!(await page.locator('.pdfchrome').isVisible()), 'full screen hides the toolbars');
+  await swipe(-150); await page.waitForTimeout(200); ok((await ind()).trim() === '2 / 3', 'in full screen a swipe turns the page too');
+  await swipe(150); await page.waitForTimeout(200);
+  await page.mouse.click(600, 400); await page.waitForTimeout(200);
+  ok(await page.locator('.pdfchrome').isVisible(), 'a tap in the middle shows the toolbar again');
+  await page.mouse.click(600, 600); await page.waitForTimeout(200);
+  ok(!(await page.locator('.pdfchrome').isVisible()), 'and a second tap hides it');
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  ok(await page.locator('.pdfchrome').isVisible() && !(await page.evaluate(() => document.getElementById('app').classList.contains('pdffull'))), 'Esc leaves full screen');
+  while ((await ind()).trim() !== '1 / 3') { await page.click('button[title=上一页]'); await page.waitForTimeout(150); }
+  // seconds: type a number, + / - buttons
+  await page.click('button.secs'); await page.click('#secs-plus'); await page.click('#secs-plus');
+  ok(await page.locator('#turn-settings input').inputValue() === '3', 'the seconds dialog: + / - change the value (1 -> 3)');
+  await page.fill('#turn-settings input', '37'); await page.keyboard.press('Tab'); await page.click('#turn-settings button.primary'); await page.waitForTimeout(150);
+  ok((await page.textContent('button.secs')).trim() === '37 秒', 'any number of seconds can be typed (37)');
+  await setSecs(1);
 
   // ---- automatic turn (single page mode)
   await page.click('button[title="每隔几秒自动翻到下一页"]'); await page.waitForTimeout(150);
@@ -101,11 +132,11 @@ const NOTES = 'pdfs/Long3.pdf.ann.json';
   // ---- every page has its own time; the Pencil starts annotating by itself
   await page.evaluate(() => (location.hash = '#/')); await page.waitForTimeout(300); await open();
   while ((await ind()).trim() !== '1 / 3') { await page.click('button[title=上一页]'); await page.waitForTimeout(150); }
-  await page.selectOption('select.turnsecs', '5'); await page.waitForTimeout(150);
+  await setSecs(5);
   await page.click('button[title=下一页]'); await page.waitForTimeout(150);
-  ok(await page.locator('select.turnsecs').inputValue() === '1', 'page 2 shows its own time (the default, 1 s) while page 1 has 5 s');
+  ok((await page.textContent('button.secs')).trim() === '1 秒', 'page 2 shows its own time (the default, 1 s) while page 1 has 5 s');
   await page.click('button[title=上一页]'); await page.waitForTimeout(150);
-  ok(await page.locator('select.turnsecs').inputValue() === '5', 'back on page 1 it shows 5 s');
+  ok((await page.textContent('button.secs')).trim() === '5 秒', 'back on page 1 it shows 5 s');
   await page.click('button[title="每隔几秒自动翻到下一页"]');
   await page.waitForTimeout(2600); const p1 = (await ind()).trim();
   await page.waitForTimeout(3200); const p2 = (await ind()).trim();
@@ -113,7 +144,7 @@ const NOTES = 'pdfs/Long3.pdf.ann.json';
   ok(p1 === '1 / 3' && p2 === '2 / 3' && p3 === '3 / 3', `page 1 stays 5 s, page 2 only 1 s (${p1} -> ${p2} -> ${p3})`);
   await page.waitForTimeout(3300);
   ok(JSON.stringify(JSON.parse(store.get(NOTES).toString()).turn) === '{"1":5}', 'the time per page is saved with the PDF (next to the annotations)');
-  await page.click('button[title="所有页都用现在这个时间"]'); await page.waitForTimeout(3300);
+  await page.click('button.secs'); await page.click('#secs-all'); await page.keyboard.press('Escape'); await page.waitForTimeout(3300);
   ok(JSON.stringify(JSON.parse(store.get(NOTES).toString()).turn) === '{"1":1,"2":1,"3":1}' || Object.keys(JSON.parse(store.get(NOTES).toString()).turn).length === 3, 'the "all pages" button sets every page');
   await page.evaluate(() => (location.hash = '#/')); await page.waitForTimeout(300); await open();
   const wasOn = await page.locator('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]').evaluate(e => e.classList.contains('on'));
