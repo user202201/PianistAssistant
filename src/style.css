@@ -411,3 +411,10 @@ textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text
 #toasts .toast.working { background: rgba(0, 90, 200, .92); }
 #toasts .toast .spin { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
 @keyframes toastin { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+
+/* four hands: the part that is somebody else's is folded to its button row (can be opened again) */
+.pane.collapsed { flex: 0 0 auto; }
+.pane.collapsed > .panewrap, .pane.collapsed > .viewbox, .pane.collapsed > .peek { display: none !important; }
+.collbtn { display: inline-flex; align-items: center; gap: 4px; }
+/* segmented buttons keep their whole text (long French labels) */
+.group.wide > button { flex: 1 1 0; min-width: fit-content; padding-left: 10px; padding-right: 10px; white-space: nowrap; }

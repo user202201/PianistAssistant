@@ -1741,6 +1741,7 @@ function buildControls(
 
   // ---- keeping the current line in view (every screen follows its own cursor) ----
   function followOne(v: View, jump: boolean) {
+    if (v.box.classList.contains("collapsed")) return; // folded away
     const cur = v.osmd.cursor.cursorElement as HTMLElement | undefined;
     if (!cur) return;
     const cr = cur.getBoundingClientRect();
@@ -1884,6 +1885,8 @@ function buildControls(
       return !hs || score.staffCounts[pi] < 2 || (n.staff % 2 === 0 ? hs.right : hs.left);
     });
   }
+  /** four-hand view: the part you muted is the one YOU play; the other (still sounding) part is somebody else's, so its score is folded away */
+  let applyCollapse: () => void = () => {};
   function sync() {
     syncFingerHands();
     syncViews();
@@ -1905,6 +1908,7 @@ function buildControls(
       u.group.classList.toggle("muted", !player.partOn[u.g]);
     });
     if (!player.playing) clearCountIn();
+    applyCollapse();
     if (player.playing) void keepAwake(); else releaseWake();
   }
   player.onChange = sync;
@@ -1985,11 +1989,39 @@ function buildControls(
       document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), g === i ? "还原" : "全屏"));
       requestAnimationFrame(() => { followView(); });
     };
+    const collBtns: HTMLElement[] = [];
+    let lastTarget: number | null = null;
+    let userOpen = false; // opened by hand although the other part is muted
     document.querySelectorAll(".panehead").forEach((head, g) => {
       head.append(partControls(g));
       head.append(h("div", { class: "grow" }));
+      const fold = h("button", { class: "collbtn", hidden: true, onclick: () => { userOpen = !userOpen; applyCollapse(); } });
+      collBtns[g] = fold;
+      head.append(fold);
       head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18), "全屏"));
     });
+    applyCollapse = () => {
+      const on = player.partOn;
+      const target = views.length === 2 && on.filter(Boolean).length === 1 ? on.findIndex(Boolean) : null;
+      if (target !== lastTarget) {
+        lastTarget = target;
+        userOpen = false;
+        requestAnimationFrame(() => followView());
+      }
+      views.forEach((v, g) => {
+        const folded = target === g && !userOpen;
+        if (v.box.classList.contains("collapsed") !== folded) {
+          v.box.classList.toggle("collapsed", folded);
+          requestAnimationFrame(() => followView());
+        }
+        const b = collBtns[g];
+        if (!b) return;
+        b.hidden = target !== g;
+        b.replaceChildren(ic(folded ? "chevron-down" : "chevron-up", 18), folded ? "展开" : "收起");
+        b.title = folded ? "展开这个声部的谱子" : "收起这个声部的谱子";
+      });
+    };
+    applyCollapse();
     (window as unknown as { __setFocus?: (g: number | null) => void }).__setFocus = setFocus;
   }
   app.append(bar);
