@@ -20,7 +20,15 @@ export class Player {
   speed = 1;
   /** which parts / hands are audible */
   partOn: boolean[];
-  handOn = { right: true, left: true };
+  /** which hand(s) of each part are audible (four-hand: every player has their own right / left) */
+  partHands: { right: boolean; left: boolean }[];
+  /** same hand choice for every part (used by single-part scores and as a shortcut) */
+  get handOn(): { right: boolean; left: boolean } {
+    return this.partHands[0];
+  }
+  set handOn(v: { right: boolean; left: boolean }) {
+    this.partHands = this.partHands.map(() => ({ ...v }));
+  }
   metronome = false;
   /** follow dynamics / articulation / pedal from the score (off = every note at the same strength) */
   expressive = true;
@@ -51,6 +59,7 @@ export class Player {
   ) {
     this.events = [...score.events].sort((a, b) => a.sec - b.sec);
     this.partOn = score.parts.map(() => true);
+    this.partHands = score.parts.map(() => ({ right: true, left: true }));
   }
 
   setInstrument(inst: Smplr) {
@@ -71,7 +80,8 @@ export class Player {
   private audible(e: NoteEvent): boolean {
     if (!this.partOn[e.part]) return false;
     if (this.score.staffCounts[e.part] < 2) return true; // hand split only for 2-staff parts
-    return e.staff % 2 === 0 ? this.handOn.right : this.handOn.left;
+    const hands = this.partHands[e.part];
+    return e.staff % 2 === 0 ? hands.right : hands.left;
   }
 
   private stopSound() {
@@ -243,6 +253,7 @@ export class Player {
       if (now >= this.pendingVisual.at) {
         this.placeCursor(this.pendingVisual.step);
         this.pendingVisual = null;
+        this.onChange(); // views (page turn, line highlight, second screen) follow the loop restart
       }
       return;
     }

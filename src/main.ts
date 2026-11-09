@@ -119,7 +119,7 @@ function renderLogin(message = "") {
 }
 
 // ---------- settings dialog ----------
-function openSettings(onSound?: () => void) {
+function openSettings(onSound?: () => void, onLayout?: () => void) {
   const dlg = h("dialog", { class: "dlg" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
   sound.addEventListener("change", () => {
@@ -133,11 +133,45 @@ function openSettings(onSound?: () => void) {
     saveSettings(settings);
     onSound?.();
   });
+  const scrollSelect = h(
+    "select",
+    {},
+    h("option", { value: "page", selected: settings.scrollMode === "page" }, "整屏翻页：画面不动，换行时一次翻到位（推荐，不晕）"),
+    h("option", { value: "smooth", selected: settings.scrollMode === "smooth" }, "平滑滚动：画面跟着光标缓缓移动"),
+    h("option", { value: "off", selected: settings.scrollMode === "off" }, "不滚动：自己翻"),
+  );
+  scrollSelect.addEventListener("change", () => {
+    settings.scrollMode = scrollSelect.value as typeof settings.scrollMode;
+    saveSettings(settings);
+    onViewSetting();
+  });
+  const hlBox = h("input", { type: "checkbox", checked: settings.lineHighlight });
+  hlBox.addEventListener("change", () => {
+    settings.lineHighlight = hlBox.checked;
+    saveSettings(settings);
+    onViewSetting();
+  });
+  const splitBox = h("input", { type: "checkbox", checked: settings.splitView });
+  splitBox.addEventListener("change", () => {
+    settings.splitView = splitBox.checked;
+    saveSettings(settings);
+    dlg.close();
+    onLayout?.();
+  });
   const a = api.getAuth();
   dlg.append(
     h("h2", {}, "设置"),
     h("label", {}, "钢琴音色", sound),
     h("label", {}, "音量", vol),
+    h("h3", {}, "乐谱显示"),
+    h(
+      "label",
+      {},
+      "画面怎么跟着播放走",
+      scrollSelect,
+    ),
+    h("label", { class: "inline" }, hlBox, "高亮正在弹的这一行"),
+    ...(onLayout ? [h("label", { class: "inline" }, splitBox, "多声部（四手联弹）分屏显示，每个声部一屏")] : []),
     h("h3", {}, "应用版本"),
     h(
       "div",
@@ -485,12 +519,49 @@ function cleanup() {
   disposePlayer = null;
 }
 
+/** One score area on screen. Normally one; four-hand scores get one per part (split screen). */
+interface View {
+  wrap: HTMLElement; // the scrolling container
+  holder: HTMLElement; // positioned parent of the score (overlays, line highlight)
+  band: HTMLElement;
+  osmd: OpenSheetMusicDisplay;
+  /** split view: this view draws a single part, so its cursor has its own (shorter) list of steps; matched by time */
+  steps?: { sec: number }[];
+  cur: number;
+}
+
+/** Move a split-view cursor to the step that is current at `sec` seconds. */
+function syncView(v: View, sec: number) {
+  if (!v.steps) return;
+  let lo = 0;
+  let hi = v.steps.length - 1;
+  let idx = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (v.steps[mid].sec <= sec + 1e-4) {
+      idx = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  if (idx === v.cur) return;
+  const c = v.osmd.cursor;
+  if (idx > v.cur && idx - v.cur <= 8) for (let i = v.cur; i < idx; i++) c.next();
+  else {
+    c.reset();
+    for (let i = 0; i < idx; i++) c.next();
+  }
+  v.cur = idx;
+}
+
+const partLetter = (i: number) => String.fromCharCode(65 + i);
+
 async function renderPlayer(name: string) {
   cleanup();
   // OSMD owns (and clears) scoreBox on every render, so overlays live in the outer holder instead
   const scoreBox = h("div", { class: "osmd" });
   const band = h("div", { class: "linehl" });
   const holder = h("div", { class: "score" }, band, scoreBox);
+  const scorewrap = h("div", { class: "scorewrap" }, holder);
   const status = h("span", { class: "status" }, "加载乐谱…");
   app.replaceChildren(
     h(
@@ -501,9 +572,9 @@ async function renderPlayer(name: string) {
       h("div", { class: "grow" }),
       status,
       h("button", { title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
-      h("button", { onclick: () => openSettings(() => void applySound()), title: "设置" }, "⚙"),
+      h("button", { onclick: () => openSettings(() => void applySound(), () => void renderPlayer(name)), title: "设置" }, "⚙"),
     ),
-    h("div", { class: "scorewrap" }, holder),
+    scorewrap,
   );
 
   let osmd: OpenSheetMusicDisplay;
@@ -520,10 +591,17 @@ async function renderPlayer(name: string) {
     });
     const xml = toMusicXml(buf);
     await osmd.load(xml);
-    osmd.zoom = settings.zoom;
+    // four hands: one screen per part. The full score then only acts as the (hidden) playback model.
+    const split = settings.splitView && osmd.Sheet.Instruments.length >= 2;
+    let modelBox: HTMLElement | null = null;
+    if (split) {
+      modelBox = h("div", { class: "modelbox" }, scoreBox);
+      document.body.append(modelBox);
+    }
+    osmd.zoom = split ? 0.5 : settings.zoom;
     osmd.render();
     osmd.cursor.show();
-    const tools = new FingerTools(osmd, holder, xml);
+    const tools = new FingerTools(osmd, holder, xml, !split);
     tools.visible = settings.fingers;
     if (!tools.visible) {
       osmd.EngravingRules.RenderFingerings = false;
@@ -542,10 +620,42 @@ async function renderPlayer(name: string) {
     clearNew(name);
     busyCheck = () => player.playing || tools.editing || tools.dirty;
 
-    // expose for tests / debugging
-    (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools };
+    // the screens: one score area normally, one per part in split view
+    const views: View[] = [];
+    if (!split) views.push({ wrap: scorewrap, holder, band, osmd, cur: 0 });
+    else {
+      const split = h("div", { class: "splitwrap" });
+      scorewrap.replaceWith(split);
+      for (let g = 0; g < osmd.Sheet.Instruments.length; g++) {
+        const pBand = h("div", { class: "linehl" });
+        const pBox = h("div", { class: "osmd" });
+        const pHolder = h("div", { class: "score" }, pBand, pBox);
+        const pWrap = h("div", { class: "panewrap" }, pHolder);
+        const head = h("div", { class: "panehead" });
+        const section = h("section", { class: "pane" }, head, pWrap);
+        section.dataset.part = String(g);
+        split.append(section);
+        const o = new OpenSheetMusicDisplay(pBox, {
+          autoResize: true,
+          backend: "svg",
+          drawTitle: g === 0,
+          followCursor: false,
+          cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
+        });
+        await o.load(xml);
+        o.Sheet.Instruments.forEach((inst, i) => { inst.Visible = i === g; });
+        o.zoom = settings.zoom;
+        o.render();
+        o.cursor.show();
+        const ps = extractScore(o, ""); // only needed for this view's own step times
+        views.push({ wrap: pWrap, holder: pHolder, band: pBand, osmd: o, steps: ps.steps, cur: 0 });
+      }
+    }
 
-    buildControls(player, score, osmd, status, tools, name, band, holder);
+    // expose for tests / debugging
+    (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools, views };
+
+    buildControls(player, score, views, status, tools, name);
     let applying = 0;
     applySound = async () => {
       const id = ++applying;
@@ -560,6 +670,8 @@ async function renderPlayer(name: string) {
       player.dispose();
       tools.dispose();
       osmd.clear();
+      for (const v of views) if (v.osmd !== osmd) v.osmd.clear();
+      modelBox?.remove();
       releaseWake();
     };
   } catch (e) {
@@ -569,6 +681,8 @@ async function renderPlayer(name: string) {
   }
 }
 let applySound: () => Promise<void> = async () => {};
+/** set by the score view: re-apply scroll / highlight settings after they changed in the settings dialog */
+let onViewSetting: () => void = () => {};
 
 let wake: WakeLockSentinel | null = null;
 async function keepAwake() {
@@ -586,13 +700,13 @@ function releaseWake() {
 function buildControls(
   player: Player,
   score: ReturnType<typeof extractScore>,
-  osmd: OpenSheetMusicDisplay,
+  views: View[],
   status: HTMLElement,
   tools: FingerTools,
   name: string,
-  band: HTMLElement,
-  holder: HTMLElement,
 ) {
+  const split = views.length > 0 && views[0].steps !== undefined;
+  const osmd = views[0].osmd; // single view: the score itself (fingering editing works on it)
   const playBtn = h("button", { class: "primary big", title: "播放 / 暂停 (空格)" }, "▶");
   const stopBtn = h("button", { class: "big", title: "回到开头" }, "⏮");
   const speed = h("input", { type: "range", min: "20", max: "150", step: "5", value: "100", class: "speed" });
@@ -611,30 +725,32 @@ function buildControls(
     sync();
   }
 
-  const partBtns = score.parts.map((p, i) =>
-    h("button", { class: "seg", title: "点击开/关该声部的声音", onclick: () => { player.partOn[i] = !player.partOn[i]; if (!player.partOn.some(Boolean)) player.partOn[i] = true; sync(); } }, p),
-  );
+  /** Controls of one player (part): name = sound on/off, right hand, left hand. Used under each screen in split view. */
+  interface PartUi { g: number; group: HTMLElement; snd: HTMLElement; r: HTMLElement; l: HTMLElement }
+  const partUi: PartUi[] = [];
+  function partControls(g: number): HTMLElement {
+    const multi = score.parts.length > 1;
+    const label = multi ? `${partLetter(g)} · ${score.parts[g]}` : score.parts[g];
+    const snd = h("button", { class: "seg pname", title: "开/关这个声部的声音：你自己弹的那个声部，把它关掉", onclick: () => {
+      player.partOn[g] = !player.partOn[g];
+      if (!player.partOn.some(Boolean)) player.partOn[g] = true; // keep at least one part audible
+      sync();
+    } }, label);
+    const hand = (key: "right" | "left", text: string) => h("button", { class: "seg", onclick: () => {
+      const hs = player.partHands[g];
+      hs[key] = !hs[key];
+      if (!hs.right && !hs.left) hs[key === "right" ? "left" : "right"] = true; // a part always plays at least one hand
+      sync();
+    } }, text);
+    const r = hand("right", "右手");
+    const l = hand("left", "左手");
+    const two = score.staffCounts[g] >= 2;
+    const group = h("div", { class: "group pgroup" }, snd, ...(two ? [r, l] : []));
+    partUi.push({ g, group, snd, r, l });
+    return group;
+  }
 
   // practice panel
-  const selScroll = h(
-    "select",
-    {},
-    h("option", { value: "page" }, "按行翻页（画面不动，换行时翻一次）"),
-    h("option", { value: "smooth" }, "平滑跟随（持续滚动）"),
-    h("option", { value: "off" }, "不滚动（自己翻）"),
-  );
-  selScroll.value = settings.scrollMode;
-  selScroll.addEventListener("change", () => {
-    settings.scrollMode = selScroll.value as typeof settings.scrollMode;
-    saveSettings(settings);
-    followView();
-  });
-  const cbHl = h("input", { type: "checkbox", checked: settings.lineHighlight });
-  cbHl.addEventListener("change", () => {
-    settings.lineHighlight = cbHl.checked;
-    saveSettings(settings);
-    followView(false);
-  });
   const cbExpr = h("input", { type: "checkbox", checked: settings.expressive });
   cbExpr.addEventListener("change", () => {
     settings.expressive = cbExpr.checked;
@@ -669,8 +785,6 @@ function buildControls(
   const panel = h(
     "div",
     { class: "panel", hidden: true },
-    h("label", {}, h("span", { class: "muted small" }, "画面滚动"), selScroll),
-    h("label", { class: "inline" }, cbHl, "高亮正在弹的这一行"),
     h("label", { class: "inline" }, cbExpr, "按乐谱表情演奏（力度、断奏、踏板）"),
     h("p", { class: "muted small" }, exprNote),
     h("label", { class: "inline" }, cbCount, "开始前倒数一小节"),
@@ -684,11 +798,18 @@ function buildControls(
   const zoomOut = h("button", { onclick: () => zoom(-0.1), title: "缩小" }, "－");
   function rerender() {
     const step = player.currentStep;
-    osmd.EngravingRules.RenderFingerings = tools.visible && tools.showXml;
-    osmd.zoom = settings.zoom;
-    osmd.render();
-    osmd.cursor.show();
-    player.seekStep(step);
+    for (const v of views) {
+      v.osmd.EngravingRules.RenderFingerings = tools.visible && tools.showXml;
+      v.osmd.zoom = settings.zoom;
+      v.osmd.render();
+      v.osmd.cursor.show();
+      if (v.steps) {
+        v.osmd.cursor.reset();
+        v.cur = 0;
+      }
+    }
+    if (!split) player.seekStep(step);
+    else syncViews();
     tools.refresh();
     followView();
   }
@@ -777,33 +898,41 @@ function buildControls(
   stopBtn.addEventListener("click", () => player.stop());
   speed.addEventListener("input", () => player.setSpeed(Number(speed.value) / 100));
 
-  // ---- keeping the current line in view ----
-  const wrap = () => document.querySelector(".scorewrap") as HTMLElement | null;
-  /** highlight the line being played and (depending on the mode) bring it into view */
-  function followView(jump = true) {
-    const w = wrap();
-    const cur = osmd.cursor.cursorElement as HTMLElement | undefined;
-    if (!w || !cur) return;
+  // ---- keeping the current line in view (every screen follows its own cursor) ----
+  function followOne(v: View, jump: boolean) {
+    const cur = v.osmd.cursor.cursorElement as HTMLElement | undefined;
+    if (!cur) return;
     const cr = cur.getBoundingClientRect();
     if (cr.height === 0) return;
-    const hr = holder.getBoundingClientRect();
-    band.style.display = settings.lineHighlight ? "block" : "none";
-    band.style.top = `${cr.top - hr.top - 8}px`;
-    band.style.height = `${cr.height + 16}px`;
+    const hr = v.holder.getBoundingClientRect();
+    v.band.style.display = settings.lineHighlight ? "block" : "none";
+    v.band.style.top = `${cr.top - hr.top - 8}px`;
+    v.band.style.height = `${cr.height + 16}px`;
     if (!jump || settings.scrollMode === "off") return;
-    const wr = w.getBoundingClientRect();
+    const wr = v.wrap.getBoundingClientRect();
     const top = cr.top - wr.top;
     const margin = 14;
     if (settings.scrollMode === "page") {
       // only when the line is not fully visible: put it near the top, so the next line stays visible below
-      if (top < margin || cr.bottom - wr.top > wr.height - margin) w.scrollTop += top - margin;
+      if (top < margin || cr.bottom - wr.top > wr.height - margin) v.wrap.scrollTop += top - margin;
     } else {
       const delta = top + cr.height / 2 - wr.height / 2;
-      if (Math.abs(delta) > 40) w.scrollTo({ top: w.scrollTop + delta, behavior: "smooth" });
+      if (Math.abs(delta) > 40) v.wrap.scrollTo({ top: v.wrap.scrollTop + delta, behavior: "smooth" });
     }
   }
+  function syncViews() {
+    if (!split) return;
+    const sec = score.steps[player.currentStep]?.sec ?? 0;
+    for (const v of views) syncView(v, sec);
+  }
+  /** highlight the line being played and (depending on the mode) bring it into view */
+  function followView(jump = true) {
+    for (const v of views) followOne(v, jump);
+  }
+  onViewSetting = () => followView();
 
   function sync() {
+    syncViews();
     followView();
     playBtn.textContent = player.playing ? "⏸" : "▶";
     const bpm = Math.round(score.baseBpm * player.speed);
@@ -812,7 +941,12 @@ function buildControls(
     pos.textContent = `第 ${player.measureIndex + 1} / ${score.measureCount} 小节`;
     const mode = player.handOn.right && player.handOn.left ? "both" : player.handOn.right ? "right" : "left";
     for (const [k, b] of Object.entries(handBtns)) b.classList.toggle("on", k === mode);
-    partBtns.forEach((b, i) => b.classList.toggle("on", player.partOn[i]));
+    partUi.forEach((u) => {
+      u.snd.classList.toggle("on", player.partOn[u.g]);
+      u.r.classList.toggle("on", player.partHands[u.g].right);
+      u.l.classList.toggle("on", player.partHands[u.g].left);
+      u.group.classList.toggle("muted", !player.partOn[u.g]);
+    });
     if (player.playing) void keepAwake(); else releaseWake();
   }
   player.onChange = sync;
@@ -842,18 +976,32 @@ function buildControls(
     prevDispose?.();
   };
 
+  // split view: the bar can shrink to play / pause (+ a button that brings everything back)
+  const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" }, "");
+  const refreshMore = () => {
+    const min = split && settings.splitControlsMin;
+    bar.classList.toggle("min", min);
+    moreBtn.textContent = min ? "更多 ▴" : "收起 ▾";
+  };
+  moreBtn.addEventListener("click", () => {
+    settings.splitControlsMin = !settings.splitControlsMin;
+    saveSettings(settings);
+    panel.hidden = true;
+    fpanel.hidden = true;
+    refreshMore();
+  });
   const bar = h(
     "footer",
     { class: "controls" },
     panel,
     fpanel,
     editbar,
-    h("div", { class: "row" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos),
+    h("div", { class: "row mainrow" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos, ...(split ? [moreBtn] : [])),
     h(
       "div",
       { class: "row wrap" },
-      hasHands && h("div", { class: "group" }, h("span", { class: "gl" }, "手"), ...Object.values(handBtns)),
-      score.parts.length > 1 && h("div", { class: "group" }, h("span", { class: "gl" }, "声部"), ...partBtns),
+      score.parts.length === 1 && hasHands && h("div", { class: "group" }, h("span", { class: "gl" }, "手"), ...Object.values(handBtns)),
+      ...(score.parts.length > 1 && !split ? score.parts.map((_, g) => partControls(g)) : []),
       h("div", { class: "grow" }),
       fingerBtn,
       practiceBtn,
@@ -861,7 +1009,26 @@ function buildControls(
       zoomIn,
     ),
   );
+  if (split) {
+    // full screen for one part: the other part keeps sounding, it just is not shown
+    let focus: number | null = null;
+    const setFocus = (g: number | null) => {
+      focus = g;
+      app.classList.toggle("focusing", g !== null);
+      document.querySelector(".splitwrap")?.classList.toggle("focusing", g !== null);
+      document.querySelectorAll(".pane").forEach((pane, i) => pane.classList.toggle("focused", g === i));
+      document.querySelectorAll(".focusbtn").forEach((b, i) => { b.textContent = g === i ? "还原" : "全屏"; });
+      requestAnimationFrame(() => { followView(); });
+    };
+    document.querySelectorAll(".panehead").forEach((head, g) => {
+      head.append(partControls(g));
+      head.append(h("div", { class: "grow" }));
+      head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, "全屏"));
+    });
+    (window as unknown as { __setFocus?: (g: number | null) => void }).__setFocus = setFocus;
+  }
   app.append(bar);
+  refreshMore();
   status.textContent = "";
   sync();
 }

@@ -150,3 +150,21 @@ button.danger { background: #7f1d1d; border-color: #b91c1c; }
 .top { position: relative; z-index: 30; }
 .panel label { display: flex; flex-direction: column; gap: 4px; }
 .panel label.inline { flex-direction: row; }
+
+/* ---------- split view (four hands): one screen per part ---------- */
+.splitwrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pane { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid #4b5563; }
+.pane:first-child { border-top: 0; }
+.panehead { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--panel); flex-wrap: wrap; }
+.panewrap { flex: 1; min-height: 0; overflow: auto; background: #fff; position: relative; z-index: 0; isolation: isolate; -webkit-overflow-scrolling: touch; }
+.splitwrap.focusing .pane:not(.focused) { display: none; }
+#app.focusing .top { display: none; }
+.modelbox { position: absolute; left: -10000px; top: 0; width: 1000px; visibility: hidden; pointer-events: none; }
+.pgroup.muted .pname { opacity: .55; text-decoration: line-through; }
+.focusbtn { padding: 6px 14px; }
+.controls.min { flex-direction: row; align-items: center; padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.controls.min > :not(.mainrow) { display: none !important; }
+.controls.min .speedbox { display: none; }
+.controls.min .mainrow { width: 100%; justify-content: center; gap: 18px; }
+.morebtn { margin-left: auto; }
+.controls.min .morebtn { margin-left: 0; }

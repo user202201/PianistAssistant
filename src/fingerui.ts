@@ -76,9 +76,10 @@ export class FingerTools {
     private osmd: OpenSheetMusicDisplay,
     private host: HTMLElement,
     xml: string,
+    enabled = true,
   ) {
     this.doc = parseXml(xml);
-    this.notes = walkNotes(this.doc);
+    this.notes = enabled ? walkNotes(this.doc) : []; // disabled: fingering tools are unavailable (supported = false)
     for (const n of this.notes) if (!n.grace) this.byKey.set(noteKey(n.part, n.measure, n.staff, n.onset, n.midi), n);
     this.showAuto = this.xmlCount === 0 && this.notes.length > 0;
     this.layer = document.createElement("div");
