@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import type { Smplr } from "smplr";
 import * as api from "./api";
 import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
+import { icon as ic } from "./icons";
 import { FingerTools } from "./fingerui";
 import { Player } from "./player";
 import { applyExpression } from "./expression";
@@ -87,7 +88,7 @@ function renderLogin(message = "") {
     h(
       "div",
       { class: "login" },
-      h("h1", {}, "🎹 Pianist Assistant"),
+      h("h1", { class: "brand big" }, h("span", { class: "logo" }, ic("note", 24)), "Pianist Assistant"),
       h("p", { class: "muted" }, "琴谱存放在你的私有 GitHub 仓库中，需要访问令牌才能查看。"),
       h("label", {}, "琴谱仓库", repo),
       h("label", {}, "GitHub 访问令牌（也可粘贴“登录链接”）", token),
@@ -189,7 +190,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h(
       "div",
       { class: "row wrap" },
-      h("button", { id: "qr-btn", onclick: () => showQr() }, "📱 手机扫码登录"),
+      h("button", { id: "qr-btn", onclick: () => showQr() }, ic("qr", 20), "手机扫码登录"),
       h("button", { id: "copy-link", onclick: async () => {
         const cur = api.getAuth();
         if (!cur) return;
@@ -214,6 +215,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   dlg.addEventListener("close", () => dlg.remove());
   document.body.append(dlg);
   dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
 }
 
 // ---------- QR sign-in for another device ----------
@@ -242,7 +244,8 @@ async function showQr() {
   dlg.addEventListener("close", () => { clearInterval(timer); dlg.remove(); });
   document.body.append(dlg);
   dlg.showModal();
-}
+  (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
+  }
 
 // ---------- same-name upload ----------
 function askConflict(info: { name: string; existing: string; kind: "score" | "convert" | "queued" }): Promise<api.Conflict> {
@@ -278,6 +281,7 @@ function askConflict(info: { name: string; existing: string; kind: "score" | "co
     });
     document.body.append(dlg);
     dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   });
 }
 
@@ -303,7 +307,7 @@ async function renderHome() {
   const stalledBanner = h(
     "div",
     { class: "banner warn", hidden: true },
-    h("div", { class: "warnicon" }, "⚠"),
+    h("div", { class: "warnicon" }, ic("warning", 28)),
     h(
       "div",
       {},
@@ -348,11 +352,11 @@ async function renderHome() {
     h(
       "header",
       { class: "top" },
-      h("h1", {}, "🎹 我的琴谱"),
+      h("h1", { class: "brand" }, h("span", { class: "logo" }, ic("note", 20)), "我的琴谱"),
       h("div", { class: "grow" }),
-      h("button", { title: "刷新列表并检查更新", onclick: () => { void load(); void checkUpdate(true); } }, "↻"),
-      h("button", { class: "primary", onclick: () => file.click() }, "＋ 上传琴谱"),
-      h("button", { onclick: () => openSettings(), title: "设置" }, "⚙"),
+      h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => { void load(); void checkUpdate(true); } }, ic("refresh")),
+      h("button", { class: "primary", onclick: () => file.click() }, ic("plus", 20), "上传琴谱"),
+      h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
     h("main", { class: "home" }, queueSec, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
@@ -376,7 +380,7 @@ async function renderHome() {
               toast((e as Error).message);
             }
           },
-        }, "🗑"),
+        }, ic("trash", 20)),
     );
 
   const STALLED_MIN = 15;
@@ -407,22 +411,22 @@ async function renderHome() {
       "div",
       { class: "card" + (it.failed ? " failed" : stalled ? " stalled" : " busy") },
       it.failed
-        ? h("span", { class: "open static" }, `⚠ ${it.name}（转换失败）`)
+        ? h("span", { class: "open static qline" }, h("span", { class: "warnic bad" }, ic("warning", 22)), h("span", {}, h("div", {}, it.name), h("div", { class: "muted small" }, "转换失败，点 ⓘ 查看原因")))
         : h(
             "span",
             { class: "open static qline" },
-            stalled ? h("span", {}, "⚠") : h("span", { class: "spin small" }),
+            stalled ? h("span", { class: "warnic" }, ic("warning", 20)) : h("span", { class: "spin small" }),
             h("span", {}, h("div", {}, it.name), h("div", { class: "muted small" }, stalled ? `已等待 ${m} 分钟，可能卡住了` : `转换中… ${m === null ? "" : m < 1 ? "刚刚上传" : `已等待 ${m} 分钟`}`)),
           ),
       it.failed &&
         h("button", { class: "del", title: "查看原因", onclick: async () => {
           try { showLog(it.name, await api.readFailureLog(it.name)); } catch (e) { toast((e as Error).message); }
-        } }, "ℹ"),
-      (it.failed || stalled) && h("button", { class: "del", title: "重试", onclick: () => void retry(it.name) }, "↻"),
+        } }, ic("info", 20)),
+      (it.failed || stalled) && h("button", { class: "del", title: "重试", onclick: () => void retry(it.name) }, ic("refresh", 20)),
       h("button", { class: "del", title: "删除", onclick: async () => {
         if (!confirm(`从队列中删除「${it.name}」？`)) return;
         try { await api.deleteInbox(it.name); clearQueued(it.name); optimistic.delete(it.name); load(); } catch (e) { toast((e as Error).message); }
-      } }, "🗑"),
+      } }, ic("trash", 20)),
     );
   };
   function showLog(name: string, text: string) {
@@ -430,6 +434,7 @@ async function renderHome() {
     dlg.addEventListener("close", () => dlg.remove());
     document.body.append(dlg);
     dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   }
 
   async function load() {
@@ -567,12 +572,12 @@ async function renderPlayer(name: string) {
     h(
       "header",
       { class: "top compact" },
-      h("button", { onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, "← 返回"),
+      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), "返回"),
       h("h1", {}, displayName(name)),
       h("div", { class: "grow" }),
       status,
-      h("button", { title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
-      h("button", { onclick: () => openSettings(() => void applySound(), () => void renderPlayer(name)), title: "设置" }, "⚙"),
+      h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
+      h("button", { class: "icon", onclick: () => openSettings(() => void applySound(), () => void renderPlayer(name)), title: "设置" }, ic("sliders")),
     ),
     scorewrap,
   );
@@ -707,8 +712,8 @@ function buildControls(
 ) {
   const split = views.length > 0 && views[0].steps !== undefined;
   const osmd = views[0].osmd; // single view: the score itself (fingering editing works on it)
-  const playBtn = h("button", { class: "primary big", title: "播放 / 暂停 (空格)" }, "▶");
-  const stopBtn = h("button", { class: "big", title: "回到开头" }, "⏮");
+  const playBtn = h("button", { class: "primary play", title: "播放 / 暂停 (空格)" }, ic("play", 30));
+  const stopBtn = h("button", { class: "icon big", title: "回到开头" }, ic("skip-back", 24));
   const speed = h("input", { type: "range", min: "20", max: "150", step: "5", value: "100", class: "speed" });
   const speedLabel = h("span", { class: "speedlabel" });
   const pos = h("span", { class: "pos" });
@@ -792,10 +797,10 @@ function buildControls(
     h("div", { class: "line" }, h("label", { class: "inline" }, cbLoop, "循环小节"), from, "到", to, useCurrent),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbRamp, "每遍加速"), rampStep, "% ，上限", rampMax, "%"),
   );
-  const practiceBtn = h("button", { onclick: () => (panel.hidden = !panel.hidden) }, "练习 ▾");
+  const practiceBtn = h("button", { title: "练习", onclick: () => (panel.hidden = !panel.hidden) }, ic("sliders", 20), "练习");
 
-  const zoomIn = h("button", { onclick: () => zoom(0.1), title: "放大" }, "＋");
-  const zoomOut = h("button", { onclick: () => zoom(-0.1), title: "缩小" }, "－");
+  const zoomIn = h("button", { class: "icon", onclick: () => zoom(0.1), title: "放大" }, ic("plus", 20));
+  const zoomOut = h("button", { class: "icon", onclick: () => zoom(-0.1), title: "缩小" }, ic("minus", 20));
   function rerender() {
     const step = player.currentStep;
     for (const v of views) {
@@ -824,7 +829,7 @@ function buildControls(
   const cbAuto = h("input", { type: "checkbox", checked: tools.showAuto });
   cbXml.addEventListener("change", () => { tools.showXml = cbXml.checked; rerender(); });
   cbAuto.addEventListener("change", () => tools.setAuto(cbAuto.checked));
-  const editBtn = h("button", { class: "primary", onclick: () => enterEdit() }, "✏ 编辑指法");
+  const editBtn = h("button", { class: "primary", onclick: () => enterEdit() }, ic("pencil", 20), "编辑指法");
   const fpanel = h(
     "div",
     { class: "panel", hidden: true },
@@ -833,8 +838,8 @@ function buildControls(
     h("p", { class: "muted small" }, "优先级：乐谱里的指法 > 自动建议。自己标注的指法保存后写进乐谱文件，之后读取以它为准。"),
     editBtn,
   );
-  const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, "指法");
-  const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, "▾");
+  const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, ic("hand", 20), "指法");
+  const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, ic("chevron-down", 18));
   const fingerBtn = h("div", { class: "group pair" }, fingerToggle, fingerOpts);
   function setFingers(on: boolean) {
     tools.visible = on;
@@ -847,8 +852,8 @@ function buildControls(
   practiceBtn.addEventListener("click", () => (fpanel.hidden = true));
 
   const fbtns = [1, 2, 3, 4, 5].map((n) => h("button", { class: "fnum", onclick: () => tools.apply(n) }, String(n)));
-  const fclear = h("button", { class: "fnum", title: "清除该音符的指法", onclick: () => tools.apply(null) }, "✕");
-  const fundo = h("button", { class: "fnum", title: "撤销", onclick: () => tools.undo() }, "↶");
+  const fclear = h("button", { class: "fnum", title: "清除该音符的指法", onclick: () => tools.apply(null) }, ic("x", 22));
+  const fundo = h("button", { class: "fnum", title: "撤销", onclick: () => tools.undo() }, ic("undo", 22));
   const finfo = h("span", { class: "finfo" });
   const fsave = h("button", { class: "primary", onclick: () => void saveFingering() }, "保存");
   const fdone = h("button", { onclick: () => exitEdit() }, "完成");
@@ -982,7 +987,8 @@ function buildControls(
   function sync() {
     syncViews();
     followView();
-    playBtn.textContent = player.playing ? "⏸" : "▶";
+    playBtn.replaceChildren(ic(player.playing ? "pause" : "play", 30));
+    speed.style.setProperty("--p", `${((Number(speed.value) - Number(speed.min)) / (Number(speed.max) - Number(speed.min))) * 100}%`);
     const bpm = Math.round(score.baseBpm * player.speed);
     speed.value = String(Math.round(player.speed * 100));
     speedLabel.textContent = `${Math.round(player.speed * 100)}% · ♩=${bpm}`;
@@ -1025,11 +1031,11 @@ function buildControls(
   };
 
   // split view: the bar can shrink to play / pause (+ a button that brings everything back)
-  const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" }, "");
+  const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" });
   const refreshMore = () => {
     const min = split && settings.splitControlsMin;
     bar.classList.toggle("min", min);
-    moreBtn.textContent = min ? "更多 ▴" : "收起 ▾";
+    moreBtn.replaceChildren(ic(min ? "chevron-up" : "chevron-down", 18), min ? "更多" : "收起");
   };
   moreBtn.addEventListener("click", () => {
     settings.splitControlsMin = !settings.splitControlsMin;
@@ -1065,13 +1071,13 @@ function buildControls(
       app.classList.toggle("focusing", g !== null);
       document.querySelector(".splitwrap")?.classList.toggle("focusing", g !== null);
       document.querySelectorAll(".pane").forEach((pane, i) => pane.classList.toggle("focused", g === i));
-      document.querySelectorAll(".focusbtn").forEach((b, i) => { b.textContent = g === i ? "还原" : "全屏"; });
+      document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), g === i ? "还原" : "全屏"));
       requestAnimationFrame(() => { followView(); });
     };
     document.querySelectorAll(".panehead").forEach((head, g) => {
       head.append(partControls(g));
       head.append(h("div", { class: "grow" }));
-      head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, "全屏"));
+      head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18), "全屏"));
     });
     (window as unknown as { __setFocus?: (g: number | null) => void }).__setFocus = setFocus;
   }

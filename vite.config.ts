@@ -12,8 +12,8 @@ export default defineConfig({
         name: "Pianist Assistant",
         short_name: "Pianist",
         description: "Sheet music player for piano practice",
-        theme_color: "#1f2937",
-        background_color: "#111827",
+        theme_color: "#f2f2f7",
+        background_color: "#f2f2f7",
         display: "standalone",
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png" },
