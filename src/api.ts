@@ -404,7 +404,9 @@ async function freeName(name: string, taken: (candidate: string) => Promise<bool
  * PDF / image      -> stored in inbox/; a GitHub Action converts it to scores/<name>.musicxml
  * If something with the same name would be overwritten, `onConflict` decides. Returns null when skipped.
  */
-export async function uploadScore(file: File, onConflict?: OnConflict): Promise<Uploaded | null> {
+/** engine = which recogniser the cloud converter uses for PDFs / photos: Audiveris (default), homr (deep learning) or both (to compare) */
+export type OcrEngine = "audiveris" | "homr" | "both";
+export async function uploadScore(file: File, onConflict?: OnConflict, engine: OcrEngine = "audiveris"): Promise<Uploaded | null> {
   if (isLocal() && INBOX_EXT.test(file.name)) throw new Error("本机模式不能把 PDF / 图片转换成可播放乐谱（转换需要联网，请连接 GitHub 同步后使用）。PDF 可以选择“只保留 PDF”。");
   const ask = async (name: string, existing: string, kind: "score" | "convert" | "queued"): Promise<Conflict> =>
     onConflict ? onConflict({ name, existing, kind }) : "replace";
@@ -423,6 +425,8 @@ export async function uploadScore(file: File, onConflict?: OnConflict): Promise<
       if (choice === "keep")
         name = await freeName(name, async (c) => (await exists(INBOX, c)) || (await exists(SCORES, stemOf(c) + ".musicxml")));
     }
+    // the engine note goes first: the file itself is what starts the converter
+    if (engine !== "audiveris") await put(INBOX, name + ".engine.txt", new TextEncoder().encode(engine).buffer as ArrayBuffer, `Conversion engine: ${engine}`);
     await put(INBOX, name, await readFile(file), `Queue for conversion: ${name}`);
     return { kind: "inbox", name };
   }
@@ -491,6 +495,7 @@ export const deleteScore = (name: string) => remove(SCORES, name, `Delete score:
 export async function deleteInbox(name: string) {
   await remove(INBOX, name + ".failed.txt", `Clear failure note: ${name}`);
   await remove(INBOX, name + ".retry.txt", `Clear retry marker: ${name}`);
+  await remove(INBOX, name + ".engine.txt", `Clear engine note: ${name}`);
   await remove(INBOX, name, `Remove from queue: ${name}`);
 }
 
@@ -637,11 +642,12 @@ export async function storePdf(file: File, onConflict?: OnConflict): Promise<str
   return name;
 }
 /** Send a PDF that is already stored for viewing to the converter as well. */
-export async function convertStoredPdf(name: string): Promise<string> {
+export async function convertStoredPdf(name: string, engine: OcrEngine = "audiveris"): Promise<string> {
   if (isLocal()) throw new Error("本机模式不能转换 PDF（转换需要联网，请连接 GitHub 同步后使用）。");
   const data = await getBytes(PDFS, name);
   const target = stemOf(name) + ".musicxml";
   if (await exists(SCORES, target)) throw new Error(`已有乐谱「${stemOf(name)}」，转换结果会覆盖它。请先改名或删除那份乐谱。`);
+  if (engine !== "audiveris") await put(INBOX, name + ".engine.txt", new TextEncoder().encode(engine).buffer as ArrayBuffer, `Conversion engine: ${engine}`);
   await put(INBOX, name, data, `Queue for conversion: ${name}`);
   return name;
 }

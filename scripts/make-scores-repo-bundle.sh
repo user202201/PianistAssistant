@@ -5,7 +5,7 @@ set -euo pipefail
 OUT="$(realpath -m "${1:-scores-repo-bundle.zip}")"
 cd "$(dirname "$0")/.."
 rm -rf /tmp/bundle && mkdir -p /tmp/bundle/tools /tmp/bundle/.github/workflows
-cp scores-repo-template/convert.sh scores-repo-template/convert-one.sh /tmp/bundle/tools/
+cp scores-repo-template/convert.sh scores-repo-template/convert-one.sh scores-repo-template/convert-homr.sh scores-repo-template/merge-pages.py /tmp/bundle/tools/
 cp scores-repo-template/.github/workflows/convert.yml /tmp/bundle/.github/workflows/convert.yml
 cat > /tmp/bundle/README.txt <<'TXT'
 Put these two folders (".github" and "tools") into the root of your PRIVATE scores repository (PianistScores).

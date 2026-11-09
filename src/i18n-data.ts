@@ -1,5 +1,9 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "转换引擎": "Conversion engine",
+  "Audiveris（默认）": "Audiveris (default)",
+  "homr（深度学习，实验）": "homr (deep learning, experimental)",
+  "两个都转（对比）": "Convert with both (to compare)",
   "展开": "Expand",
   "展开这个声部的谱子": "Show this part's score",
   "收起这个声部的谱子": "Fold this part's score away",
@@ -118,7 +122,6 @@ export const EN: Record<string, string> = {
   "两个都要（转换并保留 PDF）": "Both (convert and keep the PDF)",
   "乐谱显示": "Score display",
   "乐谱里没有指法信息": "This score has no fingering",
-  "乐谱里的表情记号：力度 {0} 个、渐强渐弱 {1} 处、断奏/重音等 {2} 个、踏板 {3} 处。": "Expression marks in the score: {0} dynamics, {1} crescendo/diminuendo, {2} staccato/accents, {3} pedal marks.",
   "二维码等同于你的登录钥匙，请勿截图或让他人拍到。": "The QR code is equivalent to your sign-in key: do not screenshot it or let others photograph it.",
   "交换 A / B": "Swap A / B",
   "交换 A / B 声部": "Swap parts A / B",
@@ -310,7 +313,6 @@ export const EN: Record<string, string> = {
   "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。也可以先 ": "No scores yet — tap \"Upload score\" at the top right (MusicXML / .mxl / PDF). Or first ",
   "这个名称不能用（不要包含 / \\ : * ? \" < > |）": "This name cannot be used (avoid / \\ : * ? \" < > |)",
   "这份 PDF 怎么处理？": "What should we do with this PDF?",
-  "这份谱子没有力度/踏板记号（从 PDF 转换时常会丢失），按强弱拍和旋律层次演奏。": "This score has no dynamics/pedal marks (often lost when converting from PDF); it is played with beat accents and melodic layering.",
   "这是一首四手联弹吗？": "Is this a four-hand piece?",
   "这首歌的名字": "Name of this piece",
   "退出本设备": "Sign out of this device",
@@ -337,7 +339,11 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
-  "展开": "Développer",
+  "转换引擎": "Moteur de conversion",
+  "Audiveris（默认）": "Audiveris (par défaut)",
+  "homr（深度学习，实验）": "homr (apprentissage profond, expérimental)",
+  "两个都转（对比）": "Convertir avec les deux (pour comparer)",
+  "展开": "Déplier",
   "展开这个声部的谱子": "Afficher la partition de cette partie",
   "收起这个声部的谱子": "Replier la partition de cette partie",
   "对本次选的全部文件都这样处理": "Faire de même pour tous les fichiers choisis",
@@ -455,7 +461,6 @@ export const FR: Record<string, string> = {
   "两个都要（转换并保留 PDF）": "Les deux (convertir et garder le PDF)",
   "乐谱显示": "Affichage de la partition",
   "乐谱里没有指法信息": "Cette partition n'a pas de doigtés",
-  "乐谱里的表情记号：力度 {0} 个、渐强渐弱 {1} 处、断奏/重音等 {2} 个、踏板 {3} 处。": "Signes d'expression : {0} nuances, {1} crescendo/decrescendo, {2} staccato/accents, {3} pédales.",
   "二维码等同于你的登录钥匙，请勿截图或让他人拍到。": "Le QR code équivaut à votre clé de connexion : ne le capturez pas et ne le laissez pas photographier.",
   "交换 A / B": "Échanger A / B",
   "交换 A / B 声部": "Échanger les parties A / B",
@@ -559,7 +564,7 @@ export const FR: Record<string, string> = {
   "按乐谱表情演奏（力度、断奏、踏板）": "Jouer avec l'expression de la partition (nuances, staccato, pédale)",
   "撤销": "Annuler",
   "播放 / 暂停 (空格)": "Lecture / pause (espace)",
-  "收起": "Réduire",
+  "收起": "Replier",
   "放大": "Agrandir",
   "文件名不可用": "Nom de fichier inutilisable",
   "文件名不可用：{0}": "Nom de fichier inutilisable : {0}",
@@ -647,7 +652,6 @@ export const FR: Record<string, string> = {
   "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。也可以先 ": "Pas encore de partition — touchez « Ajouter une partition » en haut à droite (MusicXML / .mxl / PDF). Ou commencez par ",
   "这个名称不能用（不要包含 / \\ : * ? \" < > |）": "Ce nom n'est pas utilisable (évitez / \\ : * ? \" < > |)",
   "这份 PDF 怎么处理？": "Que faire de ce PDF ?",
-  "这份谱子没有力度/踏板记号（从 PDF 转换时常会丢失），按强弱拍和旋律层次演奏。": "Cette partition n'a ni nuances ni pédale (souvent perdues lors d'une conversion PDF) ; elle est jouée avec accents de temps et plans mélodiques.",
   "这是一首四手联弹吗？": "Est-ce un morceau à quatre mains ?",
   "这首歌的名字": "Nom de ce morceau",
   "退出本设备": "Déconnecter cet appareil",

@@ -419,6 +419,19 @@ let batchCtx: { files: number; conflict: api.Conflict | null; pdf: "convert" | "
 const sameForAll = () => h("input", { type: "checkbox", checked: true });
 const sameForAllRow = (box: HTMLInputElement) => (batchCtx.files > 1 ? h("label", { class: "inline" }, box, "对本次选的全部文件都这样处理") : null);
 
+/** which recogniser the cloud converter uses (remembered): Audiveris is the default, homr (deep learning) and "both" are for comparing */
+function engineRow(): HTMLElement {
+  const sel = h(
+    "select",
+    {},
+    h("option", { value: "audiveris", selected: settings.ocrEngine === "audiveris" }, "Audiveris（默认）"),
+    h("option", { value: "homr", selected: settings.ocrEngine === "homr" }, "homr（深度学习，实验）"),
+    h("option", { value: "both", selected: settings.ocrEngine === "both" }, "两个都转（对比）"),
+  );
+  sel.addEventListener("change", () => { settings.ocrEngine = sel.value as typeof settings.ocrEngine; saveSettings(settings); });
+  return h("label", { class: "engine" }, "转换引擎", sel);
+}
+
 // ---------- what to do with an uploaded PDF ----------
 function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
   if (batchCtx.pdf) return Promise.resolve(batchCtx.pdf);
@@ -432,6 +445,7 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
       h("h2", {}, "这份 PDF 怎么处理？"),
       h("p", { class: "small" }, name),
       h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
+      engineRow(),
       sameForAllRow(all),
       h(
         "div",
@@ -775,7 +789,7 @@ async function renderHome() {
           toast(kept ? `已保存 PDF：${kept}（在下面的“PDF 乐谱”里）` : `已跳过：${f.name}`);
           if (mode === "keep") continue;
         }
-        const up = await api.uploadScore(f, askConflict);
+        const up = await api.uploadScore(f, askConflict, settings.ocrEngine);
         if (!up) toast(`已跳过：${f.name}`);
         else if (up.kind === "inbox") {
           optimistic.set(up.name, Date.now());
@@ -885,7 +899,7 @@ async function renderHome() {
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
         ...(api.isLocal() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
-            const n = await api.convertStoredPdf(name);
+            const n = await api.convertStoredPdf(name, settings.ocrEngine);
             optimistic.set(n, Date.now());
             markQueued(n);
             prevPending.add(n);
@@ -1276,7 +1290,7 @@ async function renderPlayer(name: string) {
     const buf = await api.downloadScore(name);
     if (stale()) return;
     osmd = new OpenSheetMusicDisplay(scoreBox, {
-      autoResize: true,
+      autoResize: false, // we redraw ourselves (see relayout): the library would also redraw windows that are folded away, with width 0
       backend: "svg",
       drawTitle: true,
       followCursor: false, // scrolling is handled by followView() below (page-turn style, no gliding)
@@ -1335,7 +1349,7 @@ async function renderPlayer(name: string) {
         section.dataset.part = String(g);
         split.append(section);
         const o = new OpenSheetMusicDisplay(pBox, {
-          autoResize: true,
+          autoResize: false, // we redraw ourselves (see relayout): the library would also redraw windows that are folded away, with width 0
           backend: "svg",
           drawTitle: g === 0,
           followCursor: false,
@@ -1421,7 +1435,7 @@ async function renderDuet(pair: api.Pair) {
       section.dataset.part = String(g);
       split.append(section);
       const o = new OpenSheetMusicDisplay(pBox, {
-        autoResize: true,
+        autoResize: false, // we redraw ourselves (see relayout): the library would also redraw windows that are folded away, with width 0
         backend: "svg",
         drawTitle: g === 0,
         followCursor: false,
@@ -1562,12 +1576,6 @@ function buildControls(
     saveSettings(settings);
     player.expressive = cbExpr.checked;
   });
-  const ex = score.expression;
-  const exprNote = ex
-    ? ex.dynamics + ex.wedges + ex.articulations + ex.pedals === 0
-      ? "这份谱子没有力度/踏板记号（从 PDF 转换时常会丢失），按强弱拍和旋律层次演奏。"
-      : `乐谱里的表情记号：力度 ${ex.dynamics} 个、渐强渐弱 ${ex.wedges} 处、断奏/重音等 ${ex.articulations} 个、踏板 ${ex.pedals} 处。`
-    : "";
   const cbCount = h("input", { type: "checkbox", checked: settings.countIn });
   const cbMetro = h("input", { type: "checkbox" });
   const cbLoop = h("input", { type: "checkbox" });
@@ -1593,7 +1601,6 @@ function buildControls(
     "div",
     { class: "panel", hidden: true },
     h("label", { class: "inline" }, cbExpr, "按乐谱表情演奏（力度、断奏、踏板）"),
-    h("p", { class: "muted small" }, exprNote),
     h("label", { class: "inline" }, cbCount, "开始前倒数一小节"),
     h("label", { class: "inline" }, cbMetro, "节拍器"),
     h("div", { class: "line" }, h("label", { class: "inline" }, cbLoop, "循环小节"), from, "到", to, useCurrent),
@@ -1603,12 +1610,17 @@ function buildControls(
 
   const zoomIn = h("button", { class: "icon", onclick: () => zoom(0.1), title: "放大" }, ic("plus", 20));
   const zoomOut = h("button", { class: "icon", onclick: () => zoom(-0.1), title: "缩小" }, ic("minus", 20));
+  // the width each view was last drawn at (-1 = needs a new drawing as soon as it is visible again)
+  const drawnWidth = new Map<View, number>();
+  views.forEach((v) => drawnWidth.set(v, v.holder.clientWidth));
   function rerender() {
     const step = player.currentStep;
     for (const v of views) {
+      if (v.holder.clientWidth === 0) { drawnWidth.set(v, -1); continue; } // folded away / hidden: draw it when it is shown again
       v.osmd.EngravingRules.RenderFingerings = false; // every number is drawn by our own overlay so it can follow the hand selection
       v.osmd.zoom = settings.zoom;
       v.osmd.render();
+      drawnWidth.set(v, v.holder.clientWidth);
 
       v.osmd.cursor.show();
       if (v.steps) {
@@ -1621,6 +1633,16 @@ function buildControls(
     tools.refresh();
     followView();
   }
+  /** a window changed its size (rotation, address bar, a part shown again): draw again every visible view whose width is not the one it was drawn at */
+  let relayoutTimer = 0;
+  const relayout = () => {
+    clearTimeout(relayoutTimer);
+    relayoutTimer = window.setTimeout(() => {
+      const stale = views.some((v) => v.holder.clientWidth > 0 && Math.abs(v.holder.clientWidth - (drawnWidth.get(v) ?? 0)) > 2);
+      if (stale) rerender();
+    }, 250);
+  };
+  window.addEventListener("resize", relayout);
   function zoom(d: number) {
     settings.zoom = Math.min(2.5, Math.max(0.4, +(settings.zoom + d).toFixed(2)));
     saveSettings(settings);
@@ -1938,6 +1960,8 @@ function buildControls(
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("resize", onResizeBar);
+    window.removeEventListener("resize", relayout);
+    clearTimeout(relayoutTimer);
     prevDispose?.();
   };
 
@@ -1989,7 +2013,7 @@ function buildControls(
       document.querySelector(".splitwrap")?.classList.toggle("focusing", g !== null);
       document.querySelectorAll(".pane").forEach((pane, i) => pane.classList.toggle("focused", g === i));
       document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), g === i ? "还原" : "全屏"));
-      requestAnimationFrame(() => { followView(); });
+      requestAnimationFrame(() => { relayout(); followView(); });
     };
     const collBtns: HTMLElement[] = [];
     let lastTarget: number | null = null;
@@ -2014,7 +2038,7 @@ function buildControls(
         const folded = target === g && !userOpen;
         if (v.box.classList.contains("collapsed") !== folded) {
           v.box.classList.toggle("collapsed", folded);
-          requestAnimationFrame(() => followView());
+          requestAnimationFrame(() => { relayout(); followView(); });
         }
         const b = collBtns[g];
         if (!b) return;

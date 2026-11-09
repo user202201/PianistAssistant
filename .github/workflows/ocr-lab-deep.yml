@@ -1,10 +1,10 @@
 name: ocr-lab-deep
-# Could a deep-learning OMR engine (oemer, homr) replace Audiveris inside the apps? Measured on the lab scores (samples/ocr-lab).
+# Audiveris against homr (deep learning), on clean and on badly scanned versions of the lab scores. Decides whether homr can live inside the apps.
 on:
   workflow_dispatch:
   push:
     branches: [claude/epic-dirac-38xck6]
-    paths: ["scripts/ocr-lab-deep.sh", "scripts/merge-musicxml-pages.py", ".github/workflows/ocr-lab-deep.yml"]
+    paths: ["scripts/ocr-lab-deep.sh", "scores-repo-template/convert-homr.sh", "scores-repo-template/merge-pages.py", ".github/workflows/ocr-lab-deep.yml"]
 permissions:
   contents: read
 jobs:
@@ -16,13 +16,23 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.10" }
       - name: Install the engines
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils libgl1
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils libgl1 imagemagick tesseract-ocr tesseract-ocr-eng jq unzip
           python -m pip install --upgrade pip
-          pip install oemer 2>&1 | tail -n 3 || echo "oemer install failed"
-          (pip install homr 2>&1 | tail -n 3) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 3) || echo "homr install failed"
-          pip list 2>/dev/null | grep -iE "oemer|homr|onnx|torch|tensorflow|opencv" || true
-          which oemer homr || true
+          pip install img2pdf
+          (pip install homr 2>&1 | tail -n 2) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 2)
+          which homr
+          url=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
+            jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
+          curl -fsSL -o /tmp/audiveris.deb "$url"
+          mkdir -p /tmp/audiveris-root && dpkg-deb -x /tmp/audiveris.deb /tmp/audiveris-root
+          AUD=$(find /tmp/audiveris-root -type f -name Audiveris | head -1); chmod +x "$AUD"; echo "AUD=$AUD" >> "$GITHUB_ENV"
+          mkdir -p /tmp/tessdata-full && curl -fsSL -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
+          echo "TESSDATA_PREFIX=/tmp/tessdata-full" >> "$GITHUB_ENV"
+          echo "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true" >> "$GITHUB_ENV"
       - name: Run
         run: bash scripts/ocr-lab-deep.sh
       - uses: actions/upload-artifact@v4
