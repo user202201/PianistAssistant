@@ -418,3 +418,8 @@ textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text
 .collbtn { display: inline-flex; align-items: center; gap: 4px; }
 /* segmented buttons keep their whole text (long French labels) */
 .group.wide > button { flex: 1 1 0; min-width: fit-content; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+
+/* full screen of one part hides the top bar - and with it the room for the iPad status bar (battery, signal, clock): keep that room */
+#app.focusing { padding-top: env(safe-area-inset-top); }
+/* the hidden attribute always wins (a class with its own display used to show hidden buttons) */
+[hidden] { display: none !important; }

@@ -1777,7 +1777,9 @@ function buildControls(
   // ---- preview of the next line: floats right under the last visible line, gone once the page has turned ----
   function updatePeek(v: View) {
     const off = () => { v.peek.style.display = "none"; };
-    if (!settings.peekNext || settings.scrollMode !== "page" || split) return off(); // not in the split (four-hand) view: two screens, no room
+    // two screens side by side have no room for it; a single visible screen (the other part folded away, or full screen) has
+    const alone = !split || views.filter((x) => !x.box.classList.contains("collapsed") && !(app.classList.contains("focusing") && !x.box.classList.contains("focused"))).length === 1;
+    if (!settings.peekNext || settings.scrollMode !== "page" || !alone) return off();
     const svg = v.holder.querySelector("svg") as SVGSVGElement | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const systems: any[] | undefined = (v.osmd.GraphicSheet as any)?.MusicPages?.[0]?.MusicSystems;
@@ -1801,7 +1803,7 @@ function buildControls(
     // score area it floats over the control bar, which is not needed while playing
     const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
     const wr = v.wrap.getBoundingClientRect();
-    const room = (split ? wr.bottom : window.innerHeight) - 6 - (wr.top + y);
+    const room = window.innerHeight - 6 - (wr.top + y); // only ever used alone: it may float over the control bar
     const S = 0.85; // drawn a little smaller: it only has to be readable, and it covers less
     // what is drawn above the staves (bar numbers, high notes, fingering) lies outside the system box: start higher
     const pad = 6; // the boxes are exact now (they include what is drawn above / below the staves)
