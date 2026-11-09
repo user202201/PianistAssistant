@@ -1,4 +1,5 @@
-// The settings are long: closing them needed a scroll down to the "Done" at the bottom. Now the title bar sticks to the top with a second "Done".
+// The settings are long. The title bar with "Done" stays where it is, only the part below it scrolls (a pull down on a tablet used to drag the
+// whole dialog, title bar included, like a "pull to refresh"); there is no second Done at the bottom; a soft fade says "there is more below".
 const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 (async () => {
@@ -6,25 +7,30 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const { browser, page } = await h.start(store, { context: { viewport: { width: 440, height: 560 }, hasTouch: true, isMobile: true } });
   await page.waitForSelector('.card');
   const openSettings = async () => { await page.evaluate(() => document.querySelector('.top button:last-child').click()); await page.waitForSelector('dialog.dlg #done-top'); await page.waitForTimeout(300); };
-  const vis = () => page.evaluate(() => { const d = document.querySelector('dialog.dlg'); const dr = d.getBoundingClientRect(); const inView = (e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.top >= dr.top - 1 && r.bottom <= dr.bottom + 1; };
-    const bottom = [...d.querySelectorAll('button.primary')].find((b) => b.id !== 'done-top'); return { scrolls: d.scrollHeight > d.clientHeight + 20, top: inView(d.querySelector('#done-top')), bottom: !!bottom && inView(bottom), y: Math.round(d.scrollTop), max: d.scrollHeight - d.clientHeight, title: inView(d.querySelector('#settings-head h2')) }; });
-  await openSettings(); let v = await vis();
-  ok(v.scrolls, 'the settings are longer than the window (they scroll)');
-  ok(v.top && v.title && !v.bottom, 'at the top: "Done" is in the title bar, the bottom one is out of sight');
-  const fadeShown = () => page.evaluate(() => { const f = document.querySelector('.dlgfade'); const r = f.getBoundingClientRect(); const d = document.querySelector('dialog.dlg').getBoundingClientRect(); return getComputedStyle(f).display !== 'none' && r.height > 20 && r.bottom <= d.bottom + 26 && r.bottom >= d.bottom - 4; });
-  ok(await fadeShown(), 'at the top a soft fade at the bottom edge says "there is more below" (touch screens hide the scroll bar)');
-  await page.evaluate(() => { const d = document.querySelector('dialog.dlg'); d.scrollTop = (d.scrollHeight - d.clientHeight) / 2; }); await page.waitForTimeout(250); v = await vis();
-  ok(v.top && v.y > 50, `scrolled to the middle: the "Done" in the title bar is still there (scrolled ${v.y}px)`);
-  ok(await page.evaluate(() => document.querySelector('#settings-head').classList.contains('scrolled')), 'the title bar gets a thin line once content slides under it');
-  await page.evaluate(() => { const d = document.querySelector('dialog.dlg'); d.scrollTop = d.scrollHeight; }); await page.waitForTimeout(250); v = await vis();
-  ok(v.top && v.bottom && !(await fadeShown()), 'at the bottom: both "Done" buttons are there and the fade is gone');
+  const st = () => page.evaluate(() => { const d = document.querySelector('dialog.dlg'), b = d.querySelector('.dlgbody'), hd = d.querySelector('#settings-head'); const f = d.querySelector('.dlgfade'); const fr = f.getBoundingClientRect(), dr = d.getBoundingClientRect();
+    return { bodyScrolls: b.scrollHeight > b.clientHeight + 20, dlgScrolls: d.scrollHeight > d.clientHeight + 1, headTop: Math.round(hd.getBoundingClientRect().top * 10) / 10, y: Math.round(b.scrollTop), doneTop: Math.round(d.querySelector('#done-top').getBoundingClientRect().top * 10) / 10,
+      dones: [...d.querySelectorAll('button')].filter((x) => x.textContent.trim() === '完成').length, fade: getComputedStyle(f).display !== 'none' && fr.height > 20 && fr.bottom <= dr.bottom + 2 && fr.bottom >= dr.bottom - 4, line: hd.classList.contains('scrolled'), overscroll: getComputedStyle(b).overscrollBehaviorY }; });
+  await openSettings(); let v = await st(); const top0 = v.headTop, done0 = v.doneTop;
+  ok(v.bodyScrolls && !v.dlgScrolls, 'the part below the title bar scrolls, the dialog itself does not');
+  ok(v.dones === 1, 'there is ONE "Done" (in the title bar), none at the bottom any more');
+  ok(v.overscroll === 'contain', 'the bounce of a pull stays inside the scrolling part (overscroll-behavior: contain)');
+  ok(v.fade, 'a soft fade at the bottom edge says "there is more below" (touch screens hide the scroll bar)');
+  await page.evaluate(() => { const b = document.querySelector('.dlgbody'); b.scrollTop = (b.scrollHeight - b.clientHeight) / 2; }); await page.waitForTimeout(250); v = await st();
+  ok(v.y > 50 && v.headTop === top0 && v.doneTop === done0, `scrolled ${v.y}px: the title bar and "Done" did not move (${v.headTop} / ${v.doneTop})`);
+  ok(v.line, 'the title bar gets a thin line once content slides under it');
+  await page.evaluate(() => { const b = document.querySelector('.dlgbody'); b.scrollTop = b.scrollHeight; }); await page.waitForTimeout(250); v = await st();
+  ok(v.headTop === top0 && !v.fade, 'at the bottom: still in place, the fade is gone');
+  // a real pull down at the top (touch drag): the title bar must not follow
+  await page.evaluate(() => { document.querySelector('.dlgbody').scrollTop = 0; }); await page.waitForTimeout(200);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 220, y: 250, id: 1 }] });
+  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 220, y: 250 + i * 22, id: 1 }] });
+  v = await st(); ok(v.headTop === top0 && v.doneTop === done0, `while pulling down at the top the title bar stays (${v.headTop})`);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForTimeout(300);
+  await page.evaluate(() => { const b = document.querySelector('.dlgbody'); b.scrollTop = b.scrollHeight; }); await page.waitForTimeout(200);
   await page.click('#done-top'); await page.waitForTimeout(300);
-  ok(await page.locator('dialog.dlg').count() === 0, 'the top "Done" closes the settings (while scrolled to the bottom)');
-  await openSettings(); await page.evaluate(() => { const d = document.querySelector('dialog.dlg'); d.scrollTop = d.scrollHeight; }); await page.waitForTimeout(250);
-  await page.evaluate(() => [...document.querySelectorAll('dialog.dlg button.primary')].find((b) => b.id !== 'done-top').click()); await page.waitForTimeout(300);
-  ok(await page.locator('dialog.dlg').count() === 0, 'and the bottom "Done" still works');
-  // a tall window: nothing to scroll, no fade
-  await page.setViewportSize({ width: 440, height: 1400 }); await openSettings(); await page.waitForTimeout(300);
-  ok(!(await vis()).scrolls && !(await page.evaluate(() => document.querySelector('dialog.dlg').classList.contains('more'))), 'when everything fits there is no fade');
+  ok(await page.locator('dialog.dlg').count() === 0, 'Done closes the settings (also when scrolled to the bottom)');
+  await page.setViewportSize({ width: 440, height: 1400 }); await openSettings(); await page.waitForTimeout(300); v = await st();
+  ok(!v.bodyScrolls && !v.fade, 'when everything fits there is nothing to scroll and no fade');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

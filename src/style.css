@@ -612,20 +612,17 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .seg { position: relative; z-index: 1; }
 .tabsbar .seg.on { background: transparent; box-shadow: none; }
 
-/* the liquid that flows from the old tab to the new one (drawn by moveBlob in main.ts) */
-.tabsbar .tabgoo { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; overflow: visible; display: none; }
-.tabsbar .tabgoo path { fill: var(--accent); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25)); }
-.tabsbar .group.sliding .tabgoo { display: block; }
-.tabsbar .group.sliding .tabblob { visibility: hidden; }
 .tabsbar .seg { transition: color .2s; }
-.tabsbar .group.sliding-text .seg.on { color: var(--text); } /* the name turns white when the liquid has (almost) arrived, not while it is still on the old tab */
 
-/* the title bar of the settings sticks to the top (with a Done) while the dialog scrolls */
-.dlghead { position: sticky; top: -24px; z-index: 5; display: flex; align-items: center; gap: 12px; margin: -24px -24px 6px; padding: 20px 24px 10px; background: var(--surface); border-bottom: .5px solid transparent; }
+/* the settings: the title bar (with Done) stays put, only the part below it scrolls; a pull on a tablet bounces that part, not the whole dialog */
+.dlg.settings { padding: 0; overflow: hidden; overscroll-behavior: contain; }
+.dlg.settings[open] { display: flex; flex-direction: column; }
+.dlghead { flex: none; display: flex; align-items: center; gap: 12px; padding: 20px 24px 10px; background: var(--surface); border-bottom: .5px solid transparent; z-index: 5; }
 .dlghead.scrolled { border-bottom-color: var(--sep); }
 .dlghead h2 { margin: 0; }
+.dlgbody { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 24px 24px; }
 button.primary.small { min-height: 38px; padding: 0 16px; }
-.dlgfade { display: none; position: sticky; bottom: -24px; height: 44px; margin: -44px -24px -24px; background: linear-gradient(to bottom, transparent, var(--surface) 85%); pointer-events: none; z-index: 4; }
+.dlgfade { display: none; position: sticky; bottom: -24px; height: 44px; margin: -44px -24px 0; background: linear-gradient(to bottom, transparent, var(--surface) 85%); pointer-events: none; z-index: 4; }
 .dlg.more .dlgfade { display: block; }
 
 /* PDF full screen: a small button (and a swipe down from the top edge) brings the toolbar back, so full screen is never a trap */

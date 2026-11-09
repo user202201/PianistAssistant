@@ -344,7 +344,7 @@ async function importBackup(file: File) {
 }
 
 function openSettings(onSound?: () => void, onLayout?: () => void) {
-  const dlg = h("dialog", { class: "dlg" });
+  const dlg = h("dialog", { class: "dlg settings" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
   sound.addEventListener("change", () => {
     settings.sound = sound.value;
@@ -459,22 +459,21 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("a", { href: "https://github.com/settings/personal-access-tokens", target: "_blank", rel: "noopener" }, "GitHub 令牌管理"),
       " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。",
     )]),
-    h(
-      "div",
-      { class: "row" },
-      ...(api.isLocal() ? [] : [h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备")]),
-      h("div", { class: "grow" }),
-      h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
-    ),
+    ...(api.isLocal() ? [] : [h("div", { class: "row" }, h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"))]),
   );
+  // the title bar (with "Done") stays where it is; only the part below it scrolls (so pulling down on a tablet does not drag the title bar along)
+  const head = dlg.querySelector("#settings-head")!;
+  const body = h("div", { class: "dlgbody" });
+  while (head.nextSibling) body.append(head.nextSibling);
+  dlg.append(body);
   // touch screens hide the scroll bar: a soft fade at the bottom edge says "there is more below" (gone when you are at the end)
   const fade = h("div", { class: "dlgfade" });
-  dlg.append(fade);
+  body.append(fade);
   const edges = () => {
-    dlg.querySelector("#settings-head")?.classList.toggle("scrolled", dlg.scrollTop > 4);
-    dlg.classList.toggle("more", dlg.scrollHeight - dlg.scrollTop - dlg.clientHeight > 6);
+    head.classList.toggle("scrolled", body.scrollTop > 4);
+    dlg.classList.toggle("more", body.scrollHeight - body.scrollTop - body.clientHeight > 6);
   };
-  dlg.addEventListener("scroll", edges);
+  body.addEventListener("scroll", edges);
   window.addEventListener("resize", edges);
   dlg.addEventListener("close", () => window.removeEventListener("resize", edges));
   dlg.addEventListener("close", () => dlg.remove());
@@ -808,85 +807,44 @@ async function renderHome() {
       listBox.scrollTop = 0;
     } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, h("span", { class: "tl-full" }, label), h("span", { class: "tl-short" }, TAB_SHORT[k])), h("span", { class: "tabcount" })),
   );
-  // The highlight of the chosen tab is a drop of liquid that flows over to the new tab: the old end shrinks and finally disappears, the new
-  // end grows, and in between they are joined by a thin neck. (Drawn as one outline per frame; when it has arrived a plain rounded block
-  // takes over and wobbles a tiny bit. With the "reduce motion" setting of the system it just jumps.)
+  // The highlight of the chosen tab is a block that slides over to the new tab: first stretched across both (like a drop of water being pulled),
+  // then it settles with a small jelly wobble. While it is stretched across the tabs in between it is see-through and becomes solid again as it
+  // arrives, so it never looks as if several tabs were chosen at once. (With the "reduce motion" setting of the system it just jumps.)
   const tabBlob = h("span", { class: "tabblob" });
-  const SVGNS = "http://www.w3.org/2000/svg";
-  const gooSvg = document.createElementNS(SVGNS, "svg");
-  gooSvg.setAttribute("class", "tabgoo");
-  const gooPath = document.createElementNS(SVGNS, "path");
-  gooSvg.append(gooPath);
-  const tabGroup = h("div", { class: "group wide" }, tabBlob, gooSvg, ...tabBtns);
+  const tabGroup = h("div", { class: "group wide" }, tabBlob, ...tabBtns);
   const tabsBar = h("div", { class: "tabsbar" }, tabGroup);
   const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  let shown = { L: 0, W: 0 }; // where the highlight is (during the flow: the growing end)
-  let flow = 0; // the animation frame request
-  /** the outline of two blobs [x0, x1] (left) and [x2, x3] (right) joined by a neck of half thickness n */
-  function liquidPath(a: [number, number], b: [number, number], top: number, bottom: number, n: number, r: number): string {
-    const H = bottom - top, yc = (top + bottom) / 2;
-    const wa = a[1] - a[0], wb = b[1] - b[0];
-    const rect = (x0: number, x1: number) => {
-      const q = Math.min(r, (x1 - x0) / 2, H / 2);
-      return `M${x0 + q} ${top}H${x1 - q}A${q} ${q} 0 0 1 ${x1} ${top + q}V${bottom - q}A${q} ${q} 0 0 1 ${x1 - q} ${bottom}H${x0 + q}A${q} ${q} 0 0 1 ${x0} ${bottom - q}V${top + q}A${q} ${q} 0 0 1 ${x0 + q} ${top}Z`;
-    };
-    if (wa < 1) return wb < 1 ? "" : rect(b[0], b[1]);
-    if (wb < 1) return rect(a[0], a[1]);
-    const fa = Math.min(H * 0.9, wa * 0.7), fb = Math.min(H * 0.9, wb * 0.7); // how far the neck reaches into each blob
-    const qa = Math.min(r, wa / 2, H / 2), qb = Math.min(r, wb / 2, H / 2);
-    const curve = (x0: number, y0: number, x1: number, y1: number) => { const k = (x1 - x0) / 2; return `C${x0 + k} ${y0} ${x1 - k} ${y1} ${x1} ${y1}`; }; // flat at both ends
-    // a thin thread joins the two ends; each end only has a short smooth transition into it (when they touch, the thread has no length)
-    const c = Math.max(0, Math.min(H * 0.5, (b[0] - a[1]) / 2));
-    const p1 = a[1] + c, p2 = b[0] - c;
-    return [
-      `M${a[0] + qa} ${top}`, `H${a[1] - fa}`, curve(a[1] - fa, top, p1, yc - n), `L${p2} ${yc - n}`, curve(p2, yc - n, b[0] + fb, top),
-      `H${b[1] - qb}`, `A${qb} ${qb} 0 0 1 ${b[1]} ${top + qb}`, `V${bottom - qb}`, `A${qb} ${qb} 0 0 1 ${b[1] - qb} ${bottom}`,
-      `H${b[0] + fb}`, curve(b[0] + fb, bottom, p2, yc + n), `L${p1} ${yc + n}`, curve(p1, yc + n, a[1] - fa, bottom),
-      `H${a[0] + qa}`, `A${qa} ${qa} 0 0 1 ${a[0]} ${bottom - qa}`, `V${top + qa}`, `A${qa} ${qa} 0 0 1 ${a[0] + qa} ${top}`, "Z",
-    ].join(" ");
-  }
   function moveBlob(animate: boolean) {
     const on = tabBtns.find((b) => b.classList.contains("on"));
     if (!on || !on.offsetWidth) return;
-    cancelAnimationFrame(flow);
-    tabGroup.classList.remove("sliding");
     const L1 = on.offsetLeft, W1 = on.offsetWidth;
-    const L0 = shown.L || L1, W0 = shown.W || W1;
+    const L0 = parseFloat(tabBlob.style.left) || L1, W0 = parseFloat(tabBlob.style.width) || W1;
     tabBlob.style.left = `${L1}px`;
     tabBlob.style.width = `${W1}px`;
-    shown = { L: L1, W: W1 };
-    if (!animate || reducedMotion() || (Math.abs(L0 - L1) < 1 && Math.abs(W0 - W1) < 1)) return;
-    const pad = parseFloat(getComputedStyle(tabGroup).paddingTop) || 3;
-    const top = pad, bottom = tabGroup.clientHeight - pad, H = bottom - top;
-    const r = parseFloat(getComputedStyle(tabBlob).borderTopLeftRadius) || 14;
-    gooSvg.setAttribute("width", String(tabGroup.clientWidth));
-    gooSvg.setAttribute("height", String(tabGroup.clientHeight));
+    tabBlob.getAnimations().forEach((a) => a.cancel());
+    if (!animate || reducedMotion() || !tabBlob.animate || (Math.abs(L0 - L1) < 1 && Math.abs(W0 - W1) < 1)) return;
+    const Ls = Math.min(L0, L1), Ws = Math.max(L0 + W0, L1 + W1) - Ls; // stretched over the old and the new tab
+    // jelly: after the slide the front edge overshoots a little (at most ~12 px), the back edge follows less, then they wobble back and forth
+    // with less and less, and rest. (Restrained on purpose: it should feel like a real object, not like a show.)
     const dir = L1 >= L0 ? 1 : -1;
-    const R0 = L0 + W0, R1 = L1 + W1;
-    const easeInOut = (x: number) => (x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2);
-    const DURATION = 640;
-    const t0 = performance.now();
-    tabGroup.classList.add("sliding");
-    const frame = (now: number) => {
-      const t = Math.min(1, (now - t0) / DURATION);
-      const s = easeInOut(t), g = s; // what the old end loses the new end gains: the drop keeps its size while it flows
-      // the old end shrinks towards the side that faces the new tab, the new end grows from the side that faces the old one
-      const S: [number, number] = dir > 0 ? [R0 - W0 * (1 - s), R0] : [L0, L0 + W0 * (1 - s)];
-      const D: [number, number] = dir > 0 ? [L1, L1 + W1 * g] : [R1 - W1 * g, R1];
-      // a thin neck (a fifth of the height); it thins out completely where an end is about to appear / has almost disappeared
-      const n = (H / 2) * 0.22 * Math.min(1, (S[1] - S[0]) / 14, (D[1] - D[0]) / 14);
-      gooPath.setAttribute("d", liquidPath(dir > 0 ? S : D, dir > 0 ? D : S, top, bottom, n, r));
-      shown = { L: D[0], W: D[1] - D[0] };
-      if (t > 0.78) tabGroup.classList.remove("sliding-text"); else tabGroup.classList.add("sliding-text");
-      if (t < 1) flow = requestAnimationFrame(frame);
-      else {
-        shown = { L: L1, W: W1 };
-        tabGroup.classList.remove("sliding", "sliding-text");
-        // arrived: a tiny jelly wobble of the block
-        tabBlob.animate([{ transform: "scale(1.035, .97)" }, { transform: "scale(.99, 1.012)", offset: 0.5 }, { transform: "none" }], { duration: 280, easing: "ease-out" });
-      }
+    const R1 = L1 + W1;
+    const o = Math.min(12, Math.max(4, Math.abs(L1 - L0) * 0.04));
+    const wobble = (lead: number, trail: number) => {
+      const front = dir * lead * o, back = dir * trail * o;
+      const left = dir > 0 ? L1 + back : L1 + front, right = dir > 0 ? R1 + front : R1 + back;
+      return { left: `${left}px`, width: `${right - left}px` };
     };
-    flow = requestAnimationFrame(frame);
+    tabBlob.animate(
+      [
+        { left: `${L0}px`, width: `${W0}px`, opacity: 1, easing: "cubic-bezier(.3, 0, .2, 1)" },
+        { left: `${Ls}px`, width: `${Ws}px`, opacity: 0.38, offset: 0.3, easing: "cubic-bezier(.3, 0, .3, 1)" },
+        { ...wobble(1, 0.4), opacity: 0.85, offset: 0.52, easing: "ease-in-out" },
+        { ...wobble(-0.45, -0.15), opacity: 1, offset: 0.68, easing: "ease-in-out" },
+        { ...wobble(0.2, 0.08), opacity: 1, offset: 0.83, easing: "ease-in-out" },
+        { left: `${L1}px`, width: `${W1}px`, opacity: 1 },
+      ],
+      { duration: 640 },
+    );
   }
   new ResizeObserver(() => moveBlob(false)).observe(tabGroup); // (first display, window size, language)
 
