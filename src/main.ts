@@ -10,7 +10,7 @@ import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
 import { setLang } from "./i18n";
-import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
+import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
@@ -171,9 +171,9 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   const scrollSelect = h(
     "select",
     {},
-    h("option", { value: "page", selected: settings.scrollMode === "page" }, "整屏翻页：画面不动，换行时一次翻到位（推荐，不晕）"),
-    h("option", { value: "smooth", selected: settings.scrollMode === "smooth" }, "平滑滚动：画面跟着光标缓缓移动"),
-    h("option", { value: "off", selected: settings.scrollMode === "off" }, "不滚动：自己翻"),
+    h("option", { value: "page", selected: settings.scrollMode === "page" }, "整屏翻页（推荐）"),
+    h("option", { value: "smooth", selected: settings.scrollMode === "smooth" }, "平滑滚动"),
+    h("option", { value: "off", selected: settings.scrollMode === "off" }, "不滚动"),
   );
   scrollSelect.addEventListener("change", () => {
     settings.scrollMode = scrollSelect.value as typeof settings.scrollMode;
@@ -207,16 +207,17 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       themeBtns.forEach((b, i) => b.classList.toggle("on", (["system", "light", "dark"] as const)[i] === t));
     } }, t === "system" ? "跟随系统" : t === "light" ? "浅色" : "深色"),
   );
-  const langs = [["auto", "跟随系统"], ["zh", "中文"], ["en", "English"], ["fr", "Français"]] as const;
-  const langBtns = langs.map(([code, label]) =>
-    h("button", { class: "seg" + (settings.lang === code ? " on" : ""), onclick: () => {
-      settings.lang = code;
-      saveSettings(settings);
-      setLang(code);
-      langBtns.forEach((b, i) => b.classList.toggle("on", langs[i][0] === code));
-      dispatchEvent(new Event("pianist-lang")); // re-measure anything whose text got longer / shorter
-    } }, label),
+  const langSelect = h(
+    "select",
+    {},
+    ...([["auto", "跟随系统"], ["zh", "中文"], ["en", "English"], ["fr", "Français"]] as const).map(([code, label]) => h("option", { value: code, selected: settings.lang === code }, label)),
   );
+  langSelect.addEventListener("change", () => {
+    settings.lang = langSelect.value as typeof settings.lang;
+    saveSettings(settings);
+    setLang(settings.lang);
+    dispatchEvent(new Event("pianist-lang")); // re-measure anything whose text got longer / shorter
+  });
   const a = api.getAuth();
   dlg.append(
     // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
@@ -226,12 +227,12 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("h3", {}, "外观"),
     h("div", { class: "group wide" }, ...themeBtns),
     h("h3", {}, "语言 / Language"),
-    h("div", { class: "group wide" }, ...langBtns),
+    langSelect,
     h("h3", {}, "乐谱显示"),
-    h("label", {}, "画面怎么跟着播放走", scrollSelect),
-    h("label", { class: "inline" }, "高亮正在弹的这一行", hlBox),
-    h("label", { class: "inline" }, "提前显示下一行（浮在下方，翻页后消失）", peekBox),
-    ...(onLayout ? [h("label", { class: "inline" }, "多声部（四手联弹）分屏显示", splitBox)] : []),
+    h("label", {}, "谱面滚动", scrollSelect),
+    h("label", { class: "inline" }, "高亮当前行", hlBox),
+    h("label", { class: "inline" }, "预览下一行", peekBox),
+    ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [
       h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
@@ -507,31 +508,11 @@ function openCardMenu(title: string, actions: { label: string; icon: string; dan
 async function renderHome() {
   cleanup();
   const token = renderSeq;
-  // a section that can be folded away (the state is remembered); `scroll` = long list with its own scrollbar
-  const fold = (key: string, title: string, body: HTMLElement[], scroll: boolean) => {
-    const k = `pianist.fold.${key}`;
-    let closed = false;
-    try { closed = localStorage.getItem(k) === "1"; } catch { /* ignore */ }
-    const count = h("span", { class: "foldcount" });
-    const bodyEl = h("div", { class: "foldbody" + (scroll ? " scroll" : "") }, ...body);
-    const sec = h("section", { class: "fold" + (closed ? " closed" : "") });
-    const head = h("button", { class: "foldhead", "aria-expanded": String(!closed), onclick: () => {
-      closed = !closed;
-      sec.classList.toggle("closed", closed);
-      head.setAttribute("aria-expanded", String(!closed));
-      try { localStorage.setItem(k, closed ? "1" : "0"); } catch { /* ignore */ }
-    } }, ic("chevron-down", 16), h("span", {}, title), count);
-    sec.append(head, bodyEl);
-    return { sec, count };
-  };
   const list = h("div", { class: "grid two" });
-  const pdfList = h("div", { class: "grid two" });
-  const pdfFold = fold("pdf", "PDF 乐谱", [h("p", { class: "muted small" }, "原样保存的 PDF，只能查看，不能播放。"), pdfList], true);
-  const pdfSec = pdfFold.sec;
-  pdfSec.hidden = true;
+  const status = h("p", { class: "muted" }, "加载中…");
+  const listBox = h("div", { class: "listbox" }, status, list); // the one scroll area of the page
   const recent = h("div", { class: "grid two" });
-  const recentFold = fold("recent", "最近打开", [recent], false);
-  const recentSec = recentFold.sec;
+  const recentSec = h("section", { class: "recentsec" }, h("h2", {}, "最近打开"), recent);
   const queue = h("div", { class: "grid wide" });
   const banner = h(
     "div",
@@ -566,8 +547,46 @@ async function renderHome() {
     queue,
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
   );
-  const status = h("p", { class: "muted" }, "加载中…");
-  const allFold = fold("all", "全部琴谱", [status, list], true);
+  // tabs under "recently opened": all / four hands / PDF / favourites
+  type Tab = "all" | "duet" | "pdf" | "fav";
+  const TABS: [Tab, string][] = [["all", "全部琴谱"], ["duet", "四手联弹"], ["pdf", "PDF 乐谱"], ["fav", "收藏"]];
+  let tab: Tab = (TABS.map((t) => t[0]) as string[]).includes(getHomeTab()) ? (getHomeTab() as Tab) : "all";
+  const tabBtns = TABS.map(([k, label]) =>
+    h("button", { class: "seg" + (tab === k ? " on" : ""), onclick: () => {
+      tab = k;
+      setHomeTab(k);
+      tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
+      renderList();
+      listBox.scrollTop = 0;
+    } }, label),
+  );
+  const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
+
+  // favourites: a star on every card; kept on the device and synced through the scores repository
+  let favs = new Set(getFavs());
+  let favDirty = false;
+  let favTimer = 0;
+  const favKey = { score: (n: string) => `s:${n}`, pair: (p: { a: string; b: string }) => `p:${p.a}|${p.b}`, pdf: (n: string) => `f:${n}` };
+  const starState = (b: Element, k: string) => {
+    b.classList.toggle("on", favs.has(k));
+    b.setAttribute("title", favs.has(k) ? "取消收藏" : "加入收藏");
+  };
+  const toggleFav = (k: string) => {
+    if (favs.has(k)) favs.delete(k); else favs.add(k);
+    setFavs([...favs]);
+    favDirty = true;
+    document.querySelectorAll(".star[data-k]").forEach((b) => { if (b.getAttribute("data-k") === k) starState(b, k); });
+    if (tab === "fav") renderList();
+    clearTimeout(favTimer);
+    favTimer = window.setTimeout(() => { api.writeFavs([...favs]).then(() => { favDirty = false; }).catch(() => toast("保存失败")); }, 600);
+  };
+  const starBtn = (k: string) => {
+    const b = h("button", { class: "star", "data-k": k, onclick: () => toggleFav(k) }, ic("star", 20));
+    starState(b, k);
+    return b;
+  };
+  let lastScores: api.ScoreInfo[] = [];
+  let lastPdfs: api.ScoreInfo[] = [];
   let pairs: api.Pair[] = [];
   let allScores: string[] = [];
   const suggest = h("div", { class: "suggest" });
@@ -652,7 +671,7 @@ async function renderHome() {
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
-    h("main", { class: "home" }, queueSec, suggest, recentSec, allFold.sec, pdfSec),
+    h("main", { class: "home" }, queueSec, suggest, recentSec, tabsBar, listBox),
   );
 
   const deleteAction = (label: string, run: () => Promise<void>) => ({
@@ -673,6 +692,7 @@ async function renderHome() {
       "div",
       { class: "card pair" },
       h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(p.name)))),
+      starBtn(favKey.pair(p)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
         { label: "重命名…", icon: "pencil", run: async () => {
           const v = await askText("重命名这首四手联弹", p.name, "保存");
@@ -698,6 +718,7 @@ async function renderHome() {
       "div",
       { class: "card pdf" },
       h("button", { class: "open", onclick: () => (location.hash = `#/pdf/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
+      starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
         { label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
@@ -724,6 +745,7 @@ async function renderHome() {
       { class: "card" },
       h("button", { class: `open${isNew(name) ? " isnew" : ""}`, onclick: () => { clearNew(name); location.hash = `#/score/${encodeURIComponent(name)}`; } }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(displayName(name))),
         partOf(name).length ? h("div", { class: "muted small sub" }, marquee(partOf(name).map((p) => `${p.a === name ? "A" : "B"} 声部 · 四手联弹「${p.name}」`).join("；"))) : null)),
+      starBtn(favKey.score(name)),
       withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
           { label: "重命名…", icon: "pencil", run: async () => {
@@ -808,6 +830,24 @@ async function renderHome() {
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   }
 
+  /** fill the list for the chosen tab */
+  function renderList() {
+    const scoreItems = lastScores.map((x) => ({ key: displayName(x.name), k: favKey.score(x.name), el: () => card(x.name, true) }));
+    const pairItems = pairs.map((p) => ({ key: `${p.name}\u0000`, k: favKey.pair(p), el: () => pairCard(p) }));
+    const pdfItems = lastPdfs.map((x) => ({ key: x.name, k: favKey.pdf(x.name), el: () => pdfCard(x.name) }));
+    const items = (tab === "all" ? [...pairItems, ...scoreItems] : tab === "duet" ? pairItems : tab === "pdf" ? pdfItems : [...pairItems, ...scoreItems, ...pdfItems].filter((i) => favs.has(i.k))).sort((a, b) => a.key.localeCompare(b.key, "zh"));
+    list.replaceChildren(...items.map((i) => i.el()));
+    status.replaceChildren(
+      ...(items.length
+        ? tab === "pdf" ? [h("span", {}, "原样保存的 PDF，只能查看，不能播放。")] : []
+        : tab === "all" ? ["还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。"]
+        : tab === "duet" ? ["还没有四手联弹。一次上传两份谱子，或在谱子卡片的 ▾ 菜单里选“设为四手联弹”。"]
+        : tab === "pdf" ? ["还没有 PDF。上传 PDF 时选“只保留 PDF”或“两个都要”。"]
+        : ["还没有收藏。点卡片上的 ☆ 就能加入收藏。"]),
+    );
+    armMarquee();
+  }
+
   async function load() {
     if (token !== renderSeq) return;
     clearTimeout(homeTimer);
@@ -818,8 +858,6 @@ async function renderHome() {
       if (token !== renderSeq) return;
       if (api.isOffline() && !offlineToldAt) { offlineToldAt = Date.now(); toast("离线：显示的是上次同步的内容，修改和上传要联网后才能进行", 8000); }
       if (!api.isOffline()) { offlineToldAt = 0; if (!prefetched) { prefetched = true; void api.prefetchLibrary(); } }
-      pdfList.replaceChildren(...pdfs.map((x) => pdfCard(x.name)));
-      pdfSec.hidden = pdfs.length === 0;
       // a just-uploaded file may not show up in GitHub's listing for a few seconds: keep showing it
       const inbox = [...listed];
       for (const [n, ts] of optimistic) {
@@ -849,21 +887,13 @@ async function renderHome() {
       allScores = scores.map((x) => x.name);
       // four-hand pairs (a record whose file was deleted elsewhere is ignored)
       pairs = (await api.readPairs().catch(() => pairs)).filter((p) => names.has(p.a) && names.has(p.b));
+      if (!favDirty) { const rf = await api.readFavs(); if (rf) { favs = new Set(rf); setFavs(rf); } } // favourites follow you between devices
       if (token !== renderSeq) return;
       const inPair = new Set(pairs.flatMap((p) => [p.a, p.b]));
       // every score stays in the list (each part can be practised alone); a combined piece is an extra card
-      const items = [
-        ...pairs.map((p) => ({ key: `${p.name}\u0000`, el: () => pairCard(p) })),
-        ...scores.map((x) => ({ key: displayName(x.name), el: () => card(x.name, true) })),
-      ].sort((a, b) => a.key.localeCompare(b.key, "zh"));
-      list.replaceChildren(...items.map((i) => i.el()));
-      status.replaceChildren(
-        ...(scores.length
-          ? []
-          : [
-              "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。",
-            ]),
-      );
+      lastScores = scores;
+      lastPdfs = pdfs;
+      renderList();
       // "these two look like the two parts of one piece" (only a suggestion, never merged automatically)
       const sugg = suggestPairs([...names], inPair, getDismissed());
       suggest.replaceChildren(
@@ -901,8 +931,6 @@ async function renderHome() {
         .slice(0, 4); // only the last four
       recent.replaceChildren(...rec);
       recentSec.hidden = rec.length === 0;
-      allFold.count.textContent = `${items.length}`;
-      pdfFold.count.textContent = `${pdfs.length}`;
       armMarquee();
     } catch (e) {
       if (e instanceof api.AuthExpired) return renderLogin(e.message);
@@ -1505,7 +1533,7 @@ function buildControls(
   // ---- preview of the next line: floats right under the last visible line, gone once the page has turned ----
   function updatePeek(v: View) {
     const off = () => { v.peek.style.display = "none"; };
-    if (!settings.peekNext || settings.scrollMode !== "page") return off();
+    if (!settings.peekNext || settings.scrollMode !== "page" || split) return off(); // not in the split (four-hand) view: two screens, no room
     const svg = v.holder.querySelector("svg") as SVGSVGElement | null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const systems: any[] | undefined = (v.osmd.GraphicSheet as any)?.MusicPages?.[0]?.MusicSystems;

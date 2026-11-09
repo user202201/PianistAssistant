@@ -504,6 +504,26 @@ export async function writePairs(pairs: Pair[]) {
   const text = JSON.stringify({ pairs }, null, 2) + "\n";
   await put(CONFIG, "pairs.json", new TextEncoder().encode(text).buffer as ArrayBuffer, "Update four-hand pairs");
 }
+/** Favourites: keys like "s:<score>", "p:<a>|<b>", "f:<pdf>" (stored in config/favorites.json so every device sees them). */
+export async function readFavs(): Promise<string[] | null> {
+  const a = need();
+  const fk = `pianist.favsremote.${repoKey(a)}`;
+  try {
+    const r = await gh(a, url(a, CONFIG, "favorites.json") + ref(a), { headers: headers(a, "application/vnd.github.raw+json"), cache: "no-store" });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`GitHub ${r.status}`);
+    const text = await r.text();
+    lsSet(fk, text);
+    const j = JSON.parse(text) as { favorites?: unknown[] };
+    return Array.isArray(j.favorites) ? j.favorites.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return null; // offline / not there yet: the device's own list is used
+  }
+}
+export async function writeFavs(favs: string[]) {
+  const text = JSON.stringify({ favorites: favs }, null, 2) + "\n";
+  await put(CONFIG, "favorites.json", new TextEncoder().encode(text).buffer as ArrayBuffer, "Update favourites");
+}
 export const downloadAny = (name: string) => downloadScore(name);
 
 /** Rename a score: GitHub has no rename in the contents API, so copy to the new name and delete the old one. */

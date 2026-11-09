@@ -122,3 +122,23 @@ export function renameRecent(from: string, to: string) {
     /* ignore */
   }
 }
+
+// ---------- favourites (kept on the device and synced through config/favorites.json) ----------
+const FKEY = "pianist.favs.v1";
+export function getFavs(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(FKEY) ?? "[]");
+  } catch {
+    return [];
+  }
+}
+export function setFavs(list: string[]) {
+  try {
+    localStorage.setItem(FKEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
+}
+const TKEY = "pianist.home.tab";
+export const getHomeTab = (): string => { try { return localStorage.getItem(TKEY) ?? "all"; } catch { return "all"; } };
+export const setHomeTab = (t: string) => { try { localStorage.setItem(TKEY, t); } catch { /* ignore */ } };

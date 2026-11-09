@@ -2,6 +2,7 @@
 const STROKE: Record<string, string> = {
   "chevron-left": '<path d="M15 18l-6-6 6-6"/>',
   "chevron-down": '<path d="M6 9l6 6 6-6"/>',
+  "star": '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
   "chevron-up": '<path d="M6 15l6-6 6 6"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/>',
