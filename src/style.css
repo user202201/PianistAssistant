@@ -619,3 +619,11 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .group.sliding .tabblob { visibility: hidden; }
 .tabsbar .seg { transition: color .2s; }
 .tabsbar .group.sliding-text .seg.on { color: var(--text); } /* the name turns white when the liquid has (almost) arrived, not while it is still on the old tab */
+
+/* the title bar of the settings sticks to the top (with a Done) while the dialog scrolls */
+.dlghead { position: sticky; top: -24px; z-index: 5; display: flex; align-items: center; gap: 12px; margin: -24px -24px 6px; padding: 20px 24px 10px; background: var(--surface); border-bottom: .5px solid transparent; }
+.dlghead.scrolled { border-bottom-color: var(--sep); }
+.dlghead h2 { margin: 0; }
+button.primary.small { min-height: 38px; padding: 0 16px; }
+.dlgfade { display: none; position: sticky; bottom: -24px; height: 44px; margin: -44px -24px -24px; background: linear-gradient(to bottom, transparent, var(--surface) 85%); pointer-events: none; z-index: 4; }
+.dlg.more .dlgfade { display: block; }

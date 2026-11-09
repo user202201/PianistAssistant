@@ -411,7 +411,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   const a = api.getAuth();
   dlg.append(
     // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
-    h("h2", { tabIndex: -1, autofocus: true }, "设置"),
+    // the title bar sticks to the top while the settings scroll, with a second "Done": no need to scroll down to close
+    h("div", { class: "dlghead", id: "settings-head" }, h("h2", { tabIndex: -1, autofocus: true }, "设置"), h("div", { class: "grow" }), h("button", { class: "primary small", id: "done-top", onclick: () => dlg.close() }, "完成")),
     h("h3", {}, "声音"),
     h("label", {}, "钢琴音色", sound),
     h("h3", {}, "外观"),
@@ -466,9 +467,20 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
     ),
   );
+  // touch screens hide the scroll bar: a soft fade at the bottom edge says "there is more below" (gone when you are at the end)
+  const fade = h("div", { class: "dlgfade" });
+  dlg.append(fade);
+  const edges = () => {
+    dlg.querySelector("#settings-head")?.classList.toggle("scrolled", dlg.scrollTop > 4);
+    dlg.classList.toggle("more", dlg.scrollHeight - dlg.scrollTop - dlg.clientHeight > 6);
+  };
+  dlg.addEventListener("scroll", edges);
+  window.addEventListener("resize", edges);
+  dlg.addEventListener("close", () => window.removeEventListener("resize", edges));
   dlg.addEventListener("close", () => dlg.remove());
   document.body.append(dlg);
   dlg.showModal();
+  edges(); // (is there more below?)
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
 }
 

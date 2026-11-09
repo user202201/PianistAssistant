@@ -43,3 +43,4 @@
 42-fingering-patterns
 43-fourhand-small-screen
 44-tab-slide
+45-settings-done-top
