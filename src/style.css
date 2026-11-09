@@ -73,10 +73,12 @@ label.inline { flex-direction: row; display: inline-flex; align-items: center; g
 /* ---------- fingering ---------- */
 .score { position: relative; }
 .flayer { position: absolute; inset: 0; pointer-events: none; }
-.fbadge { position: absolute; transform: translateX(-50%); min-width: 20px; white-space: pre; line-height: 20px; text-align: center;
-  font: italic 700 16px/22px system-ui, sans-serif; border-radius: 6px; padding: 0 3px; }
-.fbadge.auto { color: #2563eb; background: #fffffff0; }
-.fbadge.pend { color: #fff; background: #ea580c; font-style: normal; }
+.fbadge { position: absolute; transform: translateX(-50%); min-width: 20px; height: 22px; white-space: pre; line-height: 22px; text-align: center;
+  font: italic 700 16px/22px system-ui, sans-serif; padding: 0; background: none; pointer-events: none;
+  /* no filled shape: a hairline halo keeps the digit readable over staff lines without hiding notes */
+  text-shadow: -1px 0 rgba(255,255,255,.9), 1px 0 rgba(255,255,255,.9), 0 -1px rgba(255,255,255,.9), 0 1px rgba(255,255,255,.9); }
+.fbadge.auto { color: #1d4ed8; }
+.fbadge.pend { color: #ea580c; font-style: normal; }
 .fhit { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; border: 2px dashed #94a3b8aa; }
 .fhit.sel { border: 3px solid #ea580c; background: #ea580c33; }
 .scorewrap.editing .score { cursor: crosshair; }
@@ -139,3 +141,12 @@ button.danger { background: #7f1d1d; border-color: #b91c1c; }
 
 .ptr { height: 0; overflow: hidden; text-align: center; color: var(--muted); font-size: .9rem; transition: height .15s; }
 .home { overscroll-behavior-y: contain; }
+
+.linehl { position: absolute; left: 0; right: 0; background: rgba(250, 204, 21, .16); border-left: 6px solid #facc15; pointer-events: none; z-index: 0; display: none; }
+.osmd { position: relative; z-index: 1; }
+/* keep the score's internal layers below every popover / bar */
+.scorewrap { position: relative; z-index: 0; isolation: isolate; }
+.controls { z-index: 20; }
+.top { position: relative; z-index: 30; }
+.panel label { display: flex; flex-direction: column; gap: 4px; }
+.panel label.inline { flex-direction: row; }

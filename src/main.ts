@@ -489,7 +489,8 @@ async function renderPlayer(name: string) {
   cleanup();
   // OSMD owns (and clears) scoreBox on every render, so overlays live in the outer holder instead
   const scoreBox = h("div", { class: "osmd" });
-  const holder = h("div", { class: "score" }, scoreBox);
+  const band = h("div", { class: "linehl" });
+  const holder = h("div", { class: "score" }, band, scoreBox);
   const status = h("span", { class: "status" }, "加载乐谱…");
   app.replaceChildren(
     h(
@@ -514,8 +515,8 @@ async function renderPlayer(name: string) {
       autoResize: true,
       backend: "svg",
       drawTitle: true,
-      followCursor: true,
-      cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: true }],
+      followCursor: false, // scrolling is handled by followView() below (page-turn style, no gliding)
+      cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
     });
     const xml = toMusicXml(buf);
     await osmd.load(xml);
@@ -544,7 +545,7 @@ async function renderPlayer(name: string) {
     // expose for tests / debugging
     (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools };
 
-    buildControls(player, score, osmd, status, tools, name);
+    buildControls(player, score, osmd, status, tools, name, band, holder);
     let applying = 0;
     applySound = async () => {
       const id = ++applying;
@@ -589,6 +590,8 @@ function buildControls(
   status: HTMLElement,
   tools: FingerTools,
   name: string,
+  band: HTMLElement,
+  holder: HTMLElement,
 ) {
   const playBtn = h("button", { class: "primary big", title: "播放 / 暂停 (空格)" }, "▶");
   const stopBtn = h("button", { class: "big", title: "回到开头" }, "⏮");
@@ -613,6 +616,25 @@ function buildControls(
   );
 
   // practice panel
+  const selScroll = h(
+    "select",
+    {},
+    h("option", { value: "page" }, "按行翻页（画面不动，换行时翻一次）"),
+    h("option", { value: "smooth" }, "平滑跟随（持续滚动）"),
+    h("option", { value: "off" }, "不滚动（自己翻）"),
+  );
+  selScroll.value = settings.scrollMode;
+  selScroll.addEventListener("change", () => {
+    settings.scrollMode = selScroll.value as typeof settings.scrollMode;
+    saveSettings(settings);
+    followView();
+  });
+  const cbHl = h("input", { type: "checkbox", checked: settings.lineHighlight });
+  cbHl.addEventListener("change", () => {
+    settings.lineHighlight = cbHl.checked;
+    saveSettings(settings);
+    followView(false);
+  });
   const cbExpr = h("input", { type: "checkbox", checked: settings.expressive });
   cbExpr.addEventListener("change", () => {
     settings.expressive = cbExpr.checked;
@@ -647,6 +669,8 @@ function buildControls(
   const panel = h(
     "div",
     { class: "panel", hidden: true },
+    h("label", {}, h("span", { class: "muted small" }, "画面滚动"), selScroll),
+    h("label", { class: "inline" }, cbHl, "高亮正在弹的这一行"),
     h("label", { class: "inline" }, cbExpr, "按乐谱表情演奏（力度、断奏、踏板）"),
     h("p", { class: "muted small" }, exprNote),
     h("label", { class: "inline" }, cbCount, "开始前倒数一小节"),
@@ -666,6 +690,7 @@ function buildControls(
     osmd.cursor.show();
     player.seekStep(step);
     tools.refresh();
+    followView();
   }
   function zoom(d: number) {
     settings.zoom = Math.min(2.5, Math.max(0.4, +(settings.zoom + d).toFixed(2)));
@@ -752,7 +777,34 @@ function buildControls(
   stopBtn.addEventListener("click", () => player.stop());
   speed.addEventListener("input", () => player.setSpeed(Number(speed.value) / 100));
 
+  // ---- keeping the current line in view ----
+  const wrap = () => document.querySelector(".scorewrap") as HTMLElement | null;
+  /** highlight the line being played and (depending on the mode) bring it into view */
+  function followView(jump = true) {
+    const w = wrap();
+    const cur = osmd.cursor.cursorElement as HTMLElement | undefined;
+    if (!w || !cur) return;
+    const cr = cur.getBoundingClientRect();
+    if (cr.height === 0) return;
+    const hr = holder.getBoundingClientRect();
+    band.style.display = settings.lineHighlight ? "block" : "none";
+    band.style.top = `${cr.top - hr.top - 8}px`;
+    band.style.height = `${cr.height + 16}px`;
+    if (!jump || settings.scrollMode === "off") return;
+    const wr = w.getBoundingClientRect();
+    const top = cr.top - wr.top;
+    const margin = 14;
+    if (settings.scrollMode === "page") {
+      // only when the line is not fully visible: put it near the top, so the next line stays visible below
+      if (top < margin || cr.bottom - wr.top > wr.height - margin) w.scrollTop += top - margin;
+    } else {
+      const delta = top + cr.height / 2 - wr.height / 2;
+      if (Math.abs(delta) > 40) w.scrollTo({ top: w.scrollTop + delta, behavior: "smooth" });
+    }
+  }
+
   function sync() {
+    followView();
     playBtn.textContent = player.playing ? "⏸" : "▶";
     const bpm = Math.round(score.baseBpm * player.speed);
     speed.value = String(Math.round(player.speed * 100));

@@ -8,6 +8,44 @@ interface Spot {
   note: XNote;
 }
 
+interface Box {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+}
+
+/** Tiny spatial index: boxes bucketed into square cells, so "does this label hit anything" is fast. */
+class Grid {
+  private cells = new Map<string, Box[]>();
+  constructor(private size: number) {}
+  private range(x0: number, x1: number): number[] {
+    const out: number[] = [];
+    for (let i = Math.floor(x0 / this.size); i <= Math.floor(x1 / this.size); i++) out.push(i);
+    return out;
+  }
+  add(b: Box) {
+    for (const i of this.range(b.l, b.r)) for (const j of this.range(b.t, b.b)) (this.cells.get(`${i},${j}`) ?? this.cells.set(`${i},${j}`, []).get(`${i},${j}`)!).push(b);
+  }
+  /** total overlap area (px²) of `q` with stored boxes; overlaps up to `margin` px thick are ignored (0 = any contact counts, e.g. a 1px stem) */
+  overlap(q: Box, margin: number): number {
+    let sum = 0;
+    const seen = new Set<Box>();
+    for (const i of this.range(q.l, q.r)) {
+      for (const j of this.range(q.t, q.b)) {
+        for (const b of this.cells.get(`${i},${j}`) ?? []) {
+          if (seen.has(b)) continue;
+          seen.add(b);
+          const w = Math.min(q.r, b.r) - Math.max(q.l, b.l);
+          const h = Math.min(q.b, b.b) - Math.max(q.t, b.t);
+          if (w > margin && h > margin) sum += Math.max(w, 1) * Math.max(h, 1);
+        }
+      }
+    }
+    return sum;
+  }
+}
+
 const NAMES = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
 export const noteName = (midi: number) => `${NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
 
@@ -122,38 +160,7 @@ export class FingerTools {
       }),
     );
     const show = this.visible || this.editing;
-    // chord notes share one stacked badge (like printed fingering) instead of overlapping each other
-    const groups = new Map<string, Spot[]>();
-    for (const s of this.spots) {
-      const g = `${s.note.part}|${s.note.staff}|${s.note.measure}|${Math.round(s.note.onset * 3840)}`;
-      (groups.get(g) ?? groups.set(g, []).get(g)!).push(s);
-    }
-    if (show) {
-      for (const members of groups.values()) {
-        const lines: { text: string; pend: boolean }[] = [];
-        members.sort((a, b) => b.note.midi - a.note.midi); // highest note first
-        for (const m of members) {
-          const idx = m.note.idx;
-          if (this.pending.has(idx)) {
-            const v = this.pending.get(idx);
-            lines.push({ text: v === null || v === undefined ? "✕" : String(v), pend: true });
-          } else if (this.showAuto && m.note.fingering === null && this.auto.has(idx)) {
-            lines.push({ text: String(this.auto.get(idx)), pend: false });
-          } else lines.push({ text: "·", pend: false }); // placeholder keeps the stack aligned
-        }
-        if (lines.every((l) => l.text === "·")) continue;
-        const hand = members[0].note.hand;
-        const x = members.reduce((acc, m) => acc + m.x, 0) / members.length;
-        const top = Math.min(...members.map((m) => m.y));
-        const bottom = Math.max(...members.map((m) => m.y));
-        const b = document.createElement("div");
-        b.className = `fbadge ${lines.some((l) => l.pend) ? "pend" : "auto"}`;
-        b.textContent = lines.map((l) => l.text).join("\n");
-        b.style.left = `${x}px`;
-        b.style.top = `${hand === "R" ? top - 12 - 20 * lines.length : bottom + 12}px`;
-        this.layer.append(b);
-      }
-    }
+    if (show) this.placeBadges(svg, hr);
     if (this.editing) {
       for (const s of this.spots) {
         const ring = document.createElement("div");
@@ -162,6 +169,112 @@ export class FingerTools {
         ring.style.top = `${s.y}px`;
         this.layer.append(ring);
       }
+    }
+  }
+
+  // ---------- label placement: put every number where it does not cover printed music ----------
+  /** All printed shapes (noteheads, stems, beams, accidentals, rests, text ...) in holder coordinates. */
+  private collectObstacles(svg: SVGElement, hr: DOMRect): Grid {
+    const grid = new Grid(48);
+    const R = 3.5; // half size of the boxes laid along a slanted shape
+    for (const el of Array.from(svg.querySelectorAll("path, rect, text"))) {
+      if (el.closest(".vf-stave, .vf-curve, .osmd-title, .osmd-subtitle, .osmd-composer, .vf-brace, .vf-connector")) continue; // staff lines, slurs, ...
+      const r = el.getBoundingClientRect();
+      if ((r.height < 3 && r.width > 100) || (r.width > 300 && r.height > 200) || (r.width === 0 && r.height === 0)) continue; // long thin lines, page background
+      if (el.tagName === "path" && r.width > 30 && r.height > 10 && r.width < 900) {
+        // slanted beams: a bounding box would block a big empty triangle, so follow the real outline instead
+        const path = el as SVGPathElement;
+        const ctm = path.getScreenCTM();
+        if (ctm) {
+          const len = path.getTotalLength();
+          for (let d = 0; d <= len; d += 5) {
+            const p = path.getPointAtLength(d).matrixTransform(ctm);
+            const x = p.x - hr.left;
+            const y = p.y - hr.top;
+            grid.add({ l: x - R, t: y - R, r: x + R, b: y + R });
+          }
+          continue;
+        }
+      }
+      grid.add({ l: r.left - hr.left, t: r.top - hr.top, r: r.right - hr.left, b: r.bottom - hr.top });
+    }
+    return grid;
+  }
+
+  private placeBadges(svg: SVGElement, hr: DOMRect) {
+    const obstacles = this.collectObstacles(svg, hr);
+    const placed = new Grid(48);
+    const W = 20;
+    const H = 22;
+    // how many notes sound together: chord members prefer the side of the chord (left), single notes above / below
+    const size = new Map<string, number>();
+    const gk = (n: XNote) => `${n.part}|${n.staff}|${n.measure}|${Math.round(n.onset * 3840)}`;
+    for (const s of this.spots) size.set(gk(s.note), (size.get(gk(s.note)) ?? 0) + 1);
+
+    interface Item { spot: Spot; text: string; pend: boolean }
+    const items: Item[] = [];
+    for (const s of this.spots) {
+      const idx = s.note.idx;
+      if (this.pending.has(idx)) {
+        const v = this.pending.get(idx);
+        items.push({ spot: s, text: v === null || v === undefined ? "✕" : String(v), pend: true });
+      } else if (this.showAuto && s.note.fingering === null && this.auto.has(idx)) {
+        items.push({ spot: s, text: String(this.auto.get(idx)), pend: false });
+      }
+    }
+    items.sort((a, b) => a.spot.x - b.spot.x || a.spot.y - b.spot.y);
+
+    // candidate positions (offset of the badge centre from the notehead), nearest and most natural first
+    const cands = (hand: "R" | "L", chord: boolean) => {
+      const base: [number, number][] = [
+        [0, -30], [-15, -28], [15, -28], [0, 30], [-15, 28], [15, 28],
+        [-26, 0], [26, 0], [0, -48], [0, 48], [-30, -22], [30, -22], [-30, 22], [30, 22],
+        [-46, 0], [46, 0], [0, -66], [0, 66], [-20, -50], [20, -50], [-20, 50], [20, 50], [0, -86], [0, 86],
+      ];
+      return base
+        .map(([dx, dy]) => {
+          let cost = Math.hypot(dx, dy);
+          if (hand === "R" ? dy > 0 : dy < 0) cost += 12; // right hand: above, left hand: below
+          if (chord && dy === 0 && dx < 0) cost -= 14; // chord: beside the chord, aligned with its note
+          return { dx, dy, cost };
+        })
+        .sort((a, b) => a.cost - b.cost);
+    };
+    const cache = new Map<string, ReturnType<typeof cands>>();
+
+    for (const it of items) {
+      const { spot } = it;
+      const chord = (size.get(gk(spot.note)) ?? 1) > 1;
+      const key = `${spot.note.hand}${chord}`;
+      const list = cache.get(key) ?? cache.set(key, cands(spot.note.hand, chord)).get(key)!;
+      const w = Math.max(W, 12 * it.text.length + 8);
+      let best: { cx: number; cy: number } | null = null;
+      let bestScore = Infinity;
+      for (const c of list) {
+        const cx = spot.x + c.dx;
+        const cy = spot.y + c.dy;
+        const rect = { l: cx - w / 2, t: cy - H / 2, r: cx + w / 2, b: cy + H / 2 };
+        // 0 = free; otherwise how much it overlaps something (the candidates are tried best-first)
+        // only the digit itself must stay clear (the pill around it may touch things); any contact counts, even a 1px stem
+        const digit = { l: rect.l + 4, t: rect.t + 4, r: rect.r - 4, b: rect.b - 4 };
+        const o = obstacles.overlap(digit, 0) * 3 + placed.overlap(rect, 1) * 2;
+        if (o === 0) {
+          best = { cx, cy };
+          break;
+        }
+        if (o + c.cost * 0.05 < bestScore) {
+          bestScore = o + c.cost * 0.05;
+          best = { cx, cy };
+        }
+      }
+      if (!best) continue;
+      placed.add({ l: best.cx - w / 2, t: best.cy - H / 2, r: best.cx + w / 2, b: best.cy + H / 2 });
+      const b = document.createElement("div");
+      b.className = `fbadge ${it.pend ? "pend" : "auto"}`;
+      b.textContent = it.text;
+      b.style.left = `${best.cx}px`;
+      b.style.top = `${best.cy - H / 2}px`;
+      this.layer.append(b);
     }
   }
 
