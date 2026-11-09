@@ -361,3 +361,12 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 
 /* the drop-down list of a <select> is drawn by the system: give it our colours so text is readable in dark mode */
 select option, select optgroup { background: var(--surface); color: var(--text); }
+
+/* home: folding sections, long lists scroll inside their own box, one or two cards per row */
+.grid.two { grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+.foldhead { display: flex; align-items: center; justify-content: flex-start; gap: 6px; width: 100%; background: transparent; color: var(--muted); font-weight: 600; font-size: .9rem; padding: 6px 4px; min-height: 40px; margin-top: 10px; }
+.foldhead svg { transition: transform .2s; }
+.fold.closed .foldhead svg { transform: rotate(-90deg); }
+.fold.closed .foldbody { display: none; }
+.foldcount { font-weight: 500; font-size: .8rem; background: var(--fill, rgba(120, 120, 128, .18)); border-radius: 999px; padding: 0 8px; }
+.foldbody.scroll { max-height: min(50vh, 460px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 2px 4px 8px 2px; }

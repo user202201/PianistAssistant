@@ -510,11 +510,31 @@ function openCardMenu(title: string, actions: { label: string; icon: string; dan
 async function renderHome() {
   cleanup();
   const token = renderSeq;
-  const list = h("div", { class: "grid" });
-  const pdfList = h("div", { class: "grid" });
-  const pdfSec = h("section", { hidden: true }, h("h2", {}, "PDF 乐谱"), h("p", { class: "muted small" }, "原样保存的 PDF，只能查看，不能播放。"), pdfList);
-  const recent = h("div", { class: "grid" });
-  const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
+  // a section that can be folded away (the state is remembered); `scroll` = long list with its own scrollbar
+  const fold = (key: string, title: string, body: HTMLElement[], scroll: boolean) => {
+    const k = `pianist.fold.${key}`;
+    let closed = false;
+    try { closed = localStorage.getItem(k) === "1"; } catch { /* ignore */ }
+    const count = h("span", { class: "foldcount" });
+    const bodyEl = h("div", { class: "foldbody" + (scroll ? " scroll" : "") }, ...body);
+    const sec = h("section", { class: "fold" + (closed ? " closed" : "") });
+    const head = h("button", { class: "foldhead", "aria-expanded": String(!closed), onclick: () => {
+      closed = !closed;
+      sec.classList.toggle("closed", closed);
+      head.setAttribute("aria-expanded", String(!closed));
+      try { localStorage.setItem(k, closed ? "1" : "0"); } catch { /* ignore */ }
+    } }, ic("chevron-down", 16), h("span", {}, title), count);
+    sec.append(head, bodyEl);
+    return { sec, count };
+  };
+  const list = h("div", { class: "grid two" });
+  const pdfList = h("div", { class: "grid two" });
+  const pdfFold = fold("pdf", "PDF 乐谱", [h("p", { class: "muted small" }, "原样保存的 PDF，只能查看，不能播放。"), pdfList], true);
+  const pdfSec = pdfFold.sec;
+  pdfSec.hidden = true;
+  const recent = h("div", { class: "grid two" });
+  const recentFold = fold("recent", "最近打开", [recent], false);
+  const recentSec = recentFold.sec;
   const queue = h("div", { class: "grid wide" });
   const banner = h(
     "div",
@@ -550,6 +570,7 @@ async function renderHome() {
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
   );
   const status = h("p", { class: "muted" }, "加载中…");
+  const allFold = fold("all", "全部琴谱", [status, list], true);
   let pairs: api.Pair[] = [];
   let allScores: string[] = [];
   const suggest = h("div", { class: "suggest" });
@@ -634,7 +655,7 @@ async function renderHome() {
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
-    h("main", { class: "home" }, queueSec, suggest, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list), pdfSec),
+    h("main", { class: "home" }, queueSec, suggest, recentSec, allFold.sec, pdfSec),
   );
 
   const deleteAction = (label: string, run: () => Promise<void>) => ({
@@ -879,9 +900,12 @@ async function renderHome() {
           }
           return names.has(k) ? card(k) : null;
         })
-        .filter((x): x is HTMLDivElement => !!x);
+        .filter((x): x is HTMLDivElement => !!x)
+        .slice(0, 3); // only the last three
       recent.replaceChildren(...rec);
       recentSec.hidden = rec.length === 0;
+      allFold.count.textContent = `${items.length}`;
+      pdfFold.count.textContent = `${pdfs.length}`;
       armMarquee();
     } catch (e) {
       if (e instanceof api.AuthExpired) return renderLogin(e.message);
