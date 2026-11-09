@@ -315,7 +315,7 @@ export async function prefetchLibrary(onProgress?: (done: number, total: number)
   const a = getAuth();
   if (isLocal() || !a || isOffline()) return;
   const jobs: [string, string][] = [];
-  for (const [dir, items] of [[SCORES, await listScores()], [PDFS, await listPdfs().catch(() => [])]] as [string, ScoreInfo[]][])
+  for (const [dir, items] of [[SCORES, await listScores()], [PDFS, await list(PDFS).catch(() => [])]] as [string, ScoreInfo[]][])
     for (const i of items) if (!(await hasCachedFile(a, dir, i.name))) jobs.push([dir, i.name]);
   let done = 0;
   for (const [dir, name] of jobs) {
@@ -627,6 +627,22 @@ export async function listPdfs(): Promise<ScoreInfo[]> {
 export const downloadPdf = (name: string) => getBytes(PDFS, name);
 export async function deletePdf(name: string) {
   await remove(PDFS, name, `Delete PDF: ${name}`);
+  await remove(PDFS, name + NOTES_SUFFIX, `Delete annotations of ${name}`).catch(() => {}); // (there may be none)
+}
+/** Handwritten annotations of a PDF live next to it: pdfs/<name>.pdf.ann.json (so backups, the offline copy and deleting follow the PDF). */
+const NOTES_SUFFIX = ".ann.json";
+/** the saved annotations as text; null = there are none yet. Throws when they could not be read (offline, no copy): do not save over them then. */
+export async function readPdfNotes(name: string): Promise<string | null> {
+  try {
+    return new TextDecoder().decode(await getBytes(PDFS, name + NOTES_SUFFIX));
+  } catch (e) {
+    if (e instanceof AuthExpired) throw e;
+    if (/\(404\)|不在本机/.test(String((e as Error)?.message))) return null;
+    throw e;
+  }
+}
+export async function writePdfNotes(name: string, text: string) {
+  await put(PDFS, name + NOTES_SUFFIX, new TextEncoder().encode(text).buffer as ArrayBuffer, `Annotations: ${name}`);
 }
 /** Keep a PDF in pdfs/ (viewing only). Returns the stored name, or null when skipped because of a same-name file. */
 export async function storePdf(file: File, onConflict?: OnConflict): Promise<string | null> {

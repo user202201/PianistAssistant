@@ -9,6 +9,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.waitForSelector('dialog.center');
   const t = await page.textContent('dialog.center');
   ok(t.includes('只保留 PDF') && t.includes('两个都要') && t.includes('只转换') && t.includes('取消'), 'PDF upload asks what to do');
+  ok(t.includes('MusicXML') && t.includes('不一定准'), 'the dialog says the conversion may need correcting and that a MusicXML file gives the best result');
   await page.click('dialog.center button:has-text("只保留 PDF")');
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf', { timeout: 15000 });
   ok(store.has('pdfs/Piece.pdf') && !store.has('inbox/Piece.pdf'), 'kept as PDF only (not queued for conversion)');

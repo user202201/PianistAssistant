@@ -3,6 +3,8 @@ import QRCode from "qrcode";
 import type { Smplr } from "smplr";
 import * as api from "./api";
 import * as ent from "./entitlement";
+import { NoteBook, PEN_COLORS, parseNotes } from "./pdfnotes";
+import { AutoTurn } from "./autoturn";
 import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { icon as ic } from "./icons";
 import { FingerGroup, FingerTools, type FingerApi } from "./fingerui";
@@ -531,6 +533,7 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
       h("h2", {}, "这份 PDF 怎么处理？"),
       h("p", { class: "small" }, name),
       h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
+      h("p", { class: "muted small" }, "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。"),
       engineRow(),
       sameForAllRow(all),
       h(
@@ -770,6 +773,7 @@ async function renderHome() {
     stalledBanner,
     queue,
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
+    h("p", { class: "muted small" }, "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。"),
   );
   // tabs under "recently opened": all / four hands / PDF / favourites
   type Tab = "all" | "duet" | "pdf" | "fav";
@@ -2167,11 +2171,209 @@ async function renderPdf(name: string) {
   const token = renderSeq;
   const stale = () => token !== renderSeq;
   let zoom = 1;
+  let mode: "single" | "scroll" = settings.pdfView;
+  let cur = 1;
+  let total = 0;
+  const sheets: HTMLElement[] = [];
   const pages = h("div", { class: "pdfpages" });
   const wrap = h("div", { class: "pdfwrap" }, pages);
   const status = h("span", { class: "status" }, "加载 PDF…");
-  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); };
+  let book: NoteBook | null = null; // the handwritten annotations (null: not loaded / not available)
+  const pageText = () => (total ? `共 ${total} 页` : "");
+
+  // ---- page view: one page at a time (fits the screen) or everything in one scroll
+  const layout = () => {
+    wrap.classList.toggle("single", mode === "single");
+    sheets.forEach((sh, i) => {
+      sh.hidden = mode === "single" && i + 1 !== cur;
+      if (mode === "single") {
+        const ratio = Number(sh.dataset.ratio) || 0.7;
+        const w = Math.min(wrap.clientWidth - 24, (wrap.clientHeight - 24) * ratio) * zoom;
+        sh.style.width = `${Math.max(120, w)}px`;
+      } else sh.style.width = "";
+    });
+    showPage();
+  };
+  const pageInd = h("span", { class: "pageind" }, "");
+  const prevBtn = h("button", { class: "icon", title: "上一页", onclick: () => goto(cur - 1) }, ic("chevron-left", 20));
+  const nextBtn = h("button", { class: "icon", title: "下一页", onclick: () => goto(cur + 1) }, ic("chevron-right", 20));
+  const showPage = () => {
+    pageInd.textContent = total ? `${cur} / ${total}` : "";
+    (prevBtn as HTMLButtonElement).disabled = cur <= 1;
+    (nextBtn as HTMLButtonElement).disabled = cur >= total;
+  };
+  /** go to a page; `user`: a person asked for it (restarts the automatic countdown) */
+  function goto(n: number, user = true): boolean {
+    n = Math.max(1, Math.min(total, n));
+    if (n === cur) return false;
+    cur = n;
+    if (mode === "single") {
+      layout();
+      wrap.scrollTo({ top: 0, left: 0 });
+    } else {
+      const sh = sheets[n - 1];
+      if (sh) wrap.scrollTo({ top: sh.offsetTop - 12, behavior: "smooth" });
+      showPage();
+    }
+    if (user) turn.reset();
+    return true;
+  }
+  wrap.addEventListener("scroll", () => {
+    if (mode !== "scroll" || !sheets.length) return;
+    let c = 1;
+    sheets.forEach((sh, i) => { if (sh.offsetTop - 12 <= wrap.scrollTop + wrap.clientHeight * 0.35) c = i + 1; });
+    if (c !== cur) { cur = c; showPage(); }
+  }, { passive: true });
+  // tap the left / right edge to turn the page (not while annotating)
+  wrap.addEventListener("click", (e) => {
+    if (mode !== "single" || book?.enabled) return;
+    const r = wrap.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    if (x < 0.22) goto(cur - 1);
+    else if (x > 0.78) goto(cur + 1);
+  });
+  const onKey = (e: KeyboardEvent) => {
+    if ((e.target as HTMLElement)?.closest("input, textarea, select, dialog")) return;
+    if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") { e.preventDefault(); goto(cur + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); goto(cur - 1); }
+  };
+  document.addEventListener("keydown", onKey);
+  const onResize = () => layout();
+  window.addEventListener("resize", onResize);
+
+  // ---- automatic page turn
+  const turnBar = h("div", { class: "turnbar", hidden: true }, h("div", { class: "fill" }));
+  const turnBtn = h("button", { class: "toggle", title: "每隔几秒自动翻到下一页", onclick: () => (turn.running ? turn.stop("user") : startTurn()) }, ic("timer", 20), "自动翻页");
+  const secs = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300];
+  if (!secs.includes(settings.pdfTurnSeconds)) secs.push(settings.pdfTurnSeconds), secs.sort((x, y) => x - y);
+  const secSel = h("select", { class: "turnsecs", title: "每页停留多久" }, ...secs.map((n) => h("option", { value: String(n) }, `每页 ${n} 秒`))) as HTMLSelectElement;
+  secSel.value = String(settings.pdfTurnSeconds);
+  secSel.addEventListener("change", () => {
+    settings.pdfTurnSeconds = Number(secSel.value);
+    saveSettings(settings);
+    turn.reset();
+  });
+  const turn = new AutoTurn({
+    seconds: () => settings.pdfTurnSeconds,
+    next: () => goto(cur + 1, false),
+    schedule: (s) => {
+      const fill = turnBar.firstElementChild as HTMLElement;
+      turnBar.hidden = false;
+      fill.style.transition = "none";
+      fill.style.width = "100%";
+      void fill.offsetWidth; // restart the animation
+      fill.style.transition = `width ${s}s linear`;
+      fill.style.width = "0";
+    },
+    onStop: (reason) => {
+      turnBar.hidden = true;
+      turnBtn.classList.remove("on");
+      toast(reason === "end" ? "已翻到最后一页，自动翻页已停止" : "自动翻页已停止");
+    },
+  });
+  function startTurn() {
+    if (total < 2) return void toast("这份 PDF 只有一页，不需要翻页");
+    if (cur >= total) goto(1, false);
+    turnBtn.classList.add("on");
+    turn.start();
+    toast(`开始自动翻页：每页 ${settings.pdfTurnSeconds} 秒（再点一下“自动翻页”停止）`);
+  }
+
+  // ---- handwritten annotations
+  const toolsRow = h("div", { class: "pdfbar tools", hidden: true });
+  const annotBtn = h("button", { class: "toggle", title: "用 Apple Pencil 或鼠标在乐谱上写画", disabled: true, onclick: () => setAnnotating(!book?.enabled) }, ic("pencil", 20), "标注");
+  let saveTimer = 0;
+  let saving = false;
+  const saveNow = async () => {
+    clearTimeout(saveTimer);
+    if (!book || !book.dirty) return;
+    if (saving) return void (saveTimer = window.setTimeout(() => void saveNow(), 800));
+    saving = true;
+    status.textContent = "正在保存标注…";
+    const text = book.serialize();
+    book.dirty = false;
+    try {
+      await api.writePdfNotes(name, text);
+      status.textContent = "标注已保存";
+      setTimeout(() => { if (!stale() && status.textContent === "标注已保存") status.textContent = pageText(); }, 2500);
+    } catch (e) {
+      book.dirty = true;
+      status.textContent = pageText();
+      toast(`标注保存失败：${e instanceof Error ? e.message : String(e)}（会自动重试）`, 6000);
+      saveTimer = window.setTimeout(() => void saveNow(), 10000);
+    } finally {
+      saving = false;
+    }
+  };
+  const syncTools = () => {
+    if (!book) return;
+    toolsRow.querySelectorAll<HTMLElement>("[data-tool]").forEach((b) => {
+      const t = b.getAttribute("data-tool")!;
+      const on = t === "eraser" ? book!.tool === "eraser" : t === "hl" ? book!.tool === "hl" : book!.tool === "pen" && t === `pen${book!.colorIdx}`;
+      b.classList.toggle("on", on);
+    });
+    toolsRow.querySelectorAll<HTMLElement>("[data-size]").forEach((b) => b.classList.toggle("on", Number(b.getAttribute("data-size")) === book!.sizeIdx));
+    toolsRow.querySelector("#finger-draw")?.classList.toggle("on", book.fingerDraw);
+    const u = toolsRow.querySelector<HTMLButtonElement>("#note-undo");
+    if (u) u.disabled = !book.canUndo;
+  };
+  function setAnnotating(on: boolean) {
+    if (!book) return;
+    book.enabled = on;
+    annotBtn.classList.toggle("on", on);
+    toolsRow.hidden = !on;
+    wrap.classList.toggle("annotating", on);
+    syncTools();
+  }
+  const buildTools = () => {
+    if (!book) return;
+    const nb = book;
+    const pick = (t: "pen" | "hl" | "eraser", color = 0) => () => { nb.tool = t; nb.colorIdx = color; syncTools(); };
+    const swatch = (i: number, title: string) => h("button", { class: "swatch", "data-tool": `pen${i}`, title, onclick: pick("pen", i) }, h("span", { class: "dot", style: `background:${PEN_COLORS[i]}` }));
+    toolsRow.append(
+      h("div", { class: "group" }, swatch(0, "黑色笔"), swatch(1, "红色笔"), swatch(2, "蓝色笔"), h("button", { "data-tool": "hl", title: "荧光笔", onclick: pick("hl") }, ic("marker", 20)), h("button", { "data-tool": "eraser", title: "橡皮擦（擦掉碰到的笔画）", onclick: pick("eraser") }, ic("eraser", 20))),
+      h("div", { class: "group" }, ...["细", "中", "粗"].map((t, i) => h("button", { "data-size": String(i), onclick: () => { nb.sizeIdx = i; syncTools(); } }, t))),
+      h("div", { class: "group" },
+        h("button", { id: "note-undo", title: "撤销", onclick: () => nb.undo() }, ic("undo", 20)),
+        h("button", { id: "note-clear", title: "清除本页标注", onclick: () => {
+          if (!nb.strokes(cur).length) return void toast("这一页没有标注");
+          if (!confirm("清除这一页的全部标注？")) return;
+          nb.clearPage(cur);
+          toast("已清除这一页的标注（可以撤销）");
+        } }, ic("trash", 20)),
+      ),
+      h("button", { class: "toggle", id: "finger-draw", title: "手指也能画（关闭时手指只用来滚动）", onclick: () => { nb.fingerDraw = !nb.fingerDraw; settings.fingerDraw = nb.fingerDraw; saveSettings(settings); wrap.classList.toggle("fingerdraw", nb.fingerDraw); syncTools(); } }, ic("hand", 20), "手指也能画"),
+    );
+    nb.fingerDraw = settings.fingerDraw;
+    wrap.classList.toggle("fingerdraw", nb.fingerDraw);
+    nb.onChange = () => { syncTools(); clearTimeout(saveTimer); saveTimer = window.setTimeout(() => void saveNow(), 2500); };
+    nb.onBusy = (b) => turn.hold(b);
+    nb.guardScroll(wrap);
+    syncTools();
+  };
+  const onHide = () => { if (document.visibilityState === "hidden") void saveNow(); };
+  document.addEventListener("visibilitychange", onHide);
+  disposePlayer = () => {
+    turn.dispose();
+    clearTimeout(saveTimer);
+    document.removeEventListener("keydown", onKey);
+    document.removeEventListener("visibilitychange", onHide);
+    window.removeEventListener("resize", onResize);
+    if (book?.dirty) void api.writePdfNotes(name, book.serialize()).catch(() => {}); // leaving: save what is not saved yet
+  };
+
+  // ---- screen
+  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); layout(); };
   pages.style.setProperty("--z", "1");
+  const viewBtn = (m: "single" | "scroll", label: string) => h("button", { class: mode === m ? "on" : "", "data-view": m, onclick: () => {
+    mode = m;
+    settings.pdfView = m;
+    saveSettings(settings);
+    viewGroup.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.getAttribute("data-view") === m));
+    layout();
+    if (m === "scroll") { const sh = sheets[cur - 1]; if (sh) wrap.scrollTo({ top: sh.offsetTop - 12 }); }
+  } }, label);
+  const viewGroup = h("div", { class: "group" }, viewBtn("single", "单页"), viewBtn("scroll", "连续"));
   app.replaceChildren(
     h(
       "header",
@@ -2183,19 +2385,35 @@ async function renderPdf(name: string) {
       h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
       h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
     ),
+    h("div", { class: "pdfbar" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn), h("div", { class: "group pair" }, turnBtn, secSel), annotBtn),
+    toolsRow,
+    turnBar,
     wrap,
   );
   try {
+    let notesText: string | null = null;
+    let notesOk = true;
     const [pdfjs, worker, data] = await Promise.all([
       import("pdfjs-dist/legacy/build/pdf.min.mjs"),
       import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
       api.downloadPdf(name),
+      api.readPdfNotes(name).then((t) => { notesText = t; }).catch((e) => { if (e instanceof api.AuthExpired) throw e; notesOk = false; }),
     ]);
     if (stale()) return;
+    if (notesOk) {
+      book = new NoteBook(parseNotes(notesText));
+      buildTools();
+      (annotBtn as HTMLButtonElement).disabled = false;
+    } else {
+      annotBtn.title = "标注暂时无法使用";
+      toast("暂时读不到这份 PDF 的标注（可能没有网络）。为避免盖掉已有的标注，标注功能先关闭。", 7000);
+    }
     pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
     const doc = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise;
     if (stale()) return;
-    status.textContent = `共 ${doc.numPages} 页`;
+    total = doc.numPages;
+    status.textContent = pageText();
+    showPage();
     const ratio = Math.min(window.devicePixelRatio || 1, 2.5);
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
@@ -2207,7 +2425,14 @@ async function renderPdf(name: string) {
       canvas.width = Math.floor(vp.width);
       canvas.height = Math.floor(vp.height);
       canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
-      pages.append(canvas);
+      const notes = h("canvas", { class: "notes", "data-page": String(i) }) as HTMLCanvasElement;
+      notes.width = canvas.width;
+      notes.height = canvas.height;
+      book?.attach(i, notes);
+      const sheet = h("div", { class: "pdfsheet", "data-ratio": String(canvas.width / canvas.height) }, canvas, notes);
+      sheets.push(sheet);
+      pages.append(sheet);
+      layout();
       await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
     }
   } catch (e) {

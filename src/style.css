@@ -344,7 +344,7 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 .card.pair { background: linear-gradient(90deg, var(--accent-soft), var(--surface) 70%); box-shadow: inset 4px 0 0 var(--accent), var(--shadow); }
 
 /* PDF viewer */
-.pdfwrap { flex: 1; min-height: 0; overflow: auto; background: var(--bg); -webkit-overflow-scrolling: touch; padding: 12px 0 28px; }
+.pdfwrap { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--bg); -webkit-overflow-scrolling: touch; padding: 12px 0 28px; }
 .pdfpages { width: calc(min(100%, 1100px) * var(--z, 1)); margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
 .pdfpage { width: 100%; height: auto; background: #fff; box-shadow: var(--shadow); border-radius: 4px; display: block; }
 .card.pdf .open::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007aff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5'/%3E%3C/svg%3E"); }
@@ -423,3 +423,21 @@ textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text
 #app.focusing { padding-top: env(safe-area-inset-top); }
 /* the hidden attribute always wins (a class with its own display used to show hidden buttons) */
 [hidden] { display: none !important; }
+
+/* PDF viewer: page bar, automatic page turn, handwriting */
+.pdfbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 12px; }
+.pdfbar.tools { padding-top: 0; }
+.pdfbar .group > button.icon { background: transparent; min-width: 40px; padding: 0 8px; }
+.pdfbar button:disabled { opacity: .4; }
+.pageind { min-width: 56px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.turnbar { height: 3px; background: var(--fill); flex: none; }
+.turnbar .fill { height: 100%; width: 100%; background: var(--accent); }
+select.turnsecs { min-height: 40px; border: 0; border-left: .5px solid var(--sep); background: transparent; color: var(--text); font: inherit; padding: 0 8px; border-radius: 0 11px 11px 0; }
+.pdfsheet { position: relative; width: 100%; }
+.pdfsheet > .pdfpage { width: 100%; }
+.pdfsheet > .notes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pdfwrap.annotating > .pdfpages .notes { pointer-events: auto; cursor: crosshair; }
+.pdfwrap.annotating.fingerdraw .notes { touch-action: none; }
+.pdfwrap.single .pdfpages { width: max-content; min-width: 100%; align-items: center; margin: 0; padding: 0 12px; box-sizing: border-box; }
+.swatch .dot { display: block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(128, 128, 128, .45); }
+.swatch.on .dot { border-color: var(--on-accent); }
