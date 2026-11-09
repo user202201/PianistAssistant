@@ -13,7 +13,8 @@ import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
 import { unzipSync, zipSync } from "fflate";
-import { getLang, setLang } from "./i18n";
+import { LANGS, getLang, setLang } from "./i18n";
+import { startFitting } from "./fit";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -21,6 +22,7 @@ const settings = loadSettings();
 let offlineToldAt = 0; // the "you are offline" notice is shown once per outage
 let prefetched = false; // the library is copied to the device once per session
 setLang(settings.lang); // texts are translated as they appear on screen
+startFitting(); // and controls are made to fit (long texts, small screens)
 if (__LOCAL_ONLY__ && !api.isLocal()) api.useLocal(); // store builds have no account and no GitHub: straight to the device storage
 settings.volume = 1; // loudness is the iPad's own volume; the app always plays at full level
 
@@ -391,7 +393,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   const langSelect = h(
     "select",
     {},
-    ...([["auto", "跟随系统"], ["zh", "中文"], ["en", "English"], ["fr", "Français"]] as const).map(([code, label]) => h("option", { value: code, selected: settings.lang === code }, label)),
+    ...([["auto", "跟随系统"], ...LANGS] as const).map(([code, label]) => h("option", { value: code, selected: settings.lang === code }, label)),
   );
   langSelect.addEventListener("change", () => {
     settings.lang = langSelect.value as typeof settings.lang;
@@ -926,7 +928,7 @@ async function renderHome() {
       h("h1", { class: "brand" }, h("span", { class: "logo" }, ic("note", 20)), "我的琴谱"),
       h("div", { class: "grow" }),
       h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => doRefresh() }, ic("refresh")),
-      h("button", { class: "primary", onclick: () => file.click() }, ic("plus", 20), "上传琴谱"),
+      h("button", { class: "primary upload", title: "上传琴谱", onclick: () => file.click() }, ic("plus", 20), h("span", { class: "lbl" }, "上传琴谱")),
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
@@ -1367,7 +1369,7 @@ async function renderPlayer(name: string) {
     h(
       "header",
       { class: "top compact" },
-      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), "返回"),
+      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), h("span", { class: "lbl" }, "返回")),
       h("h1", {}, displayName(name)),
       h("div", { class: "grow" }),
       status,
@@ -1502,7 +1504,7 @@ async function renderDuet(pair: api.Pair) {
     h(
       "header",
       { class: "top compact" },
-      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), "返回"),
+      h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), h("span", { class: "lbl" }, "返回")),
       h("h1", {}, pair.name),
       h("div", { class: "grow" }),
       status,
@@ -1904,9 +1906,10 @@ function buildControls(
     const next = boxes[i + 1];
     const viewH = v.wrap.clientHeight;
     const vTop = v.wrap.scrollTop;
-    // is the next line (mostly) on screen already? then there is nothing to preview
+    // is the next line completely on screen already? then there is nothing to preview. (A grand staff line has two staves: when only
+    // the right hand's staff shows and the left hand's is cut off, the preview is still needed.)
     const shown = Math.max(0, Math.min(next.top + next.h, vTop + viewH) - Math.max(next.top, vTop));
-    if (shown >= next.h * 0.6) return off(); // the line is there to read (its cut-off part is mostly margin)
+    if (shown >= next.h - 6) return off();
     // right under the current line (so the eye just continues downwards); if that runs past the bottom of the
     // score area it floats over the control bar, which is not needed while playing
     const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
@@ -2475,7 +2478,7 @@ async function renderPdf(name: string) {
       h(
         "header",
         { class: "top compact" },
-        h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
+        h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), h("span", { class: "lbl" }, "返回")),
         h("h1", {}, name.replace(/\.pdf$/i, "")),
         h("div", { class: "grow" }),
         status,

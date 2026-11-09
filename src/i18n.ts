@@ -1,13 +1,15 @@
 /**
- * Languages: the app's texts are written in Chinese in the code. For English / French they are translated at the
+ * Languages: the app's texts are written in Chinese in the code. For the other languages they are translated at the
  * last moment, when they reach the screen (text nodes, title / placeholder attributes, confirm() boxes), using
  * the tables in i18n-data.ts. Texts with variable parts are stored as patterns like "上传中：{0}".
  * Choosing Chinese simply puts the original texts back.
  */
-import { EN, FR } from "./i18n-data";
+import { DE, EN, FR, JA, KO } from "./i18n-data";
 
-export type LangPref = "auto" | "zh" | "en" | "fr";
-export type Lang = "zh" | "en" | "fr";
+export type LangPref = "auto" | "zh" | "en" | "fr" | "ja" | "ko" | "de";
+export type Lang = "zh" | "en" | "fr" | "ja" | "ko" | "de";
+/** the languages of the interface, with their own names (the menu in Settings) */
+export const LANGS: readonly (readonly [Exclude<LangPref, "auto">, string])[] = [["zh", "中文"], ["en", "English"], ["fr", "Français"], ["de", "Deutsch"], ["ja", "日本語"], ["ko", "한국어"]];
 
 const cjk = /[　-〿一-鿿＀-￯]/;
 let current: Lang = "zh";
@@ -18,6 +20,9 @@ export function resolveLang(pref: LangPref, nav: readonly string[] = navigator.l
     const p = l.toLowerCase();
     if (p.startsWith("zh")) return "zh";
     if (p.startsWith("fr")) return "fr";
+    if (p.startsWith("de")) return "de";
+    if (p.startsWith("ja")) return "ja";
+    if (p.startsWith("ko")) return "ko";
     if (p.startsWith("en")) return "en";
   }
   return "en";
@@ -41,7 +46,8 @@ function buildTable(src: Record<string, string>): Table {
   pats.sort((a, b) => b.weight - a.weight);
   return { exact, pats };
 }
-const tableFor = (l: Lang): Table | null => (l === "zh" ? null : (tables[l] ??= buildTable(l === "en" ? EN : FR)));
+const SOURCES: Record<Exclude<Lang, "zh">, Record<string, string>> = { en: EN, fr: FR, de: DE, ja: JA, ko: KO };
+const tableFor = (l: Lang): Table | null => (l === "zh" ? null : (tables[l] ??= buildTable(SOURCES[l])));
 
 /** translate one text (leading / trailing white space is kept). Unknown texts are returned unchanged. */
 export function tr(s: string, lang: Lang = current): string {
@@ -66,7 +72,7 @@ export function tr(s: string, lang: Lang = current): string {
 const ATTRS = ["title", "placeholder", "aria-label", "alt"];
 const texts = new WeakMap<Text, { orig: string; shown: string }>();
 const attrs = new WeakMap<Element, Record<string, { orig: string; shown: string }>>();
-const SKIP = new Set(["SVG", "SCRIPT", "STYLE", "TEXTAREA", "CANVAS"]);
+const SKIP = new Set(["SVG", "SCRIPT", "STYLE", "CANVAS"]); // (a TEXTAREA keeps its content, but its placeholder / title are translated)
 
 function doText(n: Text) {
   const rec = texts.get(n);
@@ -94,6 +100,7 @@ function walk(node: Node) {
   const el = node as Element;
   if (SKIP.has(el.tagName.toUpperCase())) return;
   for (const a of ATTRS) doAttr(el, a);
+  if (el.tagName.toUpperCase() === "TEXTAREA") return;
   for (let c = el.firstChild; c; c = c.nextSibling) walk(c);
 }
 

@@ -1,8 +1,9 @@
 # Pianist Assistant — standing rules for every change
 
-1. **Languages.** The UI is Chinese / English / French (`src/i18n.ts`, texts in `src/i18n-data.ts`, keyed by the Chinese source text).
-   Every new or changed UI text must get an English and a French entry. `npm run check:i18n` (part of `npm run build` and of the
-   deploy workflow) fails when one is missing.
+1. **Languages.** The UI is Chinese / English / French / German / Japanese / Korean (`src/i18n.ts`, texts in `src/i18n-data.ts`, keyed by the Chinese source text).
+   Every new or changed UI text must get an entry in EN, FR, DE, JA and KO. `npm run check:i18n` (part of `npm run build` and of the
+   deploy workflow) fails when one is missing. German is long and Japanese / Korean need their own line breaking: new screens must also pass the layout
+   suites `tests/e2e/37-layout-{de,ja,ko}.cjs` (no overflow / clipping / overlap on a tablet and on a phone) and be looked at in the screenshots they save.
 2. **Always build before pushing:** `npx tsc --noEmit && BASE_PATH=/ npx vite build` (a CSS typo once passed dev and broke the build).
 3. **Web must keep working.** The GitHub Pages site (`/PianistAssistant/`) and the mobile packages (relative base, see `mobile/`) are built
    from the same code. Do not add anything that only works at one of them (absolute asset paths, server-only features).

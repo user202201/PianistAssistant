@@ -20,3 +20,10 @@ Not testable here: a real iPad / iPhone (safe areas are emulated), real piano so
 `tests/shell/convert-script.sh` runs `scores-repo-template/convert.sh` against fake Audiveris / homr / oemer programs: which engine handles which
 file, how results are named (`X.musicxml`, `X [homr].musicxml`, `X [oemer].musicxml`), that engine notes are cleaned up, that an unreadable PDF
 fails with a message and does not stop the other files. `run-all.sh` runs it first when no suite names are given.
+
+## Languages and layout
+The UI has six languages (zh, en, fr, de, ja, ko). `37-layout-de/ja/ko` open the main screens (home, settings, feedback, PDF dialog, player + panels, four hands,
+PDF viewer + annotation tools + seconds dialog, unlock dialog) on a tablet, an iPad in portrait and a small phone (360 px) and fail on: text pushed off screen /
+clipped / spilling out of its button, overlapping buttons, a page wider than the screen, or a text that is still Chinese. They also save screenshots
+(`tests/out/work/layout-*.png`) — **look at them** when a screen is new. `src/fit.ts` is the safety net for long texts: smaller font → tighter spacing →
+a segmented control becomes a drop-down; single-line buttons shrink their text a little (never below 78 %).

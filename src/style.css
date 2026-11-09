@@ -485,3 +485,47 @@ select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(-
 .pdfwrap.single:not(.zoomed) { overflow: hidden; padding: 12px 0; touch-action: pinch-zoom; overscroll-behavior: none; }
 .pdfwrap.single.zoomed { padding: 12px 0; }
 .pageind { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; }
+
+/* narrow screens (phones) and long languages (German, Japanese, Korean): nothing may be pushed out of the screen */
+.rowbtn { height: auto; white-space: normal; text-align: left; padding-top: 8px; padding-bottom: 8px; }
+.upload .lbl { margin-left: 6px; }
+@media (max-width: 560px) {
+  .top .upload .lbl { display: none; } /* the + is enough, the title says what it does */
+  .top .upload { min-width: 44px; padding: 0 12px; }
+  .tabsbar .seg { padding: 0 6px; font-size: 14px; white-space: nowrap; min-width: 0; }
+  .tabsbar .tabstar { display: none; }
+}
+.tabsbar .group { overflow-x: auto; scrollbar-width: none; } /* last resort on a very small screen: swipe the tabs */
+.tabsbar .group::-webkit-scrollbar { display: none; }
+/* line breaking per language: Korean breaks between words (not inside them), German may hyphenate long compound words */
+:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
+:lang(de) { hyphens: auto; overflow-wrap: break-word; }
+
+/* ---- fitting (see fit.ts): smaller text / tighter spacing / a drop-down instead of a row of segmented buttons */
+.group.tight > button { font-size: 13px; padding-left: 9px; padding-right: 9px; }
+.group.dense > button { font-size: 12px; padding-left: 5px; padding-right: 5px; min-width: 0; }
+.seg-select { display: none; }
+.group.as-select { display: none !important; }
+.group.as-select + .seg-select { display: inline-block; min-height: 44px; max-width: 100%; padding: 0 12px; border: 0; border-radius: 12px; background: var(--fill); color: var(--text); font: inherit; font-weight: 600; }
+.group.wide.as-select + .seg-select { width: 100%; }
+/* buttons in dialogs wrap their text instead of spilling out; rows of buttons wrap too */
+dialog.center button, .dlg button:not(.icon):not(.fnum) { white-space: normal; height: auto; min-height: 44px; line-height: 1.25; padding-top: 8px; padding-bottom: 8px; }
+.dlg .row { flex-wrap: wrap; }
+@media (max-width: 420px) { .top .back .lbl { display: none; } }
+
+/* small phones: the transport row wraps (speed slider on its own line) and the PDF toolbar gets tighter */
+@media (max-width: 520px) {
+  .controls { padding-left: 12px; padding-right: 12px; }
+  .controls .mainrow { flex-wrap: wrap; gap: 8px 12px; }
+  .controls .mainrow .speedbox { order: 5; flex: 1 1 100%; min-width: 0; }
+  .speedlabel { min-width: 0; }
+}
+@media (max-width: 400px) {
+  .pdfbar { padding-left: 4px; padding-right: 4px; gap: 4px; }
+  .pdfbar .zone { gap: 4px; }
+  .pdfbar .group { padding: 2px; }
+  .pdfbar .group > button { padding: 0 6px; min-width: 34px; }
+  .pdfbar .pageind { padding: 0 6px; min-width: 0; }
+  .group.pair > button.secs { min-width: 48px; }
+  .pdfbar > .zone > button.icon { min-width: 40px; padding: 0 8px; }
+}

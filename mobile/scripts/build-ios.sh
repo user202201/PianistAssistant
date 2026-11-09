@@ -31,6 +31,10 @@ fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${RUN}" App/Info.plist || true
 # App Store Connect asks about encryption on every upload: the app only uses the system's HTTPS, which is exempt
 /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" App/Info.plist 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" App/Info.plist || true
+# the languages of the app (system dialogs follow them; the App Store page languages are set in App Store Connect)
+/usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" App/Info.plist 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" App/Info.plist || true
+i=0; for l in en zh-Hans fr de ja ko; do /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:$i string $l" App/Info.plist || true; i=$((i+1)); done
 # the app plays audio and talks to GitHub: nothing else is needed. (Files are chosen with the system picker.)
 
 WSARG=(-project App.xcodeproj); [ -d App.xcworkspace ] && WSARG=(-workspace App.xcworkspace)

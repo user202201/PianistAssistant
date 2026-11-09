@@ -427,7 +427,9 @@ export class FingerGroup implements FingerApi {
   discard() { this.tools.forEach((t) => t.discard()); }
   describeSelected() {
     const t = this.tools[this.active];
-    return t ? `${this.tools.length > 1 ? `${String.fromCharCode(65 + this.active)} 声部 · ` : ""}${t.describeSelected()}` : "";
+    if (!t) return "";
+    const d = t.describeSelected();
+    return this.tools.length > 1 ? `${String.fromCharCode(65 + this.active)} 声部 · ${d}` : d;
   }
   refresh() { this.tools.forEach((t) => t.refresh()); }
   setHandFilter(fn: (part: number, n: XNote) => boolean) { this.tools.forEach((t, i) => t.setHandFilter((_p, n) => fn(i, n))); }

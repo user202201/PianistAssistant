@@ -1,4 +1,4 @@
-// Fails when a Chinese UI text in src/ has no English / French translation in src/i18n-data.ts.
+// Fails when a Chinese UI text in src/ has no translation (English, French, German, Japanese, Korean) in src/i18n-data.ts.
 // Run: npm run check:i18n   (also part of `npm run build`, so a missing translation cannot be deployed)
 import ts from "typescript";
 import fs from "node:fs";
@@ -35,21 +35,21 @@ const table = (name) => {
   }
   return keys;
 };
-const en = table("EN");
-const fr = table("FR");
+const LANGS = ["EN", "FR", "DE", "JA", "KO"];
+const tables = Object.fromEntries(LANGS.map((l) => [l, table(l)]));
 // texts that are only used as a language's own name, or are part of an HTML fragment / not shown as such
-const ALLOW = new Set(["中文", "语言 / Language"]);
+const ALLOW = new Set(["中文", "日本語", "语言 / Language"]);
 let bad = 0;
 for (const [t, f] of texts) {
   if (ALLOW.has(t)) continue;
-  const missing = [!en.has(t) && "EN", !fr.has(t) && "FR"].filter(Boolean);
+  const missing = LANGS.filter((l) => !tables[l].has(t));
   if (missing.length) {
     bad++;
     console.error(`missing ${missing.join("+")} translation (${f}): ${JSON.stringify(t)}`);
   }
 }
 if (bad) {
-  console.error(`\n${bad} text(s) without translation. Add them to src/i18n-data.ts (EN and FR) and run again.`);
+  console.error(`\n${bad} text(s) without translation. Add them to src/i18n-data.ts (EN, FR, DE, JA, KO) and run again.`);
   process.exit(1);
 }
-console.log(`i18n ok: ${texts.size} texts, all translated to English and French`);
+console.log(`i18n ok: ${texts.size} texts, all translated to English, French, German, Japanese and Korean`);

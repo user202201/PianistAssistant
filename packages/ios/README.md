@@ -128,3 +128,8 @@ Xcode 只能装在 Mac 上，所以 Windows 上有两条路：
 **B. 付费（$99/年的 Apple Developer 账号）：TestFlight**
 - 完整测试内购、沙盒购买、和上架一致的包。步骤就是上面的“二、把机密交给自动打包”和“三、测试与上架”。
 - Windows 上做证书有点绕（证书请求要用 openssl 或在线工具生成），做到那一步卡住了，告诉我，我再写一份 Windows 专用的逐步说明。
+
+## Sprachen / 言語 / 언어 / Langues
+Die App spricht Chinesisch, Englisch, Französisch, Deutsch, Japanisch und Koreanisch (Info.plist `CFBundleLocalizations` wird vom Build gesetzt).
+**Die App-Store-Seite** (Name, Beschreibung, Screenshots, Stichwörter) wird in App Store Connect pro Sprache angelegt: App-Informationen → Lokalisierungen → Sprache hinzufügen.
+The in-app texts were translated by an AI and have not been reviewed by native speakers; before a release, let a native speaker of each language read the main screens.

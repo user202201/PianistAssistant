@@ -13,8 +13,8 @@ export interface Settings {
   splitControlsMin: boolean;
   /** appearance: follow the system, or force light / dark */
   theme: "system" | "light" | "dark";
-  /** interface language: follow the system, or Chinese / English / French */
-  lang: "auto" | "zh" | "en" | "fr";
+  /** interface language: follow the system, or one of the languages in i18n.ts (LANGS) */
+  lang: "auto" | "zh" | "en" | "fr" | "ja" | "ko" | "de";
   /** page-turn mode: float a preview of the next line under the last visible line */
   peekNext: boolean;
   /** one bar of clicks before playback starts, so you can get ready */

@@ -31,3 +31,7 @@
 34-fingering-toggle-while-playing
 35-pdf-pages-and-notes
 36-store-build-offline
+37-layout-de
+37-layout-ja
+37-layout-ko
+38-peek-grand-staff-cut-off
