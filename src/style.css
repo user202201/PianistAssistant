@@ -537,9 +537,8 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .pdfwrap:not(.single) { touch-action: pan-x pan-y; }
 
 /* tabs: label only; the favourites tab also shows its star on wide screens; when the labels do not fit, icons only */
-.tabsbar .tabicon { display: inline-flex; }
+.tabsbar .tabicon { display: none; } /* icons and counts are kept in the markup but not shown (icons still replace the names when those do not fit, see fit.ts) */
 .tabsbar .tabicon svg { fill: none; }
-@media (max-width: 560px) { .tabsbar .tabicon, .tabsbar .tabcount { display: none; } }
 .tabsbar .group.icons .tabicon { display: inline-flex !important; opacity: 1; }
 .tabsbar .group.icons .lbl { display: none; }
 .tabsbar .group.icons .seg { min-width: 0; padding: 0 8px; }
@@ -563,13 +562,14 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .tl-short { display: none; }
 @media (max-width: 560px) { .tabsbar .tl-full { display: none; } .tabsbar .tl-short { display: inline; } }
 
-/* the tab bar is the main navigation of the home screen: taller, framed, an icon + a number on every tab */
-.tabsbar .group { background: var(--fill-2); border: 1px solid var(--sep); border-radius: 18px; padding: 4px; }
-.tabsbar .seg { min-height: 46px; font-size: 1rem; font-weight: 600; border-radius: 14px; gap: 8px; }
+/* the tab bar is the main navigation of the home screen: square, a size bigger on tablets, only the chosen tab is rounded */
+.tabsbar .group { background: var(--fill-2); border: 1px solid var(--sep); border-radius: 0; padding: 3px; }
+.tabsbar .seg { min-height: 46px; font-size: 1rem; font-weight: 600; border-radius: 0; gap: 8px; }
+.tabsbar .seg.on { border-radius: 12px; }
 .tabsbar .seg:not(.on) { color: var(--text); }
-.tabsbar .tabcount { font-size: .78rem; font-weight: 700; min-width: 22px; padding: 1px 7px; border-radius: 11px; text-align: center; background: var(--fill); color: var(--muted); }
+@media (min-width: 744px) { .tabsbar .seg { font-size: 1.2rem; min-height: 52px; } }
+.tabsbar .tabcount { display: none; font-size: .78rem; font-weight: 700; min-width: 22px; padding: 1px 7px; border-radius: 11px; text-align: center; background: var(--fill); color: var(--muted); }
 .tabsbar .seg.on .tabcount { background: rgba(255, 255, 255, .3); color: var(--on-accent); }
-.tabsbar .group.icons .tabcount { display: none; }
 
 /* ---- small screens: short hand names, one row of controls, icons only in the part bars ---- */
 .seg .sh { display: none; }

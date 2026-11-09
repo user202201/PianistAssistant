@@ -9,6 +9,12 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map(c => c.querySelector('.mq')?.textContent));
   const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.querySelector('.lbl').innerText.trim()));
   ok(tabs.join() === '全部琴谱,四手联弹,PDF 乐谱,收藏', `tabs: ${tabs.join(' | ')}`);
+  // the look: square bar, only the chosen tab is rounded, a size bigger than the rest of the text, no icons / numbers shown
+  const look = await page.evaluate(() => { const g = document.querySelector('.tabsbar .group'), on = document.querySelector('.tabsbar .seg.on'), off = document.querySelector('.tabsbar .seg:not(.on)'); const px = (e, p) => parseFloat(getComputedStyle(e)[p]);
+    return { bar: px(g, 'borderTopLeftRadius'), on: px(on, 'borderTopLeftRadius'), off: px(off, 'borderTopLeftRadius'), tab: px(on, 'fontSize'), body: px(document.querySelector('.card .mq') || document.body, 'fontSize'), icon: [...document.querySelectorAll('.tabsbar .tabicon')].some(e => e.getBoundingClientRect().width > 0), count: [...document.querySelectorAll('.tabsbar .tabcount')].some(e => e.getBoundingClientRect().width > 0) }; });
+  ok(look.bar === 0 && look.off === 0 && look.on >= 8, `the tab bar is square, only the chosen tab is rounded (bar ${look.bar}px, other tabs ${look.off}px, chosen ${look.on}px)`);
+  ok(look.tab >= look.body * 1.15, `on a tablet the tab text is a size bigger (${look.tab}px vs ${look.body}px)`);
+  ok(!look.icon && !look.count, 'icons and numbers are not shown');
   // every tab shows how many items are behind it; the number is always what the tab then lists
   const counts = () => page.evaluate(() => [...document.querySelectorAll('.tabsbar .seg')].map(b => ({ k: b.getAttribute('data-k'), n: Number(b.querySelector('.tabcount').textContent || 0), shown: !b.querySelector('.tabcount').hidden })));
   for (const k of ['all', 'duet', 'pdf', 'fav']) { await page.click(`.tabsbar .seg[data-k=${k}]`); await page.waitForTimeout(250); const c = (await counts()).find(x => x.k === k); ok(c.n === (await titles()).length, `tab "${k}" shows the number ${c.n} = the ${(await titles()).length} cards it lists`); }
