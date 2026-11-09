@@ -18,6 +18,15 @@ npx capacitor-assets generate --ios --iconBackgroundColor '#1f2937' --splashBack
 npx cap sync ios
 
 cd ios/App
+# trial + one-time purchase (docs: packages/ios/README.md). PAYWALL=0 builds a version without it.
+if [ "${PAYWALL:-1}" != "0" ]; then
+  cp ../../ios-store/PianistStorePlugin.swift ../../ios-store/MainViewController.swift App/
+  ruby -e 'require "xcodeproj"' 2>/dev/null || gem install xcodeproj --no-document --user-install
+  ruby ../../ios-store/add-to-project.rb App.xcodeproj
+  # the first screen must be our subclass (it registers the plugin)
+  sed -i '' 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MainViewController" customModule="App"/' App/Base.lproj/Main.storyboard
+  grep -q 'customClass="MainViewController"' App/Base.lproj/Main.storyboard || { echo "could not point Main.storyboard at MainViewController"; exit 1; }
+fi
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${RUN}" App/Info.plist || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${RUN}" App/Info.plist || true
 # App Store Connect asks about encryption on every upload: the app only uses the system's HTTPS, which is exempt

@@ -2,6 +2,7 @@ import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import QRCode from "qrcode";
 import type { Smplr } from "smplr";
 import * as api from "./api";
+import * as ent from "./entitlement";
 import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { icon as ic } from "./icons";
 import { FingerGroup, FingerTools, type FingerApi } from "./fingerui";
@@ -187,6 +188,83 @@ function renderLogin(message = "") {
   token.focus();
 }
 
+// ---------- trial + one-time purchase (iOS store build only, see entitlement.ts) ----------
+/** Buy the unlock. true = owned afterwards. Every step answers with a message. */
+async function buyUnlock(): Promise<boolean> {
+  const done = toast("正在连接 App Store…", 120000, true);
+  try {
+    const owned = await ent.purchase();
+    done();
+    toast(owned ? "已解锁完整版，谢谢支持！" : "购买未完成");
+    return owned;
+  } catch (e) {
+    done();
+    showError("购买失败", e);
+    return false;
+  }
+}
+async function restoreUnlock(): Promise<boolean> {
+  const done = toast("正在恢复购买…", 120000, true);
+  try {
+    const owned = await ent.restore();
+    done();
+    toast(owned ? "已恢复购买，完整版已解锁" : "没有找到这个 Apple ID 的购买记录");
+    return owned;
+  } catch (e) {
+    done();
+    showError("恢复购买失败", e);
+    return false;
+  }
+}
+function showPaywall(onUnlocked?: () => void) {
+  const price = ent.unlockPrice();
+  const finish = (ok: boolean) => {
+    if (!ok) return;
+    dlg.close();
+    onUnlocked?.();
+  };
+  const dlg = h(
+    "dialog",
+    { class: "dlg", id: "paywall" },
+    h("h2", { tabIndex: -1, autofocus: true }, "试用已结束"),
+    h("p", {}, `${ent.TRIAL_DAYS} 天试用已结束。一次性买断即可永久使用全部功能：不是订阅，不会再收费。你的乐谱和设置都还在。`),
+    h(
+      "div",
+      { class: "col" },
+      h("button", { class: "primary", id: "buy-btn", onclick: () => void buyUnlock().then(finish) }, price ? `解锁完整版 ${price}` : "解锁完整版"),
+      h("button", { id: "restore-btn", onclick: () => void restoreUnlock().then(finish) }, "恢复购买"),
+      h("button", { onclick: () => dlg.close() }, "暂不"),
+    ),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur();
+}
+/** false (and the unlock dialog is shown) when the trial is over and nothing was bought */
+async function mayOpenScores(): Promise<boolean> {
+  if (!ent.hasStore()) return true;
+  const a = await ent.access();
+  if (a.kind !== "expired") return true;
+  showPaywall();
+  return false;
+}
+/** the line + buttons in Settings (App Store needs "restore purchases" to be findable) */
+function storeRows(): HTMLElement[] {
+  if (!ent.hasStore()) return [];
+  const label = h("span", { class: "grow" }, "…");
+  const buy = h("button", { class: "rowbtn", id: "settings-buy", hidden: true, onclick: () => void buyUnlock().then(() => void update()) }, ic("star", 20), "解锁完整版");
+  const restore = h("button", { class: "rowbtn", id: "settings-restore", onclick: () => void restoreUnlock().then(() => void update()) }, ic("refresh", 20), "恢复购买");
+  const update = async () => {
+    const a = await ent.access();
+    label.textContent = a.kind === "owned" ? "已解锁完整版" : a.kind === "trial" ? `试用中，还剩 ${a.daysLeft} 天` : "试用已结束";
+    buy.hidden = a.kind === "owned";
+    restore.hidden = a.kind === "owned";
+  };
+  void update();
+  return [h("div", { class: "row", id: "store-status" }, label), buy, restore];
+}
+
 // ---------- settings dialog ----------
 // ---------- help & feedback: a mail to the developer, written in the app ----------
 function openFeedback() {
@@ -346,6 +424,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
       h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
     ]),
+    ...storeRows(),
     ...(__FEEDBACK_EMAIL__ ? [h("button", { class: "rowbtn", id: "feedback-btn", onclick: () => { dlg.close(); openFeedback(); } }, ic("note", 20), "帮助与反馈")] : []),
     h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
     ...(api.isLocal() ? [
@@ -2153,20 +2232,30 @@ function route() {
   if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
   if (!api.getAuth() && !api.isLocal()) return renderLogin();
   const d = location.hash.match(/^#\/duet\/([^/]+)\/([^/]+)$/);
-  if (d) {
-    const a = decodeURIComponent(d[1]);
-    const b = decodeURIComponent(d[2]);
-    void api.readPairs().then((ps) => renderDuet(ps.find((p) => p.a === a && p.b === b) ?? { name: defaultPairName(a, b), a, b }));
-    return;
-  }
   const pdf = location.hash.match(/^#\/pdf\/(.+)$/);
-  if (pdf) return void renderPdf(decodeURIComponent(pdf[1]));
   const m = location.hash.match(/^#\/score\/(.+)$/);
-  if (m) void renderPlayer(decodeURIComponent(m[1]));
-  else void renderHome();
+  if (!d && !pdf && !m) return void renderHome();
+  // opening a score needs the trial or the unlock; the library, settings and backups always work
+  void mayOpenScores().then((ok) => {
+    if (!ok) {
+      history.replaceState(null, "", "#/");
+      return void renderHome();
+    }
+    if (d) {
+      const a = decodeURIComponent(d[1]);
+      const b = decodeURIComponent(d[2]);
+      void api.readPairs().then((ps) => renderDuet(ps.find((p) => p.a === a && p.b === b) ?? { name: defaultPairName(a, b), a, b }));
+    } else if (pdf) void renderPdf(decodeURIComponent(pdf[1]));
+    else if (m) void renderPlayer(decodeURIComponent(m[1]));
+  });
 }
 window.addEventListener("hashchange", route);
 route();
+if (ent.hasStore()) {
+  void ent.access().then((a) => {
+    if (a.kind === "trial") toast(`试用期还剩 ${a.daysLeft} 天`, 4000);
+  });
+}
 
 // ---------- app updates (an installed iPad app has no reload button) ----------
 /** Forget the offline copy of the app and load the newest one. The login (localStorage) is kept. */

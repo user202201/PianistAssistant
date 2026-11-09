@@ -9,6 +9,7 @@ exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {})
   if (!opts.countIn) await page.addInitScript(() => { try { const k = 'pianist.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (s.countIn === undefined) { s.countIn = false; localStorage.setItem(k, JSON.stringify(s)); } } catch {} });
   // PDFs now ask what to do; older suites just want the conversion path (e2e17 sets window.__noAuto)
   await page.addInitScript(() => setInterval(() => { if (window.__noAuto) return; const d = [...document.querySelectorAll('dialog.center')].find(x => x.textContent.includes('这份 PDF 怎么处理')); d?.querySelector('button:nth-of-type(3)')?.click(); }, 150));
+  if (opts.init) await page.addInitScript(opts.init, opts.initArg);   // e.g. a pretend native plugin
   page.on('pageerror', e => console.log('PAGEERROR', e.message));
   const puts = [];
   await ctx.route(/github\.io|jsdelivr|gleitz/, r => r.abort());

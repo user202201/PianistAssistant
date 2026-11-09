@@ -79,3 +79,36 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 ## 设置“帮助与反馈”的收件邮箱
 
 GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables** 标签 → New repository variable：名称 `FEEDBACK_EMAIL`，值填你想收反馈的邮箱。设好后重新打包/部署即可（没设的话，设置里就没有“帮助与反馈”按钮）。邮箱地址会出现在 App 和隐私政策页面里，所以请用专门的公开邮箱，不要用公司或私人邮箱。
+
+## 收费：14 天试用 + 一次性买断
+
+**谁判断什么？** 钱和收据由 App Store 管（Apple 收款、给你打款、处理退款、家人共享）。App 里只需要问“这台设备的 Apple ID 买过解锁吗？”和“这个 App 是哪天第一次下载的？”。
+这两件事都在手机上由 StoreKit 回答，**不需要我们的服务器，也不会把任何信息发给我们**（和“商店版纯本机”一致，隐私政策不用改）。
+
+**为什么 14 天要 App 自己数？** App Store 自带的免费试用只支持“订阅”。买断（一次性）没有自带试用，所以做法是：
+免费下载 → App 数 14 天（起点 = Apple 记录的首次下载日期，卸载重装不会重新计时）→ 到期后打开乐谱会弹出“解锁完整版”，
+乐谱库、设置、备份导出仍然可用（用户的数据不会被锁住）。代码：`src/entitlement.ts`（逻辑）、`mobile/ios-store/`（原生 StoreKit 2），测试：`tests/e2e/33-trial-purchase.cjs`。
+只有 iOS 商店版带这套逻辑；网页版、安卓、鸿蒙没有试用，不会被锁。
+
+### 你要做的（都在 Apple 网站上，约 30 分钟，外加 Apple 审核银行/税务资料的等待）
+1. **付费 App 协议、银行、税务**：App Store Connect → 业务（Business）→ 协议、税务和银行业务 → 签署“付费 App”协议，填银行账户和税表。不做这一步，内购无法上线。
+2. **小型企业计划（可选但建议）**：年收入 100 万美元以下，Apple 抽成从 30% 降到 15%。App Store Connect → 业务里申请。
+3. **创建内购项目**：你的 App → 货币化（Monetization）→ App 内购买项目 → ＋：
+   - 类型：**非消耗型（Non-Consumable）**
+   - 参考名称：`Unlock`　　**产品 ID：`com.pianistassistant.app.unlock`**（必须一字不差，和 `mobile/ios-store/PianistStorePlugin.swift` 里一致；如果想换，两边一起改）
+   - 价格：选一档（App Store 会按各国自动换算；App 里显示的是本地货币价格）
+   - 本地化显示名称/描述：中文、英文、法文各填一条，例如“解锁完整版 / 一次购买，永久使用全部功能”
+   - 审核截图：随便放一张 App 里弹出“解锁完整版”对话框的截图（用 TestFlight 版本的，到期状态可用测试账号模拟，或用任意界面截图，Apple 只是要证明购买入口在哪）
+   - 家人共享：建议开启
+4. **提交审核时**：在“版本”页面的“App 内购买项目”区域把这个内购勾上，和 App 一起送审（第一个版本必须这样）。
+5. **App 描述里写清楚**：“免费试用 14 天，之后一次性购买解锁，不是订阅。”（Apple 要求价格模式说明清楚，写在描述和截图里都可以。）
+6. **用沙盒账号测试购买**：App Store Connect → 用户和访问 → 沙盒 → 添加沙盒测试员（用一个没注册过 Apple ID 的邮箱）。TestFlight 里安装后，购买时用这个沙盒账号登录，不会真的扣钱。
+
+### 没法在这里测试的（诚实说明）
+- StoreKit 购买、恢复、`AppTransaction` 首次下载日期、沙盒账号：需要真机 + 你的 Apple 账号，这里测不了。网页测试里用“假 App Store”验证了界面流程（试用天数、到期弹窗、取消不报“完成”、购买后解锁、恢复购买）。
+- Swift 代码由 GitHub 的 macOS 机器编译（`mobile.yml` 的 ios 任务），编译通过只说明语法对，**不说明运行正确**。第一次 TestFlight 一定要走一遍：试用提示 → 把手机日期改到 15 天后 → 弹窗 → 沙盒购买 → 恢复购买。
+- TestFlight / 沙盒里“首次下载日期”可能与正式版不同，试用天数的测试以“把设备日期往后调”为准。
+- 如果 App 里找不到原生插件（比如注册失败），会按本机日期数 14 天，到期后买不了——所以 TestFlight 的这个检查不能省。
+
+### 开关
+`PAYWALL=0 bash mobile/scripts/build-ios.sh` 构建不带试用/购买的版本（比如给朋友的内测包）。默认带。
