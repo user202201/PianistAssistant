@@ -30,3 +30,4 @@
 33-trial-purchase
 34-fingering-toggle-while-playing
 35-pdf-pages-and-notes
+36-store-build-offline

@@ -98,6 +98,29 @@ const NOTES = 'pdfs/Long3.pdf.ann.json';
   ok(await page.locator('button[title="标注暂时无法使用"]').isDisabled(), 'annotations unreadable (error): annotating is switched off, existing ones are not overwritten');
   await page.unroute(/Long3\.pdf\.ann\.json/);
 
+  // ---- every page has its own time; the Pencil starts annotating by itself
+  await page.evaluate(() => (location.hash = '#/')); await page.waitForTimeout(300); await open();
+  while ((await ind()).trim() !== '1 / 3') { await page.click('button[title=上一页]'); await page.waitForTimeout(150); }
+  await page.selectOption('select.turnsecs', '5'); await page.waitForTimeout(150);
+  await page.click('button[title=下一页]'); await page.waitForTimeout(150);
+  ok(await page.locator('select.turnsecs').inputValue() === '1', 'page 2 shows its own time (the default, 1 s) while page 1 has 5 s');
+  await page.click('button[title=上一页]'); await page.waitForTimeout(150);
+  ok(await page.locator('select.turnsecs').inputValue() === '5', 'back on page 1 it shows 5 s');
+  await page.click('button[title="每隔几秒自动翻到下一页"]');
+  await page.waitForTimeout(2600); const p1 = (await ind()).trim();
+  await page.waitForTimeout(3200); const p2 = (await ind()).trim();
+  await page.waitForTimeout(1600); const p3 = (await ind()).trim();
+  ok(p1 === '1 / 3' && p2 === '2 / 3' && p3 === '3 / 3', `page 1 stays 5 s, page 2 only 1 s (${p1} -> ${p2} -> ${p3})`);
+  await page.waitForTimeout(3300);
+  ok(JSON.stringify(JSON.parse(store.get(NOTES).toString()).turn) === '{"1":5}', 'the time per page is saved with the PDF (next to the annotations)');
+  await page.click('button[title="所有页都用现在这个时间"]'); await page.waitForTimeout(3300);
+  ok(JSON.stringify(JSON.parse(store.get(NOTES).toString()).turn) === '{"1":1,"2":1,"3":1}' || Object.keys(JSON.parse(store.get(NOTES).toString()).turn).length === 3, 'the "all pages" button sets every page');
+  await page.evaluate(() => (location.hash = '#/')); await page.waitForTimeout(300); await open();
+  const wasOn = await page.locator('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]').evaluate(e => e.classList.contains('on'));
+  while ((await ind()).trim() !== '3 / 3') { await page.click('button[title=下一页]'); await page.waitForTimeout(150); }
+  r = await rect(); await pen(r, 'pen', [[0.3, 0.3], [0.5, 0.35]]); await page.waitForTimeout(3300);
+  ok(!wasOn && await page.locator('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]').evaluate(e => e.classList.contains('on')) && (await strokes('3')).length === 1, 'the Pencil touching the page switches annotating on by itself and draws (no need to press the button first)');
+
   // ---- deleting the PDF deletes its annotations
   await page.evaluate(() => (location.hash = '#/')); await page.waitForSelector('.home');
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf');

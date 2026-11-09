@@ -2199,6 +2199,7 @@ async function renderPdf(name: string) {
   const nextBtn = h("button", { class: "icon", title: "下一页", onclick: () => goto(cur + 1) }, ic("chevron-right", 20));
   const showPage = () => {
     pageInd.textContent = total ? `${cur} / ${total}` : "";
+    fillSecs();
     (prevBtn as HTMLButtonElement).disabled = cur <= 1;
     (nextBtn as HTMLButtonElement).disabled = cur >= total;
   };
@@ -2244,17 +2245,31 @@ async function renderPdf(name: string) {
   // ---- automatic page turn
   const turnBar = h("div", { class: "turnbar", hidden: true }, h("div", { class: "fill" }));
   const turnBtn = h("button", { class: "toggle", title: "每隔几秒自动翻到下一页", onclick: () => (turn.running ? turn.stop("user") : startTurn()) }, ic("timer", 20), "自动翻页");
-  const secs = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300];
-  if (!secs.includes(settings.pdfTurnSeconds)) secs.push(settings.pdfTurnSeconds), secs.sort((x, y) => x - y);
-  const secSel = h("select", { class: "turnsecs", title: "每页停留多久" }, ...secs.map((n) => h("option", { value: String(n) }, `每页 ${n} 秒`))) as HTMLSelectElement;
-  secSel.value = String(settings.pdfTurnSeconds);
+  // every page has its own time (forScore keeps it per page too); pages without one use the default
+  const secsFor = (page: number) => (book ? book.turnSeconds(page, settings.pdfTurnSeconds) : settings.pdfTurnSeconds);
+  const secSel = h("select", { class: "turnsecs", title: "这一页停留多久（每一页可以不同）" }) as HTMLSelectElement;
+  const fillSecs = () => {
+    const v = secsFor(cur);
+    const list = [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300];
+    if (!list.includes(v)) list.push(v), list.sort((x, y) => x - y);
+    secSel.replaceChildren(...list.map((n) => h("option", { value: String(n), selected: n === v }, `本页 ${n} 秒`)));
+    secSel.value = String(v);
+  };
   secSel.addEventListener("change", () => {
-    settings.pdfTurnSeconds = Number(secSel.value);
-    saveSettings(settings);
+    const n = Number(secSel.value);
+    if (book) book.setTurnSeconds([cur], n);
+    else { settings.pdfTurnSeconds = n; saveSettings(settings); }
     turn.reset();
   });
+  const allBtn = h("button", { class: "narrow", title: "所有页都用现在这个时间", onclick: () => {
+    const n = Number(secSel.value);
+    settings.pdfTurnSeconds = n;
+    saveSettings(settings);
+    book?.setTurnSeconds(Array.from({ length: total }, (_, i) => i + 1), n);
+    toast(`已把每一页的停留时间都设为 ${n} 秒`);
+  } }, "全部页");
   const turn = new AutoTurn({
-    seconds: () => settings.pdfTurnSeconds,
+    seconds: () => secsFor(cur),
     next: () => goto(cur + 1, false),
     schedule: (s) => {
       const fill = turnBar.firstElementChild as HTMLElement;
@@ -2276,7 +2291,7 @@ async function renderPdf(name: string) {
     if (cur >= total) goto(1, false);
     turnBtn.classList.add("on");
     turn.start();
-    toast(`开始自动翻页：每页 ${settings.pdfTurnSeconds} 秒（再点一下“自动翻页”停止）`);
+    toast(`开始自动翻页：这一页停留 ${secsFor(cur)} 秒（再点一下“自动翻页”停止）`);
   }
 
   // ---- handwritten annotations
@@ -2348,6 +2363,7 @@ async function renderPdf(name: string) {
     wrap.classList.toggle("fingerdraw", nb.fingerDraw);
     nb.onChange = () => { syncTools(); clearTimeout(saveTimer); saveTimer = window.setTimeout(() => void saveNow(), 2500); };
     nb.onBusy = (b) => turn.hold(b);
+    nb.onPencil = () => setAnnotating(true); // the Pencil touched the page: start annotating, like forScore
     nb.guardScroll(wrap);
     syncTools();
   };
@@ -2385,7 +2401,7 @@ async function renderPdf(name: string) {
       h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
       h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
     ),
-    h("div", { class: "pdfbar" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn), h("div", { class: "group pair" }, turnBtn, secSel), annotBtn),
+    h("div", { class: "pdfbar" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn), h("div", { class: "group pair" }, turnBtn, secSel, allBtn), annotBtn),
     toolsRow,
     turnBar,
     wrap,

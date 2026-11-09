@@ -23,3 +23,4 @@
     Cancelling a confirmation must not produce a "done" message. Add the English / French texts.
 11. **Store builds are local-only.** `mobile/scripts/build-*.sh` build with `LOCAL_ONLY=1` (no account, no GitHub, nothing leaves the device).
     The privacy policy is `public/privacy/index.html`; the feedback mail address comes from the repository variable `FEEDBACK_EMAIL`.
+12. **Fingering logic is documented.** `docs/fingering-logic.md` explains how `src/fingering.ts` produces its suggestions (for teachers / professionals who ask). Change both together.

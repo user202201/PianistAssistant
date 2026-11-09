@@ -1,5 +1,11 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "这一页停留多久（每一页可以不同）": "How long this page stays (each page can differ)",
+  "本页 {0} 秒": "This page: {0} s",
+  "所有页都用现在这个时间": "Use this time for all pages",
+  "全部页": "All pages",
+  "已把每一页的停留时间都设为 {0} 秒": "Every page now stays {0} s",
+  "开始自动翻页：这一页停留 {0} 秒（再点一下“自动翻页”停止）": "Auto page turn started: this page stays {0} s (tap “Auto page turn” again to stop)",
   "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。": "For the best result, upload a MusicXML file (.musicxml / .mxl) directly – you can export one from MuseScore or similar notation software.",
   "上一页": "Previous page",
   "下一页": "Next page",
@@ -390,6 +396,12 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "这一页停留多久（每一页可以不同）": "Durée de cette page (chaque page peut être différente)",
+  "本页 {0} 秒": "Cette page : {0} s",
+  "所有页都用现在这个时间": "Utiliser cette durée pour toutes les pages",
+  "全部页": "Toutes",
+  "已把每一页的停留时间都设为 {0} 秒": "Chaque page reste maintenant {0} s",
+  "开始自动翻页：这一页停留 {0} 秒（再点一下“自动翻页”停止）": "Tourne-page auto démarré : cette page reste {0} s (touchez à nouveau « Tourne-page auto » pour arrêter)",
   "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。": "Pour un résultat optimal, importez directement un fichier MusicXML (.musicxml / .mxl), exportable depuis MuseScore ou un logiciel de notation similaire.",
   "上一页": "Page précédente",
   "下一页": "Page suivante",

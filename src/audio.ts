@@ -4,13 +4,16 @@ export interface SoundPreset {
   id: string;
   label: string;
   create: (ctx: AudioContext) => Smplr;
+  /** the samples are packed into the mobile apps (works offline) */
+  bundled?: boolean;
 }
 
 /** Selectable piano sounds. Add more here — the settings menu picks them up automatically. */
-export const SOUNDS: SoundPreset[] = [
+const ALL_SOUNDS: SoundPreset[] = [
   { id: "splendid", label: "Grand Piano · Splendid（高音质，较大）", create: (c) => SplendidGrandPiano(c) },
   {
     id: "fluid",
+    bundled: true,
     label: "Grand Piano · FluidR3（轻量）",
     // in the iOS / Android / HarmonyOS apps this sound is packed into the app (mobile/scripts/fetch-sounds.sh), so it works offline from the start
     create: (c) =>
@@ -30,6 +33,9 @@ export const SOUNDS: SoundPreset[] = [
   },
   { id: "electric", label: "Electric Piano · 电钢琴", create: (c) => ElectricPiano(c, { instrument: "CP80" }) },
 ];
+
+/** The sounds on offer. The apps (iOS / Android / HarmonyOS) must work without a connection, so they only offer the sounds that are packed into them. */
+export const SOUNDS: SoundPreset[] = ALL_SOUNDS.filter((s) => !__MOBILE__ || s.bundled);
 
 export function clickSound(ctx: AudioContext, time: number, accent: boolean, volume: number) {
   const osc = ctx.createOscillator();

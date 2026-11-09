@@ -17,6 +17,8 @@ export interface Stroke {
 export interface NotesData {
   version: 1;
   pages: Record<string, Stroke[]>;
+  /** automatic page turn: seconds to stay on each page (page number -> seconds); pages without an entry use the default */
+  turn?: Record<string, number>;
 }
 export type Tool = "pen" | "hl" | "eraser";
 export const PEN_COLORS = ["#1a1a1a", "#e53935", "#1e66f5"];
@@ -96,6 +98,8 @@ export class NoteBook {
   dirty = false;
   /** called after every change of the strokes (save soon, update buttons) */
   onChange: () => void = () => {};
+  /** the Apple Pencil touched a page while annotate mode was off: switch it on (like forScore's "enter annotation mode automatically") */
+  onPencil: () => void = () => {};
   /** called while a stroke is being drawn / when it ends (an automatic page turn waits for it) */
   onBusy: (busy: boolean) => void = () => {};
   private layers = new Map<number, PageLayer>();
@@ -117,7 +121,9 @@ export class NoteBook {
   serialize(): string {
     const pages: Record<string, Stroke[]> = {};
     for (const [k, v] of Object.entries(this.data.pages)) if (v.length) pages[k] = v;
-    return JSON.stringify({ version: 1, pages });
+    const out: NotesData = { version: 1, pages };
+    if (this.data.turn && Object.keys(this.data.turn).length) out.turn = this.data.turn;
+    return JSON.stringify(out);
   }
 
   attach(page: number, canvas: HTMLCanvasElement): PageLayer {
@@ -126,10 +132,9 @@ export class NoteBook {
     l.redraw();
     return l;
   }
-  /** keeps the Pencil from scrolling the page while annotating (a finger still scrolls) */
+  /** keeps the Pencil from scrolling the page (it writes; a finger still scrolls) */
   guardScroll(el: HTMLElement) {
     const stop = (e: TouchEvent) => {
-      if (!this.enabled) return;
       for (const t of Array.from(e.changedTouches)) if ((t as Touch & { touchType?: string }).touchType === "stylus" && e.cancelable) e.preventDefault();
     };
     el.addEventListener("touchstart", stop, { passive: false });
@@ -172,7 +177,17 @@ export class NoteBook {
   get color(): string {
     return this.tool === "hl" ? HL_COLOR : PEN_COLORS[this.colorIdx] ?? PEN_COLORS[0];
   }
+  /** seconds to stay on a page when the automatic page turn is on */
+  turnSeconds(page: number, fallback: number): number {
+    return this.data.turn?.[String(page)] ?? fallback;
+  }
+  setTurnSeconds(pages: number[], seconds: number) {
+    this.data.turn ??= {};
+    for (const p of pages) this.data.turn[String(p)] = seconds;
+    this.changed();
+  }
   drawable(e: PointerEvent): boolean {
+    if (!this.enabled && e.pointerType === "pen") this.onPencil();
     if (!this.enabled) return false;
     if (e.pointerType === "pen") return true;
     if (e.pointerType === "mouse") return e.button === 0;
