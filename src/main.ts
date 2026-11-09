@@ -13,6 +13,13 @@ import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQue
 const app = document.getElementById("app")!;
 const settings = loadSettings();
 
+/** light / dark: the system decides unless the user picked one */
+function applyTheme() {
+  if (settings.theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = settings.theme;
+}
+applyTheme();
+
 // ---------- tiny helpers ----------
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -159,45 +166,51 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     dlg.close();
     onLayout?.();
   });
+  const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
+  peekBox.addEventListener("change", () => {
+    settings.peekNext = peekBox.checked;
+    saveSettings(settings);
+    onViewSetting();
+  });
+  const themeBtns = (["system", "light", "dark"] as const).map((t) =>
+    h("button", { class: "seg" + (settings.theme === t ? " on" : ""), onclick: () => {
+      settings.theme = t;
+      saveSettings(settings);
+      applyTheme();
+      themeBtns.forEach((b, i) => b.classList.toggle("on", (["system", "light", "dark"] as const)[i] === t));
+    } }, t === "system" ? "跟随系统" : t === "light" ? "浅色" : "深色"),
+  );
   const a = api.getAuth();
   dlg.append(
-    h("h2", {}, "设置"),
+    // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
+    h("h2", { tabIndex: -1, autofocus: true }, "设置"),
+    h("h3", {}, "声音"),
     h("label", {}, "钢琴音色", sound),
     h("label", {}, "音量", vol),
+    h("h3", {}, "外观"),
+    h("div", { class: "group wide" }, ...themeBtns),
     h("h3", {}, "乐谱显示"),
-    h(
-      "label",
-      {},
-      "画面怎么跟着播放走",
-      scrollSelect,
-    ),
-    h("label", { class: "inline" }, hlBox, "高亮正在弹的这一行"),
-    ...(onLayout ? [h("label", { class: "inline" }, splitBox, "多声部（四手联弹）分屏显示，每个声部一屏")] : []),
-    h("h3", {}, "应用版本"),
-    h(
-      "div",
-      { class: "row wrap" },
-      h("span", { class: "muted" }, `版本 ${__BUILD__}`),
-      h("button", { id: "check-update", onclick: () => void checkUpdate() }, "检查更新"),
-      h("button", { id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, "强制刷新（清除缓存）"),
-    ),
+    h("label", {}, "画面怎么跟着播放走", scrollSelect),
+    h("label", { class: "inline" }, "高亮正在弹的这一行", hlBox),
+    h("label", { class: "inline" }, "提前显示下一行（浮在下方，翻页后消失）", peekBox),
+    ...(onLayout ? [h("label", { class: "inline" }, "多声部（四手联弹）分屏显示", splitBox)] : []),
+    h("h3", {}, "应用"),
+    h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
+    h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
+    h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
     h("h3", {}, "登录与设备"),
     h(
       "p",
       { class: "muted" },
       a ? `本设备：${a.user ?? "GitHub"} · ${a.repo} · ${api.isPersistent() ? "保持登录" : "仅本次"}` : "",
     ),
-    h(
-      "div",
-      { class: "row wrap" },
-      h("button", { id: "qr-btn", onclick: () => showQr() }, ic("qr", 20), "手机扫码登录"),
-      h("button", { id: "copy-link", onclick: async () => {
-        const cur = api.getAuth();
-        if (!cur) return;
-        try { await navigator.clipboard.writeText(api.makeLoginLink(cur)); toast("登录链接已复制，粘贴到另一台设备的登录页即可"); }
-        catch { toast("复制失败，请改用扫码"); }
-      } }, "复制登录链接"),
-    ),
+    h("button", { class: "rowbtn", id: "qr-btn", onclick: () => showQr() }, ic("qr", 20), "手机扫码登录"),
+    h("button", { class: "rowbtn", id: "copy-link", onclick: async () => {
+      const cur = api.getAuth();
+      if (!cur) return;
+      try { await navigator.clipboard.writeText(api.makeLoginLink(cur)); toast("登录链接已复制，粘贴到另一台设备的登录页即可"); }
+      catch { toast("复制失败，请改用扫码"); }
+    } }, ic("hand", 20), "复制登录链接"),
     h(
       "p",
       { class: "muted small" },
@@ -208,7 +221,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h(
       "div",
       { class: "row" },
-      h("button", { onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"),
+      h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"),
+      h("div", { class: "grow" }),
       h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
     ),
   );
@@ -533,7 +547,17 @@ interface View {
   /** split view: this view draws a single part, so its cursor has its own (shorter) list of steps; matched by time */
   steps?: { sec: number; measure: number; onset: number }[];
   cur: number;
+  /** positioned container of this screen (the peek floats inside it) and the floating preview of the next line */
+  box: HTMLElement;
+  peek: HTMLElement;
 }
+
+let svgSeq = 0;
+const makePeek = (box: HTMLElement) => {
+  const el = h("div", { class: "peek" });
+  box.append(el);
+  return el;
+};
 
 /** Move a split-view cursor to the step that is current at `sec` seconds. */
 function syncView(v: View, sec: number) {
@@ -567,6 +591,7 @@ async function renderPlayer(name: string) {
   const band = h("div", { class: "linehl" });
   const holder = h("div", { class: "score" }, band, scoreBox);
   const scorewrap = h("div", { class: "scorewrap" }, holder);
+  const viewbox = h("div", { class: "viewbox" }, scorewrap);
   const status = h("span", { class: "status" }, "加载乐谱…");
   app.replaceChildren(
     h(
@@ -579,7 +604,7 @@ async function renderPlayer(name: string) {
       h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, "↻"),
       h("button", { class: "icon", onclick: () => openSettings(() => void applySound(), () => void renderPlayer(name)), title: "设置" }, ic("sliders")),
     ),
-    scorewrap,
+    viewbox,
   );
 
   let osmd: OpenSheetMusicDisplay;
@@ -627,10 +652,10 @@ async function renderPlayer(name: string) {
 
     // the screens: one score area normally, one per part in split view
     const views: View[] = [];
-    if (!split) views.push({ wrap: scorewrap, holder, band, osmd, cur: 0 });
+    if (!split) views.push({ wrap: scorewrap, holder, band, osmd, cur: 0, box: viewbox, peek: makePeek(viewbox) });
     else {
       const split = h("div", { class: "splitwrap" });
-      scorewrap.replaceWith(split);
+      viewbox.replaceWith(split);
       for (let g = 0; g < osmd.Sheet.Instruments.length; g++) {
         const pBand = h("div", { class: "linehl" });
         const pBox = h("div", { class: "osmd" });
@@ -653,7 +678,7 @@ async function renderPlayer(name: string) {
         o.render();
         o.cursor.show();
         const ps = extractScore(o, ""); // only needed for this view's own step times
-        views.push({ wrap: pWrap, holder: pHolder, band: pBand, osmd: o, steps: ps.steps, cur: 0 });
+        views.push({ wrap: pWrap, holder: pHolder, band: pBand, osmd: o, steps: ps.steps, cur: 0, box: section, peek: makePeek(section) });
       }
     }
 
@@ -913,7 +938,10 @@ function buildControls(
     v.band.style.display = settings.lineHighlight ? "block" : "none";
     v.band.style.top = `${cr.top - hr.top - 8}px`;
     v.band.style.height = `${cr.height + 16}px`;
-    if (!jump || settings.scrollMode === "off") return;
+    if (jump && settings.scrollMode !== "off") scrollToCursor(v, cr);
+    updatePeek(v);
+  }
+  function scrollToCursor(v: View, cr: DOMRect) {
     const wr = v.wrap.getBoundingClientRect();
     const top = cr.top - wr.top;
     const margin = 14;
@@ -924,6 +952,39 @@ function buildControls(
       const delta = top + cr.height / 2 - wr.height / 2;
       if (Math.abs(delta) > 40) v.wrap.scrollTo({ top: v.wrap.scrollTop + delta, behavior: "smooth" });
     }
+  }
+
+  // ---- preview of the next line: floats right under the last visible line, gone once the page has turned ----
+  function updatePeek(v: View) {
+    const off = () => { v.peek.style.display = "none"; };
+    if (!settings.peekNext || settings.scrollMode !== "page") return off();
+    const svg = v.holder.querySelector("svg") as SVGSVGElement | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const systems: any[] | undefined = (v.osmd.GraphicSheet as any)?.MusicPages?.[0]?.MusicSystems;
+    const curEl = v.osmd.cursor.cursorElement as HTMLElement | undefined;
+    if (!svg || !systems?.length || !curEl) return off();
+    const hr = v.holder.getBoundingClientRect();
+    const sr = svg.getBoundingClientRect();
+    const k = 10 * v.osmd.zoom;
+    const oy = sr.top - hr.top;
+    const boxes = systems.map((s) => ({ top: oy + s.PositionAndShape.AbsolutePosition.y * k, h: s.PositionAndShape.Size.height * k }));
+    const cr = curEl.getBoundingClientRect();
+    const cy = cr.top - hr.top + cr.height / 2;
+    const i = boxes.findIndex((b) => cy >= b.top - 12 && cy <= b.top + b.h + 12);
+    if (i < 0 || i + 1 >= boxes.length) return off();
+    const next = boxes[i + 1];
+    const viewH = v.wrap.clientHeight;
+    const vTop = v.wrap.scrollTop;
+    if (next.top + next.h + 6 <= vTop + viewH) return off(); // the next line is fully visible anyway
+    // starts right below the current line and only uses the space that is left (never covers the current line)
+    const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
+    const hgt = Math.min(next.h + 20, viewH * 0.6, viewH - y);
+    if (hgt < 70) return off(); // too little room to show anything useful
+    // the preview is a window onto the same drawing (no copy of the score is made)
+    if (!svg.id || document.querySelectorAll(`[id="${svg.id}"]`).length > 1) svg.id = `osmd-svg-${++svgSeq}`;
+    const w = svg.getBoundingClientRect().width;
+    v.peek.style.cssText = `display:block;top:${v.wrap.offsetTop + y}px;height:${hgt}px`;
+    v.peek.innerHTML = `<span class="tag">下一行</span><svg width="${w}" height="${hgt}" viewBox="0 ${next.top - 10 - oy} ${w} ${hgt}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
   }
   function syncViews() {
     if (!split) return;

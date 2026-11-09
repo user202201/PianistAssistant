@@ -28,7 +28,7 @@
   --r-card: 20px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #000000;
     --surface: #1c1c1e;
     --bar: rgba(30, 30, 33, 0.74);
@@ -48,6 +48,28 @@
     --paper: #fbfbfa;
   }
 }
+
+:root[data-theme="dark"] {
+    --bg: #000000;
+    --surface: #1c1c1e;
+    --bar: rgba(30, 30, 33, 0.74);
+    --bar-strong: rgba(36, 36, 40, 0.97);
+    --fill: rgba(118, 118, 128, 0.24);
+    --fill-2: rgba(118, 118, 128, 0.38);
+    --sep: rgba(84, 84, 88, 0.55);
+    --text: #f5f5f7;
+    --muted: rgba(235, 235, 245, 0.6);
+    --accent: #0a84ff;
+    --accent-soft: rgba(10, 132, 255, 0.2);
+    --green: #30d158;
+    --danger: #ff453a;
+    --warn: #ff9f0a;
+    --warn-soft: rgba(255, 159, 10, 0.18);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --paper: #fbfbfa;
+  }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 
 /* ---------- base ---------- */
 * { box-sizing: border-box; }
@@ -269,3 +291,17 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 .brand.big .logo { width: 46px; height: 46px; border-radius: 14px; }
 .warnic.bad { color: var(--danger); }
 .card .open.static.qline { gap: 12px; }
+
+/* settings: list-style rows and wide segmented control */
+.rowbtn { width: 100%; justify-content: flex-start; margin: 4px 0; padding: 0 16px; gap: 12px; min-height: 48px; }
+.group.wide { display: flex; width: 100%; }
+.group.wide > button { flex: 1; }
+.ver { margin: 2px 4px 0; }
+
+/* preview of the next line */
+.viewbox { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pane { position: relative; }
+.peek { position: absolute; left: 0; right: 0; display: none; z-index: 6; pointer-events: none; overflow: hidden; background: var(--paper);
+  border-top: 3px solid var(--accent); box-shadow: 0 -8px 22px rgba(0, 0, 0, .18); }
+.peek svg { position: absolute; top: 0; }
+.peek .tag { position: absolute; right: 12px; top: 6px; z-index: 2; background: var(--accent); color: #fff; border-radius: 9px; padding: 2px 10px; font-size: .75rem; font-weight: 700; }
