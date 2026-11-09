@@ -462,3 +462,22 @@ select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(-
 .stepper button { min-width: 52px; min-height: 52px; }
 .stepper .secsinput { width: 96px; font-size: 28px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
 .stepper span { font-size: 18px; }
+
+/* the toolbar stays in ONE row: with little room only the icons are shown, with plenty of room icon + text */
+.pdfbar { flex-wrap: nowrap; }
+.pdfbar .zone { flex-wrap: nowrap; }
+.pdfbar button .lbl { margin-left: 6px; }
+.pdfbar button { display: inline-flex; align-items: center; justify-content: center; }
+@media (max-width: 1000px) {
+  .pdfbar .lbl, .pdfbar.tools .lbl { display: none; }
+  .pdfbar { gap: 8px; }
+  .pdfbar .group > button { padding: 0 10px; min-width: 40px; }
+}
+@media (max-width: 520px) {
+  .pdfbar .pg { display: none; } /* phones: swipe to turn, the page number stays */
+  .pdfbar { gap: 6px; padding: 6px 8px; }
+  .pdfbar .zone { gap: 6px; }
+  .pdfbar .group > button { padding: 0 8px; min-width: 36px; }
+}
+@media (max-width: 359px) { .pdfbar { flex-wrap: wrap; } }
+.pdfbar.tools { flex-wrap: wrap; }

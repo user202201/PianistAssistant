@@ -2195,8 +2195,8 @@ async function renderPdf(name: string) {
     showPage();
   };
   const pageInd = h("span", { class: "pageind" }, "");
-  const prevBtn = h("button", { class: "icon", title: "上一页", onclick: () => goto(cur - 1) }, ic("chevron-left", 20));
-  const nextBtn = h("button", { class: "icon", title: "下一页", onclick: () => goto(cur + 1) }, ic("chevron-right", 20));
+  const prevBtn = h("button", { class: "icon pg", title: "上一页", onclick: () => goto(cur - 1) }, ic("chevron-left", 20));
+  const nextBtn = h("button", { class: "icon pg", title: "下一页", onclick: () => goto(cur + 1) }, ic("chevron-right", 20));
   const showPage = () => {
     pageInd.textContent = total ? `${cur} / ${total}` : "";
     fillSecs();
@@ -2273,7 +2273,7 @@ async function renderPdf(name: string) {
 
   // ---- automatic page turn
   const turnBar = h("div", { class: "turnbar", hidden: true }, h("div", { class: "fill" }));
-  const turnBtn = h("button", { class: "toggle", title: "每隔几秒自动翻到下一页", onclick: () => (turn.running ? turn.stop("user") : startTurn()) }, ic("timer", 20), "自动翻页");
+  const turnBtn = h("button", { class: "toggle", title: "每隔几秒自动翻到下一页", onclick: () => (turn.running ? turn.stop("user") : startTurn()) }, ic("timer", 20), h("span", { class: "lbl" }, "自动翻页"));
   // every page has its own time (forScore keeps it per page too); pages without one use the default
   const secsFor = (page: number) => (book ? book.turnSeconds(page, settings.pdfTurnSeconds) : settings.pdfTurnSeconds);
   const secBtn = h("button", { class: "narrow secs", title: "自动翻页设置：每页停留多久", onclick: () => openTurnSettings() }, "") as HTMLButtonElement;
@@ -2339,7 +2339,7 @@ async function renderPdf(name: string) {
 
   // ---- handwritten annotations
   const toolsRow = h("div", { class: "pdfbar tools", hidden: true });
-  const annotBtn = h("button", { class: "toggle", title: "用 Apple Pencil 或鼠标在乐谱上写画", disabled: true, onclick: () => setAnnotating(!book?.enabled) }, ic("pencil", 20), "标注");
+  const annotBtn = h("button", { class: "toggle", title: "用 Apple Pencil 或鼠标在乐谱上写画", disabled: true, onclick: () => setAnnotating(!book?.enabled) }, ic("pencil", 20), h("span", { class: "lbl" }, "标注"));
   let saveTimer = 0;
   let saving = false;
   const saveNow = async () => {
@@ -2400,7 +2400,7 @@ async function renderPdf(name: string) {
           toast("已清除这一页的标注（可以撤销）");
         } }, ic("trash", 20)),
       ),
-      h("button", { class: "toggle", id: "finger-draw", title: "手指也能画（关闭时手指只用来滚动）", onclick: () => { nb.fingerDraw = !nb.fingerDraw; settings.fingerDraw = nb.fingerDraw; saveSettings(settings); wrap.classList.toggle("fingerdraw", nb.fingerDraw); syncTools(); } }, ic("hand", 20), "手指也能画"),
+      h("button", { class: "toggle", id: "finger-draw", title: "手指也能画（关闭时手指只用来滚动）", onclick: () => { nb.fingerDraw = !nb.fingerDraw; settings.fingerDraw = nb.fingerDraw; saveSettings(settings); wrap.classList.toggle("fingerdraw", nb.fingerDraw); syncTools(); } }, ic("hand", 20), h("span", { class: "lbl" }, "手指也能画")),
     );
     nb.fingerDraw = settings.fingerDraw;
     wrap.classList.toggle("fingerdraw", nb.fingerDraw);
@@ -2457,14 +2457,14 @@ async function renderPdf(name: string) {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   };
 
-  const viewBtn = (m: "single" | "scroll", label: string) => h("button", { class: mode === m ? "on" : "", "data-view": m, onclick: () => {
+  const viewBtn = (m: "single" | "scroll", label: string) => h("button", { class: mode === m ? "on" : "", "data-view": m, title: m === "single" ? "单页：一次看一页" : "连续：所有页连着滚动", onclick: () => {
     mode = m;
     settings.pdfView = m;
     saveSettings(settings);
     viewGroup.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.getAttribute("data-view") === m));
     layout();
     if (m === "scroll") { const sh = sheets[cur - 1]; if (sh) wrap.scrollTo({ top: sh.offsetTop - 12 }); }
-  } }, label);
+  } }, ic(m === "single" ? "page" : "scroll", 20), h("span", { class: "lbl" }, label));
   const viewGroup = h("div", { class: "group" }, viewBtn("single", "单页"), viewBtn("scroll", "连续"));
   const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); wrap.classList.toggle("zoomed", zoom > 1.01); layout(); };
   pages.style.setProperty("--z", "1");
@@ -2481,13 +2481,12 @@ async function renderPdf(name: string) {
         status,
         h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
         h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
-        fsBtn,
       ),
       // three areas: annotate on the left, how to look at the pages in the middle, the automatic turn in the right corner
       h("div", { class: "pdfbar" },
         h("div", { class: "zone left" }, annotBtn),
         h("div", { class: "zone mid" }, viewGroup, h("div", { class: "group" }, prevBtn, pageInd, nextBtn)),
-        h("div", { class: "zone right" }, h("div", { class: "group pair" }, turnBtn, secBtn)),
+        h("div", { class: "zone right" }, h("div", { class: "group pair" }, turnBtn, secBtn), fsBtn),
       ),
       toolsRow,
     ),

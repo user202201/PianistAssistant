@@ -1,5 +1,7 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "单页：一次看一页": "Single page: one page at a time",
+  "连续：所有页连着滚动": "Scroll: all pages one after another",
   "自动翻页设置：每页停留多久": "Auto page turn settings: how long each page stays",
   "{0} 秒": "{0} s",
   "第 {0} 页停留的时间。每一页可以不同：翻到那一页再设置。": "How long page {0} stays. Every page can differ: go to that page and set it.",
@@ -396,6 +398,8 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "单页：一次看一页": "Page unique : une page à la fois",
+  "连续：所有页连着滚动": "Défilement : toutes les pages à la suite",
   "自动翻页设置：每页停留多久": "Réglage du tourne-page auto : durée de chaque page",
   "{0} 秒": "{0} s",
   "第 {0} 页停留的时间。每一页可以不同：翻到那一页再设置。": "Durée de la page {0}. Chaque page peut être différente : allez à cette page pour la régler.",
