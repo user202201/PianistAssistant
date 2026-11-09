@@ -10,7 +10,7 @@ const leftovers = (page) => page.evaluate(() => {
 });
 (async () => {
   const one = fs.readFileSync(D + 'long.musicxml');
-  for (const [loc, expect] of [['en-US', 'All scores'], ['fr-FR', 'Toutes']]) {
+  for (const [loc, expect] of [['en-US', 'All scores'], ['fr-FR', 'Toutes les partitions']]) {
     const store = new Map([['scores/long.musicxml', one], ['scores/Ode_Primo.musicxml', fs.readFileSync(D + 'Ode_Primo.musicxml')], ['scores/Ode_Secondo.musicxml', fs.readFileSync(D + 'Ode_Secondo.musicxml')], ['pdfs/a.pdf', Buffer.from('%PDF')]]);
     const { browser, page } = await h.start(store, { locale: loc, context: { viewport: { width: 1194, height: 834 }, hasTouch: true, isMobile: true } });
     await page.waitForSelector('.card'); await page.waitForTimeout(800);

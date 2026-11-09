@@ -1,5 +1,6 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "全部": "All",
   "显示工具栏": "Show the toolbar",
   "隐藏工具栏": "Hide the toolbar",
   "节拍器音量": "Metronome volume",
@@ -402,6 +403,7 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "全部": "Toutes",
   "显示工具栏": "Afficher la barre d'outils",
   "隐藏工具栏": "Masquer la barre d'outils",
   "节拍器音量": "Volume du métronome",
@@ -532,7 +534,7 @@ export const FR: Record<string, string> = {
   "高亮当前行": "Surligner la ligne en cours",
   "预览下一行": "Aperçu de la ligne suivante",
   "四手联弹分屏": "Écran partagé (quatre mains)",
-  "四手联弹": "4 mains",
+  "四手联弹": "Quatre mains",
   "收藏": "Favoris",
   "取消收藏": "Retirer des favoris",
   "加入收藏": "Ajouter aux favoris",
@@ -564,7 +566,7 @@ export const FR: Record<string, string> = {
   "MusicXML 解析失败": "Lecture du MusicXML impossible",
   "PDF / 图片超过 20 MB": "Le PDF / l'image dépasse 20 Mo",
   "PDF / 图片转换": "Conversion PDF / image",
-  "PDF 乐谱": "PDF",
+  "PDF 乐谱": "Partitions PDF",
   "PDF 超过 20 MB": "Le PDF dépasse 20 Mo",
   "{0} 声部 · ": "Partie {0} · ",
   "{0} 声部 · 四手联弹「{1}」": "Partie {0} · quatre mains « {1} »",
@@ -609,7 +611,7 @@ export const FR: Record<string, string> = {
   "修改…": "Modifier…",
   "修改四手联弹": "Modifier le morceau à quatre mains",
   "全屏": "Plein écran",
-  "全部琴谱": "Toutes",
+  "全部琴谱": "Toutes les partitions",
   "共 {0} 页": "{0} pages",
   "关闭": "Fermer",
   "刚刚上传": "Envoyé à l'instant",
@@ -804,6 +806,7 @@ export const FR: Record<string, string> = {
 };
 
 export const DE: Record<string, string> = {
+  "全部": "Alle",
   "显示工具栏": "Symbolleiste einblenden",
   "隐藏工具栏": "Symbolleiste ausblenden",
   "节拍器音量": "Metronom-Lautstärke",
@@ -1205,6 +1208,7 @@ export const DE: Record<string, string> = {
   "语言": "Sprache",
 };
 export const JA: Record<string, string> = {
+  "全部": "すべて",
   "显示工具栏": "ツールバーを表示",
   "隐藏工具栏": "ツールバーを非表示",
   "节拍器音量": "メトロノームの音量",
@@ -1606,6 +1610,7 @@ export const JA: Record<string, string> = {
   "语言": "言語",
 };
 export const KO: Record<string, string> = {
+  "全部": "전체",
   "显示工具栏": "도구 모음 표시",
   "隐藏工具栏": "도구 모음 숨기기",
   "节拍器音量": "메트로놈 볼륨",

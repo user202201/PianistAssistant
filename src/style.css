@@ -558,3 +558,7 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
   .controls .group > button { padding: 0 10px; min-width: 40px; }
   .controls .morebtn { min-width: 44px; padding: 0 10px; }
 }
+
+/* tab names: the full name on a wide screen, the short one on a small screen */
+.tabsbar .tl-short { display: none; }
+@media (max-width: 560px) { .tabsbar .tl-full { display: none; } .tabsbar .tl-short { display: inline; } }

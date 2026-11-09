@@ -780,6 +780,8 @@ async function renderHome() {
   // tabs under "recently opened": all / four hands / PDF / favourites
   type Tab = "all" | "duet" | "pdf" | "fav";
   const TABS: [Tab, string][] = [["all", "全部琴谱"], ["duet", "四手联弹"], ["pdf", "PDF 乐谱"], ["fav", "收藏"]];
+  /** the names on a small screen (the full names are for wide screens) */
+  const TAB_SHORT: Record<string, string> = { all: "全部", duet: "四手联弹", pdf: "PDF", fav: "收藏" };
   let tab: Tab = (TABS.map((t) => t[0]) as string[]).includes(getHomeTab()) ? (getHomeTab() as Tab) : "all";
   const TAB_ICON: Record<string, string> = { all: "note", duet: "duet", pdf: "file", fav: "star" };
   // every tab has an icon too: normally only the favourites tab shows its star, but when the names do not fit (small screen, long language)
@@ -791,7 +793,7 @@ async function renderHome() {
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
       renderList();
       listBox.scrollTop = 0;
-    } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, label)),
+    } }, h("span", { class: "tabicon" }, ic(TAB_ICON[k], 18)), h("span", { class: "lbl" }, h("span", { class: "tl-full" }, label), h("span", { class: "tl-short" }, TAB_SHORT[k]))),
   );
   const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
 
