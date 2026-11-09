@@ -611,3 +611,11 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .tabblob { position: absolute; top: var(--tab-pad); bottom: var(--tab-pad); left: 0; width: 0; border-radius: calc(var(--r-card) - 6px); background: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .25); z-index: 0; pointer-events: none; }
 .tabsbar .seg { position: relative; z-index: 1; }
 .tabsbar .seg.on { background: transparent; box-shadow: none; }
+
+/* the liquid that flows from the old tab to the new one (drawn by moveBlob in main.ts) */
+.tabsbar .tabgoo { position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none; overflow: visible; display: none; }
+.tabsbar .tabgoo path { fill: var(--accent); filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25)); }
+.tabsbar .group.sliding .tabgoo { display: block; }
+.tabsbar .group.sliding .tabblob { visibility: hidden; }
+.tabsbar .seg { transition: color .2s; }
+.tabsbar .group.sliding-text .seg.on { color: var(--text); } /* the name turns white when the liquid has (almost) arrived, not while it is still on the old tab */

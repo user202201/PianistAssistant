@@ -19,7 +19,12 @@ function overflows(g: HTMLElement): boolean {
   const r = g.getBoundingClientRect();
   const pr = (g.parentElement ?? document.body).getBoundingClientRect();
   const limit = Math.min(window.innerWidth, pr.right) + 1;
-  if (g.scrollWidth > g.clientWidth + 1 || r.right > limit + 1 || r.left < -1) return true;
+  if (r.right > limit + 1 || r.left < -1) return true;
+  // (the sliding highlight of the tab bar is allowed to lean out of the bar while it moves: measure the buttons, not the scrollable area)
+  if (g.querySelector(":scope > .tabblob")) {
+    const last = g.querySelector<HTMLElement>(":scope > button:last-of-type");
+    if (last && last.offsetLeft + last.offsetWidth > g.clientWidth + 1) return true;
+  } else if (g.scrollWidth > g.clientWidth + 1) return true;
   // a button squeezed so narrow that its text spills over its neighbours (the row itself still fits)
   for (const b of Array.from(g.querySelectorAll<HTMLElement>(":scope > button"))) {
     if (b.scrollWidth > b.clientWidth + 1 && b.getBoundingClientRect().width > 0) return true;
