@@ -2401,9 +2401,15 @@ async function renderPdf(name: string) {
   const fingers = new Map<number, { x: number; y: number }>();
   let pinch: { d0: number; z0: number; cx: number; cy: number } | null = null;
   const pair = () => { const [a, b] = Array.from(fingers.values()); return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+  // Full screen: a swipe down from the very top edge brings the toolbar back (also while annotating, even when a finger draws): no way to get stuck
+  let edgeDrag: { id: number; y0: number } | null = null;
   wrap.addEventListener("pointerdown", (e) => {
     if (e.pointerType !== "touch") return;
     fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (app.classList.contains("pdffull") && fingers.size === 1 && e.clientY < wrap.getBoundingClientRect().top + 30) {
+      edgeDrag = { id: e.pointerId, y0: e.clientY };
+      if (book) book.pinching = true; // this touch belongs to the gesture, it does not draw
+    }
     if (fingers.size === 2) {
       if (book) book.pinching = true;
       book?.abortStrokes();
@@ -2415,6 +2421,10 @@ async function renderPdf(name: string) {
   wrap.addEventListener("pointermove", (e) => {
     const f = fingers.get(e.pointerId);
     if (!f) return;
+    if (edgeDrag && e.pointerId === edgeDrag.id && e.clientY - edgeDrag.y0 > 36) {
+      edgeDrag = null;
+      showChrome(true);
+    }
     const dx = e.clientX - f.x, dy = e.clientY - f.y;
     f.x = e.clientX;
     f.y = e.clientY;
@@ -2428,6 +2438,7 @@ async function renderPdf(name: string) {
     }
   }, true);
   const liftFinger = (e: PointerEvent) => {
+    if (edgeDrag && e.pointerId === edgeDrag.id) edgeDrag = null;
     fingers.delete(e.pointerId);
     if (fingers.size < 2) pinch = null;
     if (fingers.size === 0 && book) book.pinching = false;
@@ -2614,7 +2625,7 @@ async function renderPdf(name: string) {
   const showChrome = (on: boolean) => {
     app.classList.toggle("show", on);
     clearTimeout(chromeTimer);
-    if (on) chromeTimer = window.setTimeout(() => app.classList.remove("show"), 6000);
+    if (on) chromeTimer = window.setTimeout(() => app.classList.remove("show"), 8000);
   };
   const fsBtn = h("button", { class: "icon", title: "全屏（隐藏工具栏）", onclick: () => setFull(!app.classList.contains("pdffull")) }, ic("fullscreen", 20));
   function setFull(on: boolean) {
@@ -2691,7 +2702,7 @@ async function renderPdf(name: string) {
       ),
       toolsRow,
     ),
-    h("div", { class: "pdfstage" }, turnBar, wrap),
+    h("div", { class: "pdfstage" }, turnBar, wrap, h("button", { class: "icon fshandle", title: "显示工具栏", onclick: () => showChrome(true) }, ic("chevron-down", 20))),
   );
   try {
     let notesText: string | null = null;

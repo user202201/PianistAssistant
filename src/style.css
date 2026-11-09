@@ -627,3 +627,7 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 button.primary.small { min-height: 38px; padding: 0 16px; }
 .dlgfade { display: none; position: sticky; bottom: -24px; height: 44px; margin: -44px -24px -24px; background: linear-gradient(to bottom, transparent, var(--surface) 85%); pointer-events: none; z-index: 4; }
 .dlg.more .dlgfade { display: block; }
+
+/* PDF full screen: a small button (and a swipe down from the top edge) brings the toolbar back, so full screen is never a trap */
+.fshandle { display: none; position: absolute; top: 8px; right: 8px; z-index: 29; width: 40px; height: 40px; min-width: 40px; padding: 0; border-radius: 50%; background: var(--bar-strong); box-shadow: var(--shadow); opacity: .85; }
+#app.pdffull:not(.show) .fshandle { display: inline-flex; }

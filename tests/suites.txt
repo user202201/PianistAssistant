@@ -44,3 +44,4 @@
 43-fourhand-small-screen
 44-tab-slide
 45-settings-done-top
+46-pdf-fullscreen-menu
