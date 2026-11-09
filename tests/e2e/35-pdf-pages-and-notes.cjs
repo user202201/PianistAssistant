@@ -31,6 +31,14 @@ const setSecsHelper = null;
   await swipe(20); await page.waitForTimeout(200); ok((await ind()).trim() === '1 / 3', 'a tiny movement is not a swipe');
   await page.mouse.move(600, 400); await page.mouse.wheel(0, 120); await page.waitForTimeout(700); ok((await ind()).trim() === '2 / 3', 'the mouse wheel turns the page');
   await page.mouse.wheel(0, -120); await page.waitForTimeout(700); ok((await ind()).trim() === '1 / 3', 'wheel up goes back');
+  // a REAL touch swipe (browser touch events, not synthetic pointer events) and no scrollbar when the page is shown at 100%
+  const noBars = await page.evaluate(() => { const w = document.querySelector('.pdfwrap'); return { v: w.scrollHeight - w.clientHeight, hz: w.scrollWidth - w.clientWidth, ov: getComputedStyle(w).overflowY }; });
+  ok(noBars.v <= 1 && noBars.hz <= 1 && noBars.ov === 'hidden', `a page at 100% has nothing to scroll: no scrollbar (extra height ${noBars.v}px, overflow ${noBars.ov})`);
+  const cdp = await page.context().newCDPSession(page);
+  const touchSwipe = async (x0, y0, x1, y1) => { const pt = (x, y) => [{ x, y }]; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(x0, y0) }); for (let i = 1; i <= 6; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(x0 + ((x1 - x0) * i) / 6, y0 + ((y1 - y0) * i) / 6) }); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForTimeout(250); };
+  await touchSwipe(800, 400, 400, 420); ok((await ind()).trim() === '2 / 3', 'a real finger swipe to the left turns to the next page');
+  await touchSwipe(400, 400, 800, 380); ok((await ind()).trim() === '1 / 3', 'a real finger swipe to the right goes back');
+  await touchSwipe(600, 300, 600, 600); ok((await ind()).trim() === '1 / 3' && (await page.evaluate(() => document.querySelector('.pdfwrap').scrollTop)) === 0, 'a vertical drag neither turns nor scrolls');
   // the toolbar has three areas: annotate (left), view + page number (middle), automatic turn (right corner)
   const xs = await page.evaluate(() => { const x = (sel) => document.querySelector(sel).getBoundingClientRect(); const w = innerWidth; return { annot: x('.zone.left button').left, view: x('.zone.mid').left + x('.zone.mid').width / 2, turn: x('.zone.right button.secs').right, w }; });
   ok(xs.annot < 200 && Math.abs(xs.view - xs.w / 2) < 120 && xs.turn > xs.w - 200, `layout: annotate at the left (${Math.round(xs.annot)}), view + page in the middle (${Math.round(xs.view)}), auto turn at the right corner (${Math.round(xs.turn)} of ${xs.w})`);

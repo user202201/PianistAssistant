@@ -481,3 +481,7 @@ select.turnsecs-old { min-height: 40px; border: 0; border-left: .5px solid var(-
 }
 @media (max-width: 359px) { .pdfbar { flex-wrap: wrap; } }
 .pdfbar.tools { flex-wrap: wrap; }
+/* a page shown at 100%: nothing to scroll (no scrollbar), every touch gesture is ours (swipe = turn the page; pinch still zooms) */
+.pdfwrap.single:not(.zoomed) { overflow: hidden; padding: 12px 0; touch-action: pinch-zoom; overscroll-behavior: none; }
+.pdfwrap.single.zoomed { padding: 12px 0; }
+.pageind { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; }
