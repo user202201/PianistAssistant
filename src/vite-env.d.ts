@@ -6,3 +6,5 @@ declare const __BUILD__: string;
 declare const __MOBILE__: boolean;
 /** true when the GitHub sync is left out of the build (store builds that should work without any account) */
 declare const __LOCAL_ONLY__: boolean;
+/** address of "Help & feedback" (empty = no such button) */
+declare const __FEEDBACK_EMAIL__: string;

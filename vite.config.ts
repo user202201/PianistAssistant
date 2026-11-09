@@ -9,7 +9,9 @@ export default defineConfig({
   define: {
     __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")),
     __MOBILE__: JSON.stringify(mobile),
-    __LOCAL_ONLY__: JSON.stringify(!!process.env.LOCAL_ONLY),
+    __LOCAL_ONLY__: JSON.stringify(["1", "true"].includes(process.env.LOCAL_ONLY ?? "")),
+    // where "Help & feedback" mails go (a repository variable in the workflows); empty = the feature is hidden
+    __FEEDBACK_EMAIL__: JSON.stringify(process.env.FEEDBACK_EMAIL ?? ""),
   },
   // website: GitHub Pages project site https://<user>.github.io/PianistAssistant/ ; app: relative paths
   base: mobile ? "./" : process.env.BASE_PATH ?? "/PianistAssistant/",

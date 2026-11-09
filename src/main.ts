@@ -10,7 +10,7 @@ import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
 import { unzipSync, zipSync } from "fflate";
-import { setLang } from "./i18n";
+import { getLang, setLang } from "./i18n";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -18,6 +18,7 @@ const settings = loadSettings();
 let offlineToldAt = 0; // the "you are offline" notice is shown once per outage
 let prefetched = false; // the library is copied to the device once per session
 setLang(settings.lang); // texts are translated as they appear on screen
+if (__LOCAL_ONLY__ && !api.isLocal()) api.useLocal(); // store builds have no account and no GitHub: straight to the device storage
 settings.volume = 1; // loudness is the iPad's own volume; the app always plays at full level
 
 /** light / dark: the system decides unless the user picked one */
@@ -63,16 +64,26 @@ function h<K extends keyof HTMLElementTagNameMap>(
   for (const k of kids) if (k) el.append(k);
   return el;
 }
-const toast = (msg: string, ms = 3500) => {
-  const t = h("div", { class: "toast" }, msg);
+/**
+ * The one place where the app tells you what is going on: a message in the top bar, above everything (also above dialogs).
+ * `working` = something is still in progress (shows a spinner and stays until it is closed with the returned function,
+ * then the result is shown with a normal toast). Messages are tap-to-dismiss.
+ */
+const toast = (msg: string, ms = 3500, working = false) => {
+  const t = h("div", { class: "toast" + (working ? " working" : "") }, ...(working ? [h("div", { class: "spin small" })] : []), h("span", {}, msg));
   t.addEventListener("click", () => t.remove());
   let box = document.getElementById("toasts");
   if (!box) {
     box = h("div", { id: "toasts" });
+    box.setAttribute("popover", "manual"); // top layer: stays visible above open dialogs
     document.body.append(box);
   }
   box.append(t); // several messages stack instead of lying on top of each other
-  setTimeout(() => t.remove(), ms);
+  try {
+    box.hidePopover?.();
+    box.showPopover?.(); // (re)open last so that it is above a dialog opened in the meantime
+  } catch { /* browsers without popover: the fixed position still shows it */ }
+  setTimeout(() => t.remove(), working ? Math.max(ms, 120000) : ms);
   return () => t.remove(); // dismiss early (e.g. a "working…" message once the work is done)
 };
 const displayName = (n: string) => n.replace(/\.(musicxml|xml|mxl)$/i, "");
@@ -172,6 +183,44 @@ function renderLogin(message = "") {
 }
 
 // ---------- settings dialog ----------
+// ---------- help & feedback: a mail to the developer, written in the app ----------
+function openFeedback() {
+  const title = h("input", { type: "text", placeholder: "简短的标题", maxLength: 120 });
+  const kind = h(
+    "select",
+    {},
+    h("option", { value: "Feedback" }, "意见"),
+    h("option", { value: "Bug" }, "Bug"),
+    h("option", { value: "Feature request" }, "期待的功能"),
+  );
+  const body = h("textarea", { rows: 6, placeholder: "请描述你遇到的问题或想法…" });
+  const err = h("p", { class: "error" });
+  const send = () => {
+    if (!title.value.trim()) return void (err.textContent = "请填写标题");
+    if (!body.value.trim()) return void (err.textContent = "请填写描述");
+    const info = [`App: Pianist Assistant ${__BUILD__}`, `Platform: ${navigator.platform || "?"}`, `Language: ${getLang()}`, `Storage: ${api.isLocal() ? "device" : "GitHub"}`, `Browser: ${navigator.userAgent}`];
+    const url = `mailto:${__FEEDBACK_EMAIL__}?subject=${encodeURIComponent(`[${kind.value}] ${title.value.trim()}`)}&body=${encodeURIComponent(`${body.value.trim()}\n\n---\n${info.join("\n")}`)}`;
+    dlg.close();
+    location.href = url;
+    toast("已打开邮件应用，请在邮件里点发送", 6000);
+  };
+  const dlg = h(
+    "dialog",
+    { class: "dlg" },
+    h("h2", { tabIndex: -1, autofocus: true }, "帮助与反馈"),
+    h("label", {}, "标题", title),
+    h("label", {}, "类型", kind),
+    h("label", {}, "描述", body),
+    h("p", { class: "muted small" }, "点“确认并发送”会打开你的邮件应用，邮件里会附上 App 版本和系统信息（不包含你的谱子）。"),
+    err,
+    h("div", { class: "row" }, h("button", { onclick: () => dlg.close() }, "取消"), h("div", { class: "grow" }), h("button", { class: "primary", onclick: send }, "确认并发送")),
+  );
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur();
+}
+
 /** all scores / PDFs / settings of this device in one .zip (device storage mode) */
 async function exportBackup() {
   try {
@@ -292,6 +341,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
       h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
     ]),
+    ...(__FEEDBACK_EMAIL__ ? [h("button", { class: "rowbtn", id: "feedback-btn", onclick: () => { dlg.close(); openFeedback(); } }, ic("note", 20), "帮助与反馈")] : []),
     h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
     ...(api.isLocal() ? [
       h("h3", {}, "存储"),
@@ -649,6 +699,7 @@ async function renderHome() {
     document.querySelectorAll(".star[data-k]").forEach((b) => { if (b.getAttribute("data-k") === k) starState(b, k); });
     if (tab === "fav") renderList();
     saveFavsSoon();
+    toast(favs.has(k) ? "已加入收藏" : "已取消收藏", 1500);
   };
   /** an item was renamed / re-paired: its favourite mark moves with it */
   const moveFav = (from: string, to: string) => {
@@ -668,10 +719,10 @@ async function renderHome() {
   let pairs: api.Pair[] = [];
   let allScores: string[] = [];
   const suggest = h("div", { class: "suggest" });
-  const savePairs = async (next: api.Pair[]) => {
+  const savePairs = async (next: api.Pair[], done = "") => {
     try {
       const adding = next.length > pairs.length;
-      const closeBusy = toast(adding ? "正在合成四手联弹…稍等片刻，它会出现在列表里" : "正在保存…", 20000);
+      const closeBusy = toast(adding ? "正在合成四手联弹…稍等片刻，它会出现在列表里" : "正在保存…", 120000, true);
       try {
         await api.writePairs(next);
       } finally {
@@ -679,6 +730,7 @@ async function renderHome() {
       }
       pairs = next;
       if (adding) toast(`✅ 已合成四手联弹「${next[next.length - 1].name}」，在列表里（带蓝色标记的那张）`, 6000);
+      else if (done) toast(`✅ ${done}`);
       void load();
     } catch (e) {
       if (e instanceof api.AuthExpired) return void renderLogin(e.message);
@@ -689,6 +741,7 @@ async function renderHome() {
   file.addEventListener("change", async () => {
     const stored: string[] = [];
     for (const f of Array.from(file.files ?? [])) {
+      let closeUp = () => {}; // the "uploading…" message stays until this file is done
       try {
         let mode: "convert" | "keep" | "both" = "convert";
         if (/\.pdf$/i.test(f.name)) {
@@ -701,7 +754,7 @@ async function renderHome() {
             mode = a;
           }
         }
-        toast(`上传中：${f.name}`);
+        closeUp = toast(`上传中：${f.name}`, 120000, true);
         if (mode !== "convert") {
           const kept = await api.storePdf(f, askConflict);
           toast(kept ? `已保存 PDF：${kept}（在下面的“PDF 乐谱”里）` : `已跳过：${f.name}`);
@@ -719,8 +772,11 @@ async function renderHome() {
           stored.push(up.name);
         }
       } catch (e) {
+        closeUp();
         if (e instanceof api.AuthExpired) return renderLogin(e.message);
         showError(`上传失败：${f.name}`, e);
+      } finally {
+        closeUp();
       }
     }
     file.value = "";
@@ -757,16 +813,23 @@ async function renderHome() {
     h("main", { class: "home" }, queueSec, suggest, recentSec, tabsBar, listBox),
   );
 
-  const deleteAction = (label: string, run: () => Promise<void>) => ({
+  /** `run` returns false when the user cancelled (nothing happened); `done` is the message after a successful delete */
+  const deleteAction = (label: string, run: (start: () => void) => Promise<boolean | void>, done: string) => ({
     label,
     icon: "trash",
     danger: true,
     run: async () => {
+      let closeBusy = () => {};
       try {
-        await run();
+        // the confirmation (inside run) comes first; the progress message is only for the real work
+        const ok = await run(() => { closeBusy = toast("正在删除…", 120000, true); });
+        closeBusy();
+        if (ok === false) return;
+        toast(done);
         void load();
       } catch (e) {
-        toast((e as Error).message);
+        closeBusy();
+        toast(`删除失败：${(e as Error).message}`, 6000);
       }
     },
   });
@@ -779,20 +842,21 @@ async function renderHome() {
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
         { label: "重命名…", icon: "pencil", run: async () => {
           const v = await askText("重命名这首四手联弹", p.name, "保存");
-          if (v && v !== p.name) void savePairs(pairs.map((q) => (q === p ? { ...q, name: v } : q)));
+          if (v && v !== p.name) void savePairs(pairs.map((q) => (q === p ? { ...q, name: v } : q)), "已重命名");
         } },
-        { label: "交换 A / B 声部", icon: "refresh", run: () => { moveFav(favKey.pair(p), favKey.pair({ a: p.b, b: p.a })); void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q))); } },
+        { label: "交换 A / B 声部", icon: "refresh", run: () => { moveFav(favKey.pair(p), favKey.pair({ a: p.b, b: p.a })); void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q)), "已交换 A / B 声部"); } },
         { label: "重新选择 A / B 文件…", icon: "note", run: async () => {
           const r = await openPairDialog({ scores: allScores, a: p.a, b: p.b, name: p.name, title: "修改四手联弹", okLabel: "保存" });
-          if (r) { moveFav(favKey.pair(p), favKey.pair(r)); void savePairs(pairs.map((q) => (q === p ? r : q))); }
+          if (r) { moveFav(favKey.pair(p), favKey.pair(r)); void savePairs(pairs.map((q) => (q === p ? r : q)), "已保存四手联弹设置"); }
         } },
-        { label: "取消关联（两个文件各自保留）", icon: "x", run: () => void savePairs(pairs.filter((q) => q !== p)) },
-        deleteAction("删除这首四手联弹（两个文件都会删除）", async () => {
-          if (!confirm(`删除四手联弹「${p.name}」？两个文件都会被删除。`)) return;
+        { label: "取消关联（两个文件各自保留）", icon: "x", run: () => void savePairs(pairs.filter((q) => q !== p), "已取消关联，两个文件各自保留") },
+        deleteAction("删除这首四手联弹（两个文件都会删除）", async (start) => {
+          if (!confirm(`删除四手联弹「${p.name}」？两个文件都会被删除。`)) return false;
+          start();
           await api.writePairs(pairs.filter((q) => q !== p));
           await api.deleteScore(p.a);
           await api.deleteScore(p.b);
-        }),
+        }, `已删除四手联弹「${p.name}」`),
       ]) }, ic("chevron-down", 20)),
     );
   };
@@ -815,10 +879,11 @@ async function renderHome() {
             showError("无法转换", e);
           }
         } }]),
-        deleteAction("删除这份 PDF", async () => {
-          if (!confirm(`删除 PDF「${name}」？`)) return;
+        deleteAction("删除这份 PDF", async (start) => {
+          if (!confirm(`删除 PDF「${name}」？`)) return false;
+          start();
           await api.deletePdf(name);
-        }),
+        }, `已删除 PDF「${name}」`),
       ]) }, ic("chevron-down", 18)),
     );
   const partOf = (name: string) => pairs.filter((p) => p.a === name || p.b === name);
@@ -838,15 +903,19 @@ async function renderHome() {
           { label: "重命名…", icon: "pencil", run: async () => {
             const v = await askText("重命名", displayName(name), "保存");
             if (!v || v === displayName(name)) return;
+            const closeBusy = toast("正在重命名…", 120000, true);
             try {
               const next = await api.renameScore(name, v);
               renameRecent(name, next);
               moveFav(favKey.score(name), favKey.score(next));
               for (const p of pairs) if (p.a === name || p.b === name) moveFav(favKey.pair(p), favKey.pair({ a: p.a === name ? next : p.a, b: p.b === name ? next : p.b }));
               if (partOf(name).length) await api.writePairs(pairs.map((p) => ({ ...p, a: p.a === name ? next : p.a, b: p.b === name ? next : p.b })));
+              closeBusy();
+              toast(`✅ 已重命名为「${displayName(next)}」`);
               void load();
             } catch (e) {
-              toast((e as Error).message);
+              closeBusy();
+              toast(`重命名失败：${(e as Error).message}`, 6000);
             }
           } },
           { label: "设为四手联弹…（与另一份合成）", icon: "note", run: async () => {
@@ -855,13 +924,14 @@ async function renderHome() {
             const r = await openPairDialog({ scores: free, a: name, title: "设为四手联弹", intro: "选出两个人各自的谱子：A 在上面一屏，B 在下面一屏。", okLabel: "合成四手联弹" });
             if (r) void savePairs([...pairs, r]);
           } },
-          deleteAction("删除这份乐谱", async () => {
+          deleteAction("删除这份乐谱", async (start) => {
             const inUse = partOf(name);
             const extra = inUse.length ? `\n它是四手联弹「${inUse.map((p) => p.name).join("、")}」的一个声部，删除后这首四手联弹也会消失（另一个声部的谱子保留）。` : "";
-            if (!confirm(`删除「${displayName(name)}」？${extra}`)) return;
+            if (!confirm(`删除「${displayName(name)}」？${extra}`)) return false;
+            start();
             if (inUse.length) await api.writePairs(pairs.filter((p) => !inUse.includes(p)));
             await api.deleteScore(name);
-          }),
+          }, `已删除「${displayName(name)}」`),
         ]) }, ic("chevron-down", 20)),
     );
 
@@ -907,7 +977,7 @@ async function renderHome() {
       (it.failed || stalled) && h("button", { class: "del", title: "重试", onclick: () => void retry(it.name) }, ic("refresh", 20)),
       h("button", { class: "del", title: "删除", onclick: async () => {
         if (!confirm(`从队列中删除「${it.name}」？`)) return;
-        try { await api.deleteInbox(it.name); clearQueued(it.name); optimistic.delete(it.name); load(); } catch (e) { toast((e as Error).message); }
+        try { await api.deleteInbox(it.name); clearQueued(it.name); optimistic.delete(it.name); toast(`已从队列中删除「${it.name}」`); load(); } catch (e) { toast((e as Error).message); }
       } }, ic("trash", 20)),
     );
   };
@@ -1014,7 +1084,7 @@ async function renderHome() {
                   const r = await openPairDialog({ scores: [...names], a: g.a, b: g.b, name: g.name, title: "确认四手联弹", okLabel: "合成四手联弹" });
                   if (r) void savePairs([...pairs, r]);
                 } }, "修改…"),
-                h("button", { onclick: () => { dismissPair(g.a, g.b); void load(); } }, "不是"),
+                h("button", { onclick: () => { dismissPair(g.a, g.b); toast("好的，不再提示这两份"); void load(); } }, "不是"),
               ),
             ),
           ),
@@ -1057,7 +1127,7 @@ async function renderHome() {
     const go = y0 !== null && dy > 80;
     y0 = null;
     ptr.style.height = "0px";
-    if (go) { toast("正在刷新…", 1200); void load(); void checkUpdate(true); }
+    if (go) { toast("正在刷新…", 1200, true); void load(); void checkUpdate(true); }
   };
   main.addEventListener("touchend", endPull, { passive: true });
   main.addEventListener("touchcancel", endPull, { passive: true });
@@ -1112,6 +1182,24 @@ const makePeek = (box: HTMLElement) => {
   box.append(el);
   return el;
 };
+
+/** Vertical extent of every line (system) of a view in holder pixels, INCLUDING what is drawn above and below the staves
+ *  (bar-number boxes, slurs, dynamics, high notes). `y` is the top staff line area. */
+function systemExtents(v: View): { top: number; bottom: number; y: number }[] {
+  const svg = v.holder.querySelector("svg");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const systems: any[] | undefined = (v.osmd.GraphicSheet as any)?.MusicPages?.[0]?.MusicSystems;
+  if (!svg || !systems?.length) return [];
+  const hr = v.holder.getBoundingClientRect();
+  const sr = svg.getBoundingClientRect();
+  const k = 10 * v.osmd.zoom;
+  const oy = sr.top - hr.top;
+  return systems.map((s) => {
+    const p = s.PositionAndShape;
+    const y = oy + p.AbsolutePosition.y * k;
+    return { top: y + p.BorderTop * k, bottom: y + p.BorderBottom * k, y };
+  });
+}
 
 /** Move a split-view cursor to the step that is current at `sec` seconds. */
 function syncView(v: View, sec: number) {
@@ -1210,6 +1298,7 @@ async function renderPlayer(name: string) {
     player = new Player(osmd, score, audioCtx(), inst);
     player.volume = settings.volume;
     player.expressive = settings.expressive;
+    player.countIn = settings.countIn;
     pushRecent(name);
     clearNew(name);
     busyCheck = () => player.playing || tools.editing || tools.dirty;
@@ -1339,6 +1428,7 @@ async function renderDuet(pair: api.Pair) {
     const player = new Player(null, score, audioCtx(), inst); // each screen follows the shared clock itself
     player.volume = settings.volume;
     player.expressive = settings.expressive;
+    player.countIn = settings.countIn;
     pushRecent(pairKey(pair));
     // two independent scores: each screen has its own fingering tools and saves to its own file
     const tools = new FingerGroup(views.map((v, g) => new FingerTools(v.osmd, v.holder, xmls[g])));
@@ -1462,7 +1552,7 @@ function buildControls(
       ? "这份谱子没有力度/踏板记号（从 PDF 转换时常会丢失），按强弱拍和旋律层次演奏。"
       : `乐谱里的表情记号：力度 ${ex.dynamics} 个、渐强渐弱 ${ex.wedges} 处、断奏/重音等 ${ex.articulations} 个、踏板 ${ex.pedals} 处。`
     : "";
-  const cbCount = h("input", { type: "checkbox" });
+  const cbCount = h("input", { type: "checkbox", checked: settings.countIn });
   const cbMetro = h("input", { type: "checkbox" });
   const cbLoop = h("input", { type: "checkbox" });
   const from = h("input", { type: "number", min: "1", max: String(score.measureCount), value: "1" });
@@ -1472,6 +1562,8 @@ function buildControls(
   const rampMax = h("input", { type: "number", min: "20", max: "200", value: "100" });
   const applyPractice = () => {
     player.countIn = cbCount.checked;
+    settings.countIn = cbCount.checked;
+    saveSettings(settings);
     player.metronome = cbMetro.checked;
     const f = Math.max(1, Math.min(score.measureCount, Number(from.value) || 1));
     const t = Math.max(f, Math.min(score.measureCount, Number(to.value) || f));
@@ -1501,6 +1593,7 @@ function buildControls(
       v.osmd.EngravingRules.RenderFingerings = false; // every number is drawn by our own overlay so it can follow the hand selection
       v.osmd.zoom = settings.zoom;
       v.osmd.render();
+
       v.osmd.cursor.show();
       if (v.steps) {
         v.osmd.cursor.reset();
@@ -1597,8 +1690,36 @@ function buildControls(
   playBtn.addEventListener("click", () => {
     unlockIOSAudio();
     if (player.playing) player.pause();
-    else void player.play();
+    else {
+      const ci = player.countInBeats();
+      void player.play();
+      if (ci) showCountIn(ci.n, ci.beatSec);
+    }
   });
+  // the count-in is also shown as big numbers (1 2 3 4), so you know when the music starts
+  let countTimers: number[] = [];
+  let countEl: HTMLElement | null = null;
+  function clearCountIn() {
+    countTimers.forEach((t) => clearTimeout(t));
+    countTimers = [];
+    countEl?.remove();
+    countEl = null;
+  }
+  function showCountIn(n: number, beatSec: number) {
+    clearCountIn();
+    countEl = h("div", { class: "countin" });
+    document.body.append(countEl);
+    for (let i = 0; i < n; i++) {
+      countTimers.push(window.setTimeout(() => {
+        if (!countEl) return;
+        countEl.textContent = String(i + 1);
+        countEl.classList.remove("pop");
+        void countEl.offsetWidth; // restart the animation
+        countEl.classList.add("pop");
+      }, 80 + i * beatSec * 1000));
+    }
+    countTimers.push(window.setTimeout(clearCountIn, 80 + n * beatSec * 1000));
+  }
   stopBtn.addEventListener("click", () => player.stop());
   speed.addEventListener("input", () => player.setSpeed(Number(speed.value) / 100));
 
@@ -1618,13 +1739,18 @@ function buildControls(
   function scrollToCursor(v: View, cr: DOMRect) {
     const wr = v.wrap.getBoundingClientRect();
     const top = cr.top - wr.top;
-    const margin = 14;
-    // the cursor only spans the staves: fingering numbers, high notes, dynamics and bar numbers are drawn above and below it
-    const above = Math.round(58 * Math.max(1, settings.zoom));
-    const below = Math.round(34 * Math.max(1, settings.zoom));
     if (settings.scrollMode === "page") {
-      // only when the line is not fully visible: put it near the top (with room for what is drawn above the staff)
-      if (top < above || cr.bottom - wr.top > wr.height - below) v.wrap.scrollTop += top - above;
+      // the WHOLE current line (with what is drawn above / below the staves) has to be inside the view; if it is not, bring it
+      // to the top (a line taller than the view is aligned at its top; the zoom buttons are for that case).
+      const hr = v.holder.getBoundingClientRect();
+      const cy = cr.top - hr.top + cr.height / 2;
+      const ex = systemExtents(v);
+      let line = ex.length ? ex.reduce((best, e) => (Math.abs(cy - (e.top + e.bottom) / 2) < Math.abs(cy - (best.top + best.bottom) / 2) ? e : best)) : null;
+      const m = 6;
+      if (line) {
+        const vTop = v.wrap.scrollTop;
+        if (line.top - m < vTop || line.bottom + m > vTop + v.wrap.clientHeight) v.wrap.scrollTop = Math.max(0, line.top - m);
+      } else if (top < 20 || cr.bottom - wr.top > wr.height - 20) v.wrap.scrollTop += top - 20;
     } else {
       const delta = top + cr.height / 2 - wr.height / 2;
       if (Math.abs(delta) > 40) v.wrap.scrollTo({ top: v.wrap.scrollTop + delta, behavior: "smooth" });
@@ -1642,9 +1768,8 @@ function buildControls(
     if (!svg || !systems?.length || !curEl) return off();
     const hr = v.holder.getBoundingClientRect();
     const sr = svg.getBoundingClientRect();
-    const k = 10 * v.osmd.zoom;
     const oy = sr.top - hr.top;
-    const boxes = systems.map((s) => ({ top: oy + s.PositionAndShape.AbsolutePosition.y * k, h: s.PositionAndShape.Size.height * k }));
+    const boxes = systemExtents(v).map((e) => ({ top: e.top, h: e.bottom - e.top }));
     const cr = curEl.getBoundingClientRect();
     const cy = cr.top - hr.top + cr.height / 2;
     const i = boxes.findIndex((b) => cy >= b.top - 12 && cy <= b.top + b.h + 12);
@@ -1662,8 +1787,8 @@ function buildControls(
     const room = (split ? wr.bottom : window.innerHeight) - 6 - (wr.top + y);
     const S = 0.85; // drawn a little smaller: it only has to be readable, and it covers less
     // what is drawn above the staves (bar numbers, high notes, fingering) lies outside the system box: start higher
-    const pad = Math.round(44 * Math.max(1, settings.zoom));
-    const h2 = Math.min((next.h + pad + 24) * S, room);
+    const pad = 6; // the boxes are exact now (they include what is drawn above / below the staves)
+    const h2 = Math.min((next.h + pad + 8) * S, room);
     if (h2 < Math.min(110, next.h * S * 0.6)) return off();
     // the preview is a window onto the same drawing (no copy of the score is made)
     if (!svg.id || document.querySelectorAll(`[id="${svg.id}"]`).length > 1) svg.id = `osmd-svg-${++svgSeq}`;
@@ -1763,6 +1888,7 @@ function buildControls(
       u.l.classList.toggle("on", ph.left && !ph.right);
       u.group.classList.toggle("muted", !player.partOn[u.g]);
     });
+    if (!player.playing) clearCountIn();
     if (player.playing) void keepAwake(); else releaseWake();
   }
   player.onChange = sync;

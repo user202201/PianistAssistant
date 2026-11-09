@@ -176,6 +176,12 @@ export class Player {
     this.onChange();
   }
 
+  /** what the count-in will be (for showing the beats), or null when it is off */
+  countInBeats(): { n: number; beatSec: number } | null {
+    if (!this.countIn) return null;
+    return { n: this.score.timeSig.num, beatSec: ((60 / this.score.baseBpm) * (4 / this.score.timeSig.den)) / this.speed };
+  }
+
   pause() {
     if (!this.playing) return;
     this.paused = Math.max(0, this.position());

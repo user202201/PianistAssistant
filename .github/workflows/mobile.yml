@@ -24,6 +24,7 @@ jobs:
         with: { distribution: temurin, java-version: 21 }
       - name: Build Android package
         env:
+          FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -41,6 +42,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - name: Build iOS package
         env:
+          FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROFILE_B64: ${{ secrets.IOS_PROFILE_B64 }}
@@ -60,8 +62,10 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Web bundle for HarmonyOS
+        env:
+          FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
         run: |
-          MOBILE=1 npm run build
+          MOBILE=1 LOCAL_ONLY=1 npm run build
           bash mobile/scripts/fetch-sounds.sh dist-app
           mkdir -p packages/harmonyos/out
           (cd dist-app && zip -qr ../packages/harmonyos/out/PianistAssistant-harmonyos-web-bundle.zip .)

@@ -17,3 +17,8 @@
    Known: Audiveris is near-perfect on clean PDFs; the full English Tesseract model is needed for titles; a last system without a final barline is lost.
 9. **Going private / paid services.** `docs/going-private/README.md` is the user's self-service guide. Keep `scores-repo-bundle.zip` (built by
    `scripts/make-scores-repo-bundle.sh`) in sync with `scores-repo-template/`; the user copies it into the scores repo once.
+10. **Every action answers.** Each user action that takes time or changes data shows a message through `toast()` in `src/main.ts`: `working=true` (spinner)
+    while it runs, closed when done, then a result message (or the error). Messages are always in the top band (a popover above dialogs), never elsewhere.
+    Cancelling a confirmation must not produce a "done" message. Add the English / French texts.
+11. **Store builds are local-only.** `mobile/scripts/build-*.sh` build with `LOCAL_ONLY=1` (no account, no GitHub, nothing leaves the device).
+    The privacy policy is `public/privacy/index.html`; the feedback mail address comes from the repository variable `FEEDBACK_EMAIL`.

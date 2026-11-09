@@ -397,3 +397,17 @@ select option, select optgroup { background: var(--surface); color: var(--text);
 .tabsbar .seg { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .tabstar { display: inline-flex; opacity: .75; }
 .tabstar svg { fill: none; }
+
+/* count-in numbers */
+.countin { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 45; pointer-events: none; font: 800 120px/1 -apple-system, system-ui, sans-serif; color: var(--accent); text-shadow: 0 4px 30px rgba(0, 0, 0, .25); opacity: 0; }
+.countin.pop { animation: countpop .5s ease-out forwards; }
+@keyframes countpop { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: .15; transform: translate(-50%, -50%) scale(.9); } }
+
+textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: var(--fill, rgba(120, 120, 128, .12)); border: 0; border-radius: 12px; padding: 10px 12px; resize: vertical; min-height: 110px; }
+
+/* all messages: in the top bar band, above everything */
+#toasts, #toasts[popover] { position: fixed; inset: calc(env(safe-area-inset-top) + 9px) 0 auto 0; bottom: auto; margin: 0; padding: 0; border: 0; background: transparent; overflow: visible; width: auto; height: auto; max-height: none; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 2000; color: inherit; }
+#toasts .toast { position: static; transform: none; pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 9px 18px; font-size: .92rem; max-width: min(560px, 92vw); text-align: left; animation: toastin .2s ease-out; }
+#toasts .toast.working { background: rgba(0, 90, 200, .92); }
+#toasts .toast .spin { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+@keyframes toastin { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }

@@ -8,7 +8,8 @@ cd "$ROOT"
 RUN="${GITHUB_RUN_NUMBER:-1}"
 
 [ -d node_modules ] || npm ci
-MOBILE=1 npm run build
+# store builds are local-only: no account, no GitHub, the developer cannot see anybody's library (set LOCAL_ONLY=0 for a build that can sync)
+MOBILE=1 LOCAL_ONLY="${LOCAL_ONLY:-1}" npm run build
 bash mobile/scripts/fetch-sounds.sh dist-app   # the default piano sound goes inside the app
 cd mobile
 [ -d node_modules ] || npm ci

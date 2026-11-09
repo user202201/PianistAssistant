@@ -44,7 +44,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 
 1. **TestFlight（自己和朋友测试）**：App Store Connect → TestFlight，添加内部测试员（用 Apple ID 邀请），对方在 iPhone 上装 TestFlight App 就能装你的 App。
 2. **提交上架**：App Store Connect → 你的 App → 准备提交：填简介、关键词、截图（iPhone 和 iPad 各需要几张）、**隐私政策网址**、年龄分级、版权信息；选择刚上传的构建版本；点“提交以供审核”。审核一般 1–3 天。
-3. **审核提示（已处理）**：苹果审核员没有 GitHub 令牌，所以 App 打开后第一个按钮是“**在本机使用（不需要账号）**”，不用登录就能上传谱子、播放、收藏、备份。GitHub 同步放在“高级”里，是可选功能。这符合苹果“不要强制登录”的规定。
+3. **审核提示（已处理）**：苹果审核员没有 GitHub 令牌，所以 App 打开后第一个按钮是“**在本机使用（不需要账号）**”，不用登录就能上传谱子、播放、收藏、备份。**上架版默认是纯本机版：没有账号、没有 GitHub、数据不离开设备，开发者看不到任何用户的曲库**（打包脚本默认 `LOCAL_ONLY=1`）。商店版没有 PDF 转换成可播放乐谱的功能（那需要云端服务），但 PDF 可以保存和查看。
 
 ## 没有 Mac 也行吗
 
@@ -62,7 +62,9 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 | 不强制登录 | ✅ 默认“在本机使用”，不需要任何账号 |
 | 不是“只套了个网页” | ✅ 代码和默认钢琴音色都打包在 App 里，可完全离线使用，有本地文件存储、备份 |
 | 加密出口合规 | ✅ 已自动设置 `ITSAppUsesNonExemptEncryption = false`（只用系统自带的 HTTPS） |
-| 隐私政策网址 | ❌ 需要你提供一个网页地址。App 不收集任何数据；GitHub 同步是用户自己的账号。可以用 GitHub Pages 放一页文字 |
+| 隐私政策网址 | ✅ 已写好（中/英/法）：`https://user202201.github.io/PianistAssistant/privacy/`（随网页版自动发布，联系邮箱来自仓库变量 `FEEDBACK_EMAIL`）。这份是**你的 App 自己的**隐私政策，必须针对你的 App 写，不能用别人的。如果以后网页版改私有，要把这个页面放到别的地方并更新网址 |
+| 技术支持网址（Support URL） | 同上一个网址即可 |
+| 联系方式 / 用户反馈 | ✅ 设置里有“帮助与反馈”，会打开用户自己的邮件应用（需要先设置 `FEEDBACK_EMAIL`，见下） |
 | 隐私问卷（App Privacy） | 选“不收集数据”（App 没有统计、广告、第三方 SDK） |
 | 截图 | ❌ 需要 iPhone 和 iPad 的截图（我可以在模拟器里帮你截） |
 | 年龄分级、类别 | 类别选“音乐”；无不适内容 |
@@ -73,3 +75,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → New reposit
 ## 免费装到自己的设备（不上架）
 
 有 Mac + Xcode 的话，用免费的 Apple ID 就能装到自己的 iPhone/iPad：解压 `PianistAssistant-ios-xcode-project.zip` → 用 Xcode 打开 `ios/App/App.xcworkspace` → 选你的设备 → 在 Signing 里选你的 Apple ID（Personal Team）→ 点运行。免费签名**每 7 天过期一次**，要重新装一遍；也不能用 TestFlight。没有 Mac 就做不到（这是苹果的限制），可以继续用网页添加到主屏幕。
+
+## 设置“帮助与反馈”的收件邮箱
+
+GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables** 标签 → New repository variable：名称 `FEEDBACK_EMAIL`，值填你想收反馈的邮箱。设好后重新打包/部署即可（没设的话，设置里就没有“帮助与反馈”按钮）。邮箱地址会出现在 App 和隐私政策页面里，所以请用专门的公开邮箱，不要用公司或私人邮箱。
