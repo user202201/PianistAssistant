@@ -515,8 +515,9 @@ dialog.center button, .dlg button:not(.icon):not(.fnum) { white-space: normal; h
 /* small phones: the transport row wraps (speed slider on its own line) and the PDF toolbar gets tighter */
 @media (max-width: 520px) {
   .controls { padding-left: 12px; padding-right: 12px; }
-  .controls .mainrow { flex-wrap: wrap; gap: 8px 12px; }
-  .controls .mainrow .speedbox { order: 5; flex: 1 1 100%; min-width: 0; }
+  .controls .mainrow { flex-wrap: nowrap; gap: 8px; }
+  .controls .mainrow .speedbox { flex: 1 1 0; min-width: 0; gap: 8px; }
+  .controls .mainrow .pos, .controls .speedlabel .bpm { display: none; }
   .speedlabel { min-width: 0; }
 }
 @media (max-width: 400px) {
@@ -569,3 +570,36 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
 .tabsbar .tabcount { font-size: .78rem; font-weight: 700; min-width: 22px; padding: 1px 7px; border-radius: 11px; text-align: center; background: var(--fill); color: var(--muted); }
 .tabsbar .seg.on .tabcount { background: rgba(255, 255, 255, .3); color: var(--on-accent); }
 .tabsbar .group.icons .tabcount { display: none; }
+
+/* ---- small screens: short hand names, one row of controls, icons only in the part bars ---- */
+.seg .sh { display: none; }
+.panemenu { display: none; }
+@media (max-width: 700px), (max-height: 480px) {
+  .controls .hand .lbl, .panehead .hand .lbl { display: none; }
+  .controls .hand .sh, .panehead .hand .sh { display: inline; }
+  .controls .gl { display: none; }
+  /* everything of the second row on ONE line */
+  .controls .row.wrap { flex-wrap: nowrap; gap: 6px; }
+  .controls .row.wrap > .grow { display: none; }
+  .controls .row.wrap .icon { width: 38px; min-width: 38px; height: 38px; }
+  .controls .row.wrap .group > button { padding: 0 8px; min-width: 36px; }
+  /* four hands: one slim row per part: letter, hands, and icons */
+  .panehead { flex-wrap: nowrap; gap: 6px; padding: 4px 8px; }
+  .panehead .pn, .panehead .lbl { display: none; }
+  .panehead button { min-height: 36px; min-width: 36px; padding: 0 9px; }
+  .panehead .hand .lbl { display: none; }
+}
+/* a phone held sideways: the part bars are hidden, a small button opens them as a floating menu */
+@media (max-height: 480px) {
+  .panehead { display: none; position: absolute; top: 42px; right: 6px; z-index: 25; flex-wrap: wrap; max-width: min(94%, 560px); padding: 8px; gap: 6px; border: 0; border-radius: 16px; background: var(--bar-strong); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); box-shadow: var(--shadow-pop); }
+  .panehead.open { display: flex; }
+  .panehead.open .pn, .panehead.open .lbl { display: inline; }
+  .panehead.open .hand .lbl { display: inline; }
+  .panehead.open .hand .sh { display: none; }
+  .panemenu { display: inline-flex; position: absolute; top: 4px; right: 6px; z-index: 26; width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--bar-strong); box-shadow: var(--shadow); }
+}
+@media (max-width: 400px) {
+  .controls .row.wrap { gap: 4px; }
+  .controls .row.wrap .icon { width: 34px; min-width: 34px; height: 34px; }
+  .controls .row.wrap .group > button { padding: 0 6px; min-width: 32px; }
+}

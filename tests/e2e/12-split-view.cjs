@@ -43,7 +43,7 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
 
   // ---- per-player hands and sound
   await page.click('.panehead:nth-of-type(1) >> nth=0'); // noop focus ring
-  const btn = (part, text) => page.locator(`.pane[data-part="${part}"] .panehead button:text-is("${text}")`);
+  const btn = (part, text) => page.locator(`.pane[data-part="${part}"] .panehead button[title="${text}"], .pane[data-part="${part}"] .panehead button:text-is("${text}")`);
   await btn(0, '右手').click();
   ok(await page.evaluate(() => JSON.stringify(window.__pianist.player.partHands)) === '[{"right":true,"left":false},{"right":true,"left":true}]', 'A: "右手" = right hand only, B untouched');
   await btn(0, '左手').click();
@@ -95,7 +95,7 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
   // ---- one-part score: no split, no A/B
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.splitView = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.click('button[title=返回]'); await page.waitForSelector('.home'); await open('solo');
-  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 0 && await page.locator('.controls .seg:text-is("双手")').count() === 1, 'single-part score: normal screen and the 双手/右手/左手 buttons');
+  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 0 && await page.locator('.controls .seg[title="双手"]').count() === 1, 'single-part score: normal screen and the 双手/右手/左手 buttons');
   await browser.close();
   console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

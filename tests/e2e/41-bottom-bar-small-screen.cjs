@@ -15,6 +15,10 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   let s = await st();
   ok(s.bar && s.play && s.speed && s.practice && s.more && !s.lblShown, `phone: the full bar is compact, names are replaced by icons (${s.barH}px tall)`);
   ok(s.overflow <= 1, 'and nothing is pushed off the screen');
+  const rows = await page.evaluate(() => { const r = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; }; return { main: r('.controls .mainrow'), second: r('.controls .row.wrap'), hands: [...document.querySelectorAll('.controls .hand')].map((b) => b.innerText.trim()) }; });
+  ok(s.barH <= 140, `the full bar on a phone is only two slim rows (${s.barH}px, it was 223)`);
+  ok(rows.second <= 60 && rows.main <= 64, `the second row (hands, fingering, practice, zoom) is ONE line (${rows.second}px) and so is the transport row (${rows.main}px)`);
+  ok(rows.hands.join('|') === '双|右|左', `the hand buttons use short names (${rows.hands.join(' ')})`);
   await page.click('.morebtn'); await page.waitForTimeout(300); s = await st();
   ok(s.play && s.speed && !s.practice && s.hide && s.barH < 110, `"less": only play / pause + speed remain (${s.barH}px tall)`);
   const minH = s.scoreH;

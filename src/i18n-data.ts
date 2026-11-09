@@ -1,5 +1,9 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "双": "R+L",
+  "右": "R",
+  "左": "L",
+  "这个声部的控制": "Controls of this part",
   "全部": "All",
   "显示工具栏": "Show the toolbar",
   "隐藏工具栏": "Hide the toolbar",
@@ -403,6 +407,10 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "双": "D+G",
+  "右": "D",
+  "左": "G",
+  "这个声部的控制": "Réglages de cette partie",
   "全部": "Toutes",
   "显示工具栏": "Afficher la barre d'outils",
   "隐藏工具栏": "Masquer la barre d'outils",
@@ -806,6 +814,10 @@ export const FR: Record<string, string> = {
 };
 
 export const DE: Record<string, string> = {
+  "双": "R+L",
+  "右": "R",
+  "左": "L",
+  "这个声部的控制": "Steuerung dieser Stimme",
   "全部": "Alle",
   "显示工具栏": "Symbolleiste einblenden",
   "隐藏工具栏": "Symbolleiste ausblenden",
@@ -1208,6 +1220,10 @@ export const DE: Record<string, string> = {
   "语言": "Sprache",
 };
 export const JA: Record<string, string> = {
+  "双": "両",
+  "右": "右",
+  "左": "左",
+  "这个声部的控制": "このパートの操作",
   "全部": "すべて",
   "显示工具栏": "ツールバーを表示",
   "隐藏工具栏": "ツールバーを非表示",
@@ -1610,6 +1626,10 @@ export const JA: Record<string, string> = {
   "语言": "言語",
 };
 export const KO: Record<string, string> = {
+  "双": "양",
+  "右": "오",
+  "左": "왼",
+  "这个声部的控制": "이 파트 컨트롤",
   "全部": "전체",
   "显示工具栏": "도구 모음 표시",
   "隐藏工具栏": "도구 모음 숨기기",

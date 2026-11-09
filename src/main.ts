@@ -1644,11 +1644,12 @@ function buildControls(
   const speedLabel = h("span", { class: "speedlabel" });
   const pos = h("span", { class: "pos" });
 
-  const segBtn = (label: string, on: () => void) => h("button", { class: "seg", onclick: on }, label);
+  /** a hand button: the full name normally, a short one (R+L / R / L) on small screens (CSS), the full name always as its tooltip */
+  const handBtn = (full: string, short: string, on: () => void) => h("button", { class: "seg hand", title: full, onclick: on }, h("span", { class: "lbl" }, full), h("span", { class: "sh" }, short));
   const handBtns: Record<string, HTMLButtonElement> = {
-    both: segBtn("双手", () => setHands(true, true)),
-    right: segBtn("右手", () => setHands(true, false)),
-    left: segBtn("左手", () => setHands(false, true)),
+    both: handBtn("双手", "双", () => setHands(true, true)),
+    right: handBtn("右手", "右", () => setHands(true, false)),
+    left: handBtn("左手", "左", () => setHands(false, true)),
   };
   const hasHands = score.staffCounts.some((c) => c >= 2);
   function setHands(r: boolean, l: boolean) {
@@ -1666,15 +1667,15 @@ function buildControls(
       player.partOn[g] = !player.partOn[g];
       if (!player.partOn.some(Boolean)) player.partOn[g] = true; // keep at least one part audible
       sync();
-    } }, label);
+    } }, ...(multi ? [h("span", { class: "pl" }, partLetter(g)), h("span", { class: "pn" }, ` · ${score.parts[g]}`)] : [label]));
     // same as for a single score: both hands / right only / left only (one choice, not two switches)
-    const hand = (r: boolean, l: boolean, text: string) => h("button", { class: "seg", onclick: () => {
+    const hand = (r: boolean, l: boolean, full: string, short: string) => h("button", { class: "seg hand", title: full, onclick: () => {
       player.partHands[g] = { right: r, left: l };
       sync();
-    } }, text);
-    const b = hand(true, true, "双手");
-    const r = hand(true, false, "右手");
-    const l = hand(false, true, "左手");
+    } }, h("span", { class: "lbl" }, full), h("span", { class: "sh" }, short));
+    const b = hand(true, true, "双手", "双");
+    const r = hand(true, false, "右手", "右");
+    const l = hand(false, true, "左手", "左");
     const two = score.staffCounts[g] >= 2;
     const group = h("div", { class: "group pgroup" }, snd, ...(two ? [b, r, l] : []));
     partUi.push({ g, group, snd, b, r, l });
@@ -2039,7 +2040,7 @@ function buildControls(
     speed.style.setProperty("--p", `${((Number(speed.value) - Number(speed.min)) / (Number(speed.max) - Number(speed.min))) * 100}%`);
     const bpm = Math.round(score.baseBpm * player.speed);
     speed.value = String(Math.round(player.speed * 100));
-    speedLabel.textContent = `${Math.round(player.speed * 100)}% · ♩=${bpm}`;
+    speedLabel.replaceChildren(h("span", {}, `${Math.round(player.speed * 100)}%`), h("span", { class: "bpm" }, ` · ♩=${bpm}`));
     pos.textContent = `第 ${player.measureIndex + 1} / ${score.measureCount} 小节`;
     const mode = player.handOn.right && player.handOn.left ? "both" : player.handOn.right ? "right" : "left";
     for (const [k, b] of Object.entries(handBtns)) b.classList.toggle("on", k === mode);
@@ -2080,6 +2081,7 @@ function buildControls(
     document.removeEventListener("keydown", onKey);
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("resize", onResizeBar);
+    document.removeEventListener("click", closeMenus);
     handle.remove();
     window.removeEventListener("resize", relayout);
     clearTimeout(relayoutTimer);
@@ -2112,6 +2114,11 @@ function buildControls(
   };
   const onResizeBar = () => refreshMore();
   window.addEventListener("resize", onResizeBar);
+  // the floating part menu (phone held sideways) closes when you tap anywhere else
+  const closeMenus = (e: Event) => {
+    if (!(e.target as HTMLElement | null)?.closest(".panehead, .panemenu")) document.querySelectorAll(".panehead.open").forEach((x) => x.classList.remove("open"));
+  };
+  document.addEventListener("click", closeMenus);
   moreBtn.addEventListener("click", () => setBar(barMode() === "min" ? "full" : "min"));
   const bar = h(
     "footer",
@@ -2140,7 +2147,7 @@ function buildControls(
       app.classList.toggle("focusing", g !== null);
       document.querySelector(".splitwrap")?.classList.toggle("focusing", g !== null);
       document.querySelectorAll(".pane").forEach((pane, i) => pane.classList.toggle("focused", g === i));
-      document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), g === i ? "还原" : "全屏"));
+      document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), h("span", { class: "lbl" }, g === i ? "还原" : "全屏")));
       requestAnimationFrame(() => { relayout(); followView(); });
     };
     const collBtns: HTMLElement[] = [];
@@ -2152,7 +2159,10 @@ function buildControls(
       const fold = h("button", { class: "collbtn", hidden: true, onclick: () => { userOpen = !userOpen; applyCollapse(); } });
       collBtns[g] = fold;
       head.append(fold);
-      head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18), "全屏"));
+      head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18), h("span", { class: "lbl" }, "全屏")));
+      // a phone held sideways has no room for the part bars: they are hidden and this little button brings them up as a floating menu
+      const menu = h("button", { class: "panemenu icon", title: "这个声部的控制", onclick: (e: Event) => { e.stopPropagation(); document.querySelectorAll(".panehead.open").forEach((x) => x !== head && x.classList.remove("open")); head.classList.toggle("open"); } }, ic("sliders", 18));
+      head.parentElement?.append(menu);
     });
     applyCollapse = () => {
       const on = player.partOn;
@@ -2171,7 +2181,8 @@ function buildControls(
         const b = collBtns[g];
         if (!b) return;
         b.hidden = target !== g;
-        b.replaceChildren(ic(folded ? "chevron-down" : "chevron-up", 18), folded ? "展开" : "收起");
+        b.replaceChildren(ic(folded ? "chevron-down" : "chevron-up", 18), h("span", { class: "lbl" }, folded ? "展开" : "收起"));
+        b.title = folded ? "展开这个声部的谱子" : "收起这个声部的谱子";
         b.title = folded ? "展开这个声部的谱子" : "收起这个声部的谱子";
       });
     };

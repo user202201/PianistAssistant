@@ -41,3 +41,4 @@
 40-tabs-fit
 41-bottom-bar-small-screen
 42-fingering-patterns
+43-fourhand-small-screen

@@ -4,7 +4,7 @@ const h = require('./harness.cjs'); const fs = require('fs'); const path = requi
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 const data = fs.readFileSync(path.join(__dirname, '../../src/i18n-data.ts'), 'utf8');
 const table = (name) => { const m = data.match(new RegExp(`export const ${name}[^=]*= \\{([\\s\\S]*?)\\n\\};`)); const t = {}; for (const line of (m ? m[1] : '').split('\n')) { const k = line.match(/^\s*("(?:[^"\\]|\\.)*"):\s*("(?:[^"\\]|\\.)*"),?$/); if (k) t[JSON.parse(k[1]).trim()] = JSON.parse(k[2]); } return t; };
-const VIEWPORTS = [[1194, 834, 'tablet'], [820, 1180, 'ipad-portrait'], [360, 740, 'small-phone']];
+const VIEWPORTS = [[1194, 834, 'tablet'], [820, 1180, 'ipad-portrait'], [360, 740, 'small-phone'], [844, 390, 'phone-landscape']];
 // a pretend App Store (trial running), so that the purchase rows and the unlock dialog can be looked at too
 const fakeStore = () => { const st = { firstInstall: Date.now() - 3 * 86400000, owned: false }; window.__store = st; window.Capacitor = { Plugins: { PianistStore: { status: async () => ({ firstInstall: st.firstInstall, owned: st.owned, price: '¥68.00' }), purchase: async () => ({ owned: true }), restore: async () => ({ owned: false }) } } }; };
 
