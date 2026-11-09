@@ -1,6 +1,7 @@
 name: convert
-# Lives in the PRIVATE scores repo (PianistScores). Converts PDFs / photos uploaded by the app
-# (inbox/) into MusicXML (scores/) using Audiveris (open-source optical music recognition).
+# Lives in the PRIVATE scores repo (PianistScores). Whenever the app queues a PDF / photo in inbox/,
+# this converts it to MusicXML in scores/. The logic lives in the (public) PianistAssistant repo
+# (scores-repo-template/convert.sh) so it can be improved without editing this file again.
 on:
   push:
     branches: [main]
@@ -17,78 +18,11 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-
-      - name: Find files to convert
-        id: todo
-        run: |
-          shopt -s nullglob nocaseglob
-          files=(inbox/*.pdf inbox/*.png inbox/*.jpg inbox/*.jpeg inbox/*.tif inbox/*.tiff inbox/*.bmp)
-          n=0
-          for f in "${files[@]}"; do
-            [ -e "$f.failed.txt" ] || n=$((n+1))
-          done
-          echo "count=$n" >> "$GITHUB_OUTPUT"
-          echo "$n file(s) to convert"
-
-      - name: Install Audiveris
-        if: steps.todo.outputs.count != '0'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng jq unzip
-          url=$(curl -fsSL -H "Authorization: Bearer ${{ github.token }}" \
-            https://api.github.com/repos/Audiveris/audiveris/releases/latest |
-            jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
-          echo "Using $url"
-          curl -fsSL -o /tmp/audiveris.deb "$url"
-          sudo apt-get install -y -qq /tmp/audiveris.deb
-
-      - name: Convert
-        if: steps.todo.outputs.count != '0'
-        run: |
-          AUD=$(find /opt -maxdepth 4 -type f -name Audiveris 2>/dev/null | head -1)
-          if [ -z "$AUD" ]; then AUD=$(command -v audiveris || true); fi
-          if [ -z "$AUD" ]; then echo "Audiveris executable not found"; exit 1; fi
-          echo "Audiveris: $AUD"
-          export JAVA_TOOL_OPTIONS="-Djava.awt.headless=true"
-          mkdir -p scores
-          while IFS= read -r -d '' f; do
-            if [ -e "$f.failed.txt" ]; then continue; fi
-            base=$(basename "$f"); stem="${base%.*}"; ext="${base##*.}"
-            rm -rf /tmp/omr; mkdir -p /tmp/omr/in /tmp/omr/out
-            cp "$f" "/tmp/omr/in/score.$ext"   # ASCII name: safest for the OMR engine
-            rc=0
-            timeout 1500 "$AUD" -batch -transcribe -export -output /tmp/omr/out -- "/tmp/omr/in/score.$ext" > /tmp/omr/log.txt 2>&1 || rc=$?
-            res=$(find /tmp/omr/out -type f -name '*.mxl' | sort | head -1)
-            if [ -z "$res" ]; then res=$(find /tmp/omr/out -type f -name '*.xml' | sort | head -1); fi
-            if [ -n "$res" ]; then
-              case "$res" in
-                *.mxl)
-                  inner=$(unzip -Z1 "$res" | grep -v '^META-INF' | grep -iE '\.(xml|musicxml)$' | head -1)
-                  unzip -p "$res" "$inner" > "scores/$stem.musicxml" ;;
-                *) cp "$res" "scores/$stem.musicxml" ;;
-              esac
-              git rm -q -f "$f"
-              echo "OK: $base"
-            else
-              { echo "Conversion failed (exit $rc): $base"; echo "-----"; tail -n 80 /tmp/omr/log.txt; } > "$f.failed.txt"
-              echo "FAILED: $base"
-            fi
-          done < <(find inbox -maxdepth 1 -type f \( -iname '*.pdf' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.tif' -o -iname '*.tiff' -o -iname '*.bmp' \) -print0)
-
-      - name: Report a workflow-level failure to the app
-        if: failure() && steps.todo.outputs.count != '0'
-        run: |
-          shopt -s nullglob nocaseglob
-          for f in inbox/*.pdf inbox/*.png inbox/*.jpg inbox/*.jpeg inbox/*.tif inbox/*.tiff inbox/*.bmp; do
-            [ -e "$f.failed.txt" ] || echo "The conversion job failed before this file was processed. See the Actions log of the 'convert' workflow in this repository." > "$f.failed.txt"
-          done
-
-      - name: Commit results
-        if: always() && steps.todo.outputs.count != '0'
-        run: |
-          git config user.name "score-converter"
-          git config user.email "converter@users.noreply.github.com"
-          git add -A scores inbox
-          if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
-          git commit -q -m "Convert scores from inbox"
-          git push || { git pull --rebase origin main && git push; }
+      - uses: actions/checkout@v4
+        with:
+          repository: user202201/PianistAssistant
+          path: .tools
+      - name: Convert inbox files
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash .tools/scores-repo-template/convert.sh

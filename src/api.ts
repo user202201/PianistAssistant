@@ -198,18 +198,54 @@ export interface Uploaded {
   name: string;
 }
 
+export type Conflict = "replace" | "keep" | "skip";
+/** `kind`: "score" = a score with this name already exists; "convert" = converting this PDF/image would overwrite an existing score */
+export type OnConflict = (info: { name: string; existing: string; kind: "score" | "convert" | "queued" }) => Promise<Conflict>;
+
+const stemOf = (n: string) => n.replace(/\.[^.]+$/, "");
+
+async function exists(dir: string, name: string): Promise<boolean> {
+  return (await sha(need(), dir, name)) !== undefined;
+}
+
+/** "name.ext" -> "name (2).ext", "name (3).ext", ... first one that is free in every given location */
+async function freeName(name: string, taken: (candidate: string) => Promise<boolean>): Promise<string> {
+  const m = name.match(/^(.*?)(\.[^.]+)$/);
+  const [stem, ext] = m ? [m[1], m[2]] : [name, ""];
+  for (let i = 2; i < 100; i++) {
+    const cand = `${stem} (${i})${ext}`;
+    if (!(await taken(cand))) return cand;
+  }
+  throw new Error("无法生成新的文件名");
+}
+
 /**
  * MusicXML / .mxl  -> stored as plain .musicxml in scores/ (editable, e.g. fingering)
  * PDF / image      -> stored in inbox/; a GitHub Action converts it to scores/<name>.musicxml
+ * If something with the same name would be overwritten, `onConflict` decides. Returns null when skipped.
  */
-export async function uploadScore(file: File): Promise<Uploaded> {
+export async function uploadScore(file: File, onConflict?: OnConflict): Promise<Uploaded | null> {
+  const ask = async (name: string, existing: string, kind: "score" | "convert" | "queued"): Promise<Conflict> =>
+    onConflict ? onConflict({ name, existing, kind }) : "replace";
+
   if (INBOX_EXT.test(file.name)) {
-    const name = cleanName(file.name, "inbox");
+    let name = cleanName(file.name, "inbox");
     if (!name) throw new Error(`文件名不可用：${file.name}`);
     if (file.size > MAX_INBOX_BYTES) throw new Error("PDF / 图片超过 20 MB");
+    // the converted result will be scores/<stem>.musicxml: warn before it can overwrite an existing score
+    const target = stemOf(name) + ".musicxml";
+    const inScores = (await exists(SCORES, target)) ? target : (await exists(SCORES, stemOf(name) + ".xml")) ? stemOf(name) + ".xml" : null;
+    const inQueue = (await exists(INBOX, name)) ? name : null;
+    if (inScores || inQueue) {
+      const choice = await ask(name, (inScores ?? inQueue)!, inQueue ? "queued" : "convert");
+      if (choice === "skip") return null;
+      if (choice === "keep")
+        name = await freeName(name, async (c) => (await exists(INBOX, c)) || (await exists(SCORES, stemOf(c) + ".musicxml")));
+    }
     await put(INBOX, name, await file.arrayBuffer(), `Queue for conversion: ${name}`);
     return { kind: "inbox", name };
   }
+
   let name = cleanName(file.name);
   if (!name) throw new Error(`不支持的文件：${file.name}（支持 MusicXML、.mxl、PDF、图片）`);
   let data = await file.arrayBuffer();
@@ -218,6 +254,11 @@ export async function uploadScore(file: File): Promise<Uploaded> {
     const xml = toMusicXml(data); // unzip so the stored file is readable and editable
     data = new TextEncoder().encode(xml).buffer as ArrayBuffer;
     name = name.replace(/\.mxl$/i, ".musicxml");
+  }
+  if (await exists(SCORES, name)) {
+    const choice = await ask(name, name, "score");
+    if (choice === "skip") return null;
+    if (choice === "keep") name = await freeName(name, (c) => exists(SCORES, c));
   }
   await put(SCORES, name, data, `Upload score: ${name}`);
   return { kind: "score", name };

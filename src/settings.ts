@@ -41,3 +41,31 @@ export function pushRecent(name: string) {
     /* ignore */
   }
 }
+
+const QKEY = "pianist.queued.v1";
+/** when (ms) each PDF/photo was queued from this device, to show "waiting N min" */
+export function queuedAt(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(QKEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+export function markQueued(name: string, ts = Date.now()) {
+  const q = queuedAt();
+  q[name] = ts;
+  try {
+    localStorage.setItem(QKEY, JSON.stringify(q));
+  } catch {
+    /* ignore */
+  }
+}
+export function clearQueued(name: string) {
+  const q = queuedAt();
+  delete q[name];
+  try {
+    localStorage.setItem(QKEY, JSON.stringify(q));
+  } catch {
+    /* ignore */
+  }
+}

@@ -6,7 +6,7 @@ import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { FingerTools } from "./fingerui";
 import { Player } from "./player";
 import { extractScore, toMusicXml } from "./score";
-import { getRecent, loadSettings, pushRecent, saveSettings } from "./settings";
+import { clearQueued, getRecent, loadSettings, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
@@ -201,6 +201,43 @@ async function showQr() {
   dlg.showModal();
 }
 
+// ---------- same-name upload ----------
+function askConflict(info: { name: string; existing: string; kind: "score" | "convert" | "queued" }): Promise<api.Conflict> {
+  return new Promise((resolve) => {
+    let answer: api.Conflict = "skip";
+    const msg =
+      info.kind === "queued"
+        ? `「${info.existing}」已经在转换队列中（转换通常需要 3–10 分钟），不需要重复上传。`
+        : info.kind === "convert"
+          ? `已有乐谱「${displayName(info.existing)}」。这份 PDF / 图片转换完成后会覆盖它（包括你在其中标注的指法）。`
+          : `已有同名文件「${displayName(info.existing)}」。`;
+    const done = (a: api.Conflict) => () => {
+      answer = a;
+      dlg.close();
+    };
+    const dlg = h(
+      "dialog",
+      { class: "dlg center" },
+      h("h2", {}, "文件名重复"),
+      h("p", {}, msg),
+      h("p", { class: "muted small" }, "替换：用新文件覆盖旧的（旧版本仍可在 GitHub 历史里找回）。保留两份：新文件自动改名，比如“名称 (2)”。"),
+      h(
+        "div",
+        { class: "row wrap stack" },
+        ...(info.kind === "queued"
+          ? [h("button", { class: "primary", onclick: done("skip") }, "好的，等它转换"), h("button", { onclick: done("replace") }, "重新上传"), h("button", { onclick: done("keep") }, "另存一份")]
+          : [h("button", { class: "primary", onclick: done("keep") }, "保留两份"), h("button", { class: "danger", onclick: done("replace") }, "替换"), h("button", { onclick: done("skip") }, "取消")]),
+      ),
+    );
+    dlg.addEventListener("close", () => {
+      dlg.remove();
+      resolve(answer);
+    });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+
 // ---------- home ----------
 async function renderHome() {
   cleanup();
@@ -208,10 +245,23 @@ async function renderHome() {
   const recent = h("div", { class: "grid" });
   const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
   const queue = h("div", { class: "grid" });
+  const banner = h(
+    "div",
+    { class: "banner", hidden: true },
+    h("div", { class: "spin" }),
+    h(
+      "div",
+      {},
+      h("b", {}, "正在转换，请耐心等待，不要重复上传"),
+      h("div", { class: "small" }, "通常需要 3–10 分钟。完成后会自动出现在“全部琴谱”里，并弹出提示（请保持此页面打开）。"),
+      h("a", { href: `https://github.com/${api.getAuth()?.repo ?? ""}/actions`, target: "_blank", rel: "noopener" }, "在 GitHub 查看转换进度 ↗"),
+    ),
+  );
   const queueSec = h(
     "section",
     { hidden: true },
     h("h2", {}, "PDF / 图片转换"),
+    banner,
     queue,
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
   );
@@ -221,8 +271,14 @@ async function renderHome() {
     for (const f of Array.from(file.files ?? [])) {
       try {
         toast(`上传中：${f.name}`);
-        const up = await api.uploadScore(f);
-        toast(up.kind === "inbox" ? `已加入转换队列：${f.name}（约需几分钟）` : `已上传：${f.name}`);
+        const up = await api.uploadScore(f, askConflict);
+        if (!up) toast(`已跳过：${f.name}`);
+        else if (up.kind === "inbox") {
+          optimistic.set(up.name, Date.now());
+          markQueued(up.name);
+          toast(`已加入转换队列：${up.name}`);
+          prevPending.add(up.name);
+        } else toast(`已上传：${up.name}`);
       } catch (e) {
         if (e instanceof api.AuthExpired) return renderLogin(e.message);
         toast((e as Error).message);
@@ -266,18 +322,27 @@ async function renderHome() {
         }, "🗑"),
     );
 
+  const waited = (name: string): string => {
+    const ts = queuedAt()[name];
+    if (!ts) return "";
+    const m = Math.floor((Date.now() - ts) / 60000);
+    if (m < 1) return "刚刚上传";
+    return m >= 20 ? `已等待 ${m} 分钟，时间偏长，请点上方链接查看进度` : `已等待 ${m} 分钟`;
+  };
   const queueCard = (it: api.InboxItem) =>
     h(
       "div",
       { class: "card" + (it.failed ? " failed" : " busy") },
-      h("span", { class: "open static" }, it.failed ? `⚠ ${it.name}（转换失败）` : `⏳ ${it.name}（转换中…）`),
+      it.failed
+        ? h("span", { class: "open static" }, `⚠ ${it.name}（转换失败）`)
+        : h("span", { class: "open static qline" }, h("span", { class: "spin small" }), h("span", {}, h("div", {}, it.name), h("div", { class: "muted small" }, `转换中… ${waited(it.name)}`))),
       it.failed &&
         h("button", { class: "del", title: "查看原因", onclick: async () => {
           try { showLog(it.name, await api.readFailureLog(it.name)); } catch (e) { toast((e as Error).message); }
         } }, "ℹ"),
       h("button", { class: "del", title: "删除", onclick: async () => {
         if (!confirm(`从队列中删除「${it.name}」？`)) return;
-        try { await api.deleteInbox(it.name); load(); } catch (e) { toast((e as Error).message); }
+        try { await api.deleteInbox(it.name); clearQueued(it.name); optimistic.delete(it.name); load(); } catch (e) { toast((e as Error).message); }
       } }, "🗑"),
     );
   function showLog(name: string, text: string) {
@@ -290,11 +355,28 @@ async function renderHome() {
   async function load() {
     clearTimeout(homeTimer);
     try {
-      const inbox = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
+      const listed = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
+      const scores = await api.listScores();
+      // a just-uploaded file may not show up in GitHub's listing for a few seconds: keep showing it
+      const inbox = [...listed];
+      for (const [n, ts] of optimistic) {
+        if (listed.some((i) => i.name === n)) optimistic.delete(n);
+        else if (Date.now() - ts > 90000 || scores.some((x) => x.name === n.replace(/\.[^.]+$/, ".musicxml"))) optimistic.delete(n);
+        else inbox.push({ name: n, failed: false });
+      }
+      // finished or failed since the last check -> tell the user
+      const pendingNow = new Set(inbox.filter((i) => !i.failed).map((i) => i.name));
+      for (const n of prevPending) {
+        if (pendingNow.has(n)) continue;
+        const stem = n.replace(/\.[^.]+$/, "");
+        if (scores.some((x) => x.name.startsWith(stem + "."))) { toast(`✅ 转换完成：${stem}，已加入琴谱列表（请打开核对）`); clearQueued(n); }
+        else if (inbox.some((i) => i.name === n && i.failed)) toast(`⚠ 转换失败：${n}，点它旁边的 ℹ 查看原因`);
+      }
+      prevPending = pendingNow;
       queue.replaceChildren(...inbox.map(queueCard));
       queueSec.hidden = inbox.length === 0;
-      if (inbox.some((i) => !i.failed)) homeTimer = window.setTimeout(load, 20000); // poll while converting
-      const scores = await api.listScores();
+      banner.hidden = pendingNow.size === 0;
+      if (pendingNow.size) homeTimer = window.setTimeout(load, 10000); // poll while converting
       const names = new Set(scores.map((s) => s.name));
       list.replaceChildren(...scores.sort((a, b) => a.name.localeCompare(b.name, "zh")).map((s) => card(s.name, true)));
       status.textContent = scores.length ? "" : "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl）。";
@@ -312,6 +394,9 @@ async function renderHome() {
 // ---------- player ----------
 let disposePlayer: (() => void) | null = null;
 let homeTimer = 0;
+/** queued PDFs the server has not listed yet, and which ones were converting at the last check */
+const optimistic = new Map<string, number>();
+let prevPending = new Set<string>();
 function cleanup() {
   clearTimeout(homeTimer);
   disposePlayer?.();

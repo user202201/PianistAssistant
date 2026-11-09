@@ -113,3 +113,15 @@ button.narrow { min-width: 0; padding-left: 10px; padding-right: 10px; }
 .group.pair { gap: 0; }
 .group.pair button:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .group.pair button:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 0; }
+
+.dlg .stack { justify-content: center; }
+button.danger { background: #7f1d1d; border-color: #b91c1c; }
+
+.banner { display: flex; gap: 14px; align-items: center; background: #172554; border: 1px solid #2563eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+.banner[hidden] { display: none; }
+.banner .small { color: #bfdbfe; margin: 2px 0 6px; }
+.banner a { color: #93c5fd; }
+.spin { flex: none; width: 26px; height: 26px; border: 3px solid #93c5fd44; border-top-color: #60a5fa; border-radius: 50%; animation: spin 1s linear infinite; }
+.spin.small { width: 18px; height: 18px; border-width: 2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.qline { display: flex; align-items: center; gap: 12px; }

@@ -39,8 +39,10 @@
 **设置：在私有仓库 `PianistScores` 里添加一个文件**（令牌没有修改工作流的权限，所以只能手动加一次）：
 1. 打开 PianistScores → Add file → Create new file
 2. 文件名填 `.github/workflows/convert.yml`
-3. 内容复制本仓库 [`scores-repo-template/.github/workflows/convert.yml`](scores-repo-template/.github/workflows/convert.yml)
+3. 内容复制本仓库 [`scores-repo-template/.github/workflows/convert.yml`](scores-repo-template/.github/workflows/convert.yml)（很短，只负责调用本仓库里的 `scores-repo-template/convert.sh`，所以以后改进转换逻辑不需要再改这个文件）
 4. Commit changes
+
+转换失败时，主页的失败卡片点 ℹ 能看到原因；修好后点 🗑 删除失败项，再重新上传即可。
 
 注意：
 - 识别准确率有限。清晰的印刷谱较好，照片、手写、复杂钢琴谱会有错音和错时值，**转换后务必打开核对**。
