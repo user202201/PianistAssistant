@@ -16,6 +16,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y poppler-utils   # pdftoppm, used by the converter-script test (tests/shell)
       - run: bash tests/run-all.sh
       - uses: actions/upload-artifact@v4
         if: always()
