@@ -526,7 +526,7 @@ interface View {
   band: HTMLElement;
   osmd: OpenSheetMusicDisplay;
   /** split view: this view draws a single part, so its cursor has its own (shorter) list of steps; matched by time */
-  steps?: { sec: number }[];
+  steps?: { sec: number; measure: number; onset: number }[];
   cur: number;
 }
 
@@ -931,6 +931,54 @@ function buildControls(
   }
   onViewSetting = () => followView();
 
+  // ---- tap the score to choose where playback starts ----
+  /** every place on this screen that playback can start from: x, the vertical band of its staff row, measure and onset */
+  function tapTargets(v: View) {
+    const svg = v.holder.querySelector("svg");
+    if (!svg) return [];
+    const hr = v.holder.getBoundingClientRect();
+    const sr = svg.getBoundingClientRect();
+    const ox = sr.left - hr.left;
+    const oy = sr.top - hr.top;
+    const k = 10 * v.osmd.zoom;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gs: any = v.osmd.GraphicSheet;
+    const out: { x: number; y0: number; y1: number; measure: number; onset: number }[] = [];
+    gs.MeasureList.forEach((row: any[], mi: number) =>
+      row.forEach((gm) => {
+        if (!gm) return;
+        const y0 = oy + gm.PositionAndShape.AbsolutePosition.y * k;
+        const y1 = y0 + (gm.PositionAndShape.Size?.height ?? 4) * k;
+        for (const se of gm.staffEntries) out.push({ x: ox + se.PositionAndShape.AbsolutePosition.x * k, y0, y1, measure: mi, onset: se.relInMeasureTimestamp.RealValue });
+      }),
+    );
+    return out;
+  }
+  function seekFromTap(v: View, ev: MouseEvent) {
+    if (tools.editing) return; // editing fingering: taps select notes
+    const hr = v.holder.getBoundingClientRect();
+    const px = ev.clientX - hr.left;
+    const py = ev.clientY - hr.top;
+    let best: ReturnType<typeof tapTargets>[number] | null = null;
+    let bestCost = Infinity;
+    for (const t of tapTargets(v)) {
+      const dy = py < t.y0 ? t.y0 - py : py > t.y1 ? py - t.y1 : 0;
+      const cost = dy * 2 + Math.abs(px - t.x);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = t;
+      }
+    }
+    if (!best) return;
+    const list = v.steps ?? score.steps; // this screen's own steps (split) or the full list
+    const i = list.findIndex((s) => s.measure === best!.measure && Math.abs(s.onset - best!.onset) < 1e-6);
+    if (i < 0) return;
+    // a split screen has its own step numbering: go through time to find the matching step of the full score
+    const gi = v.steps ? Math.max(0, score.steps.findIndex((s) => s.sec >= list[i].sec - 1e-4)) : i;
+    player.seekStep(gi);
+  }
+  for (const v of views) v.holder.addEventListener("click", (ev) => seekFromTap(v, ev));
+
   function sync() {
     syncViews();
     followView();
@@ -1029,6 +1077,14 @@ function buildControls(
   }
   app.append(bar);
   refreshMore();
+  try {
+    if (!localStorage.getItem("pianist.tap.hint")) {
+      localStorage.setItem("pianist.tap.hint", "1");
+      setTimeout(() => toast("点谱面上的任意位置，可以从那里开始播放", 5000), 800);
+    }
+  } catch {
+    /* private mode */
+  }
   status.textContent = "";
   sync();
 }

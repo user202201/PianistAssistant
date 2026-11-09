@@ -25,6 +25,8 @@ export interface NoteEvent {
 export interface StepInfo {
   sec: number;
   measure: number; // 0-based measure index in the source
+  /** position inside the measure (whole notes): with `measure` it identifies the step on screen */
+  onset: number;
 }
 
 export interface ParsedScore {
@@ -84,7 +86,7 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const staffCounts: number[] = sheet.Instruments.map((i: any) => i.Staves.length);
 
-  interface Raw { beat: number; bpm: number; measure: number }
+  interface Raw { beat: number; bpm: number; measure: number; rel: number }
   const raws: Raw[] = [];
   interface RawNote { beat: number; lenBeats: number; midi: number; part: number; staff: number; step: number; measure: number; rel: number }
   const notes: RawNote[] = [];
@@ -111,7 +113,7 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
     endBeat = measureStart + mLen;
     const bpm: number = cm?.TempoInBPM > 0 ? cm.TempoInBPM : defaultBpm;
     const step = raws.length;
-    raws.push({ beat, bpm, measure });
+    raws.push({ beat, bpm, measure, rel: (ts - mAbs) / 4 });
     for (const ve of it.CurrentVoiceEntries) {
       const staffObj = ve.ParentSourceStaffEntry.ParentStaff;
       const inst = staffObj.ParentInstrument;
@@ -177,7 +179,7 @@ export function extractScore(osmd: OpenSheetMusicDisplay, fallbackTitle: string)
     parts,
     staffCounts,
     events,
-    steps: raws.map((r, i) => ({ sec: secs[i], measure: r.measure })),
+    steps: raws.map((r, i) => ({ sec: secs[i], measure: r.measure, onset: r.rel })),
     duration,
     baseBpm: defaultBpm,
     measureCount: sheet.SourceMeasures.length,
