@@ -1,0 +1,30 @@
+name: ocr-lab-deep
+# Could a deep-learning OMR engine (oemer, homr) replace Audiveris inside the apps? Measured on the lab scores (samples/ocr-lab).
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/epic-dirac-38xck6]
+    paths: ["scripts/ocr-lab-deep.sh", "scripts/merge-musicxml-pages.py", ".github/workflows/ocr-lab-deep.yml"]
+permissions:
+  contents: read
+jobs:
+  deep:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - name: Install the engines
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils libgl1
+          python -m pip install --upgrade pip
+          pip install oemer 2>&1 | tail -n 3 || echo "oemer install failed"
+          (pip install homr 2>&1 | tail -n 3) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 3) || echo "homr install failed"
+          pip list 2>/dev/null | grep -iE "oemer|homr|onnx|torch|tensorflow|opencv" || true
+          which oemer homr || true
+      - name: Run
+        run: bash scripts/ocr-lab-deep.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ocr-lab-deep-results, path: /tmp/deep-out/* }
