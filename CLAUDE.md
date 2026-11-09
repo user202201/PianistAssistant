@@ -12,3 +12,8 @@
    not in a to-do list for the user.
 6. **Tests.** Playwright suites live outside the repo (scratchpad); keep adding a suite for each new feature and run all before pushing.
 7. **Answer the user in Chinese, step by step, and be honest about what could not be tested** (real iPad, real piano samples, real Apple/Google accounts).
+8. **PDF conversion quality is measured, not guessed.** `.github/workflows/ocr-lab.yml` converts PDFs made from known scores (`samples/ocr-lab/`)
+   and prints a per-measure comparison. Before changing `scores-repo-template/convert-one.sh`, run it (Actions → ocr-lab) and compare.
+   Known: Audiveris is near-perfect on clean PDFs; the full English Tesseract model is needed for titles; a last system without a final barline is lost.
+9. **Going private / paid services.** `docs/going-private/README.md` is the user's self-service guide. Keep `scores-repo-bundle.zip` (built by
+   `scripts/make-scores-repo-bundle.sh`) in sync with `scores-repo-template/`; the user copies it into the scores repo once.

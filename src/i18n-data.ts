@@ -1,5 +1,6 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "查看原 PDF（对照）": "View the original PDF (to compare)",
   "本机存储不可用（浏览器禁止了本地数据）": "On-device storage is unavailable (the browser blocks local data)",
   "本机存储出错": "On-device storage error",
   "文件不在本机上": "The file is not on this device",
@@ -302,6 +303,7 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "查看原 PDF（对照）": "Voir le PDF d'origine (pour comparer)",
   "本机存储不可用（浏览器禁止了本地数据）": "Le stockage sur l'appareil est indisponible (le navigateur bloque les données locales)",
   "本机存储出错": "Erreur du stockage sur l'appareil",
   "文件不在本机上": "Le fichier n'est pas sur cet appareil",

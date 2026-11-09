@@ -823,6 +823,10 @@ async function renderHome() {
       starBtn(favKey.score(name)),
       withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
+          // the PDF this score was converted from (kept when "both" was chosen): open it to check the result against the original
+          ...(lastPdfs.some((p) => p.name.replace(/\.pdf$/i, "") === displayName(name))
+            ? [{ label: "查看原 PDF（对照）", icon: "note", run: () => { location.hash = `#/pdf/${encodeURIComponent(displayName(name) + ".pdf")}`; } }]
+            : []),
           { label: "重命名…", icon: "pencil", run: async () => {
             const v = await askText("重命名", displayName(name), "保存");
             if (!v || v === displayName(name)) return;

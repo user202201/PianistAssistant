@@ -51,6 +51,18 @@ for extra in files[1:]:
           last += 1
           m.set("number", str(last))
           parts[i].append(m)
+# tidy the recognised text: bar numbers that were read as text are noise; the first real text becomes the title
+import re
+def credit_text(c):
+    return "".join(w.text or "" for w in c.findall("credit-words")).strip()
+for c in list(root.findall("credit")):
+    if re.fullmatch(r"[\d\W_]*", credit_text(c)):
+        root.remove(c)
+first = next((credit_text(c) for c in root.findall("credit") if credit_text(c)), "")
+if first and root.find("work/work-title") is None:
+    work = ET.Element("work")
+    ET.SubElement(work, "work-title").text = first
+    root.insert(0, work)
 base.write(sys.argv[2], encoding="UTF-8", xml_declaration=True)
 PY
 fi
