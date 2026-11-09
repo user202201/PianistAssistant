@@ -82,29 +82,35 @@ export function clearQueued(name: string) {
   }
 }
 
-const NKEY = "pianist.new.v1";
-const readNew = (): string[] => {
+const NKEY = "pianist.new.v2";
+const NEW_DAYS = 3;
+/** name -> time it was marked; marks older than a few days are dropped by themselves */
+const readNew = (): Record<string, number> => {
   try {
-    return JSON.parse(localStorage.getItem(NKEY) ?? "[]");
+    const m = JSON.parse(localStorage.getItem(NKEY) ?? "{}") as Record<string, number>;
+    const out: Record<string, number> = {};
+    for (const [k, t] of Object.entries(m)) if (typeof t === "number" && Date.now() - t < NEW_DAYS * 86400_000) out[k] = t;
+    return out;
   } catch {
-    return [];
+    return {};
+  }
+};
+const writeNew = (m: Record<string, number>) => {
+  try {
+    localStorage.setItem(NKEY, JSON.stringify(m));
+  } catch {
+    /* ignore */
   }
 };
 /** scores that were just produced by a conversion and not opened yet */
-export const isNew = (name: string) => readNew().includes(name);
+export const isNew = (name: string) => name in readNew();
 export function markNew(name: string) {
-  try {
-    localStorage.setItem(NKEY, JSON.stringify([name, ...readNew().filter((n) => n !== name)].slice(0, 20)));
-  } catch {
-    /* ignore */
-  }
+  writeNew({ ...readNew(), [name]: Date.now() });
 }
 export function clearNew(name: string) {
-  try {
-    localStorage.setItem(NKEY, JSON.stringify(readNew().filter((n) => n !== name)));
-  } catch {
-    /* ignore */
-  }
+  const m = readNew();
+  delete m[name];
+  writeNew(m);
 }
 
 export function renameRecent(from: string, to: string) {

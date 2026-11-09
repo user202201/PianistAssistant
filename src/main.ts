@@ -62,6 +62,7 @@ const toast = (msg: string, ms = 3500) => {
   const t = h("div", { class: "toast" }, msg);
   document.body.append(t);
   setTimeout(() => t.remove(), ms);
+  return () => t.remove(); // dismiss early (e.g. a "working…" message once the work is done)
 };
 const displayName = (n: string) => n.replace(/\.(musicxml|xml|mxl)$/i, "");
 
@@ -549,8 +550,12 @@ async function renderHome() {
   const savePairs = async (next: api.Pair[]) => {
     try {
       const adding = next.length > pairs.length;
-      toast(adding ? "正在合成四手联弹…稍等片刻，它会出现在列表里" : "正在保存…", 6000);
-      await api.writePairs(next);
+      const closeBusy = toast(adding ? "正在合成四手联弹…稍等片刻，它会出现在列表里" : "正在保存…", 20000);
+      try {
+        await api.writePairs(next);
+      } finally {
+        closeBusy();
+      }
       pairs = next;
       if (adding) toast(`✅ 已合成四手联弹「${next[next.length - 1].name}」，在列表里（带蓝色标记的那张）`, 6000);
       void load();
@@ -693,7 +698,7 @@ async function renderHome() {
     h(
       "div",
       { class: "card" },
-      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, marquee(displayName(name))),
+      h("button", { class: `open${isNew(name) ? " isnew" : ""}`, onclick: () => { clearNew(name); location.hash = `#/score/${encodeURIComponent(name)}`; } }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(displayName(name))),
         partOf(name).length ? h("div", { class: "muted small sub" }, marquee(partOf(name).map((p) => `${p.a === name ? "A" : "B"} 声部 · 四手联弹「${p.name}」`).join("；"))) : null)),
       withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
@@ -1572,7 +1577,8 @@ function buildControls(
     handSig = sig;
     tools.setHandFilter((pi, n) => {
       const hs = player.partHands[pi];
-      return !hs || score.staffCounts[pi] < 2 || (n.hand === "R" ? hs.right : hs.left);
+      // same rule as the sound (player.audible): upper staff = right hand, lower staff = left hand
+      return !hs || score.staffCounts[pi] < 2 || (n.staff % 2 === 0 ? hs.right : hs.left);
     });
   }
   function sync() {
