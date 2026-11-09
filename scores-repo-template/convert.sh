@@ -8,24 +8,37 @@ shopt -s nullglob nocaseglob
 LOG=/tmp/convert-setup.log
 : > "$LOG"
 
+commit_results() {
+  git config user.name "score-converter"
+  git config user.email "converter@users.noreply.github.com"
+  # inbox/ may no longer exist after its last file was converted (git does not track empty folders)
+  git add -A -- scores 2>/dev/null || true
+  if [ -d inbox ]; then git add -A -- inbox; fi
+  if git diff --cached --quiet; then echo "nothing to commit"; return 0; fi
+  git commit -q -m "Convert scores from inbox"
+  local branch; branch=$(git rev-parse --abbrev-ref HEAD)
+  for _ in 1 2 3; do
+    git push && return 0
+    git pull --rebase origin "$branch" || return 1
+  done
+  return 1
+}
+
+
+# "retry" markers written by the app only exist to trigger this workflow: remove them
+for r in inbox/*.retry.txt; do git rm -q -f "$r"; done
+
 files=(inbox/*.pdf inbox/*.png inbox/*.jpg inbox/*.jpeg inbox/*.tif inbox/*.tiff inbox/*.bmp)
 todo=()
 for f in "${files[@]}"; do
   [ -e "$f.failed.txt" ] || todo+=("$f")
 done
 echo "${#todo[@]} file(s) to convert"
-[ "${#todo[@]}" -eq 0 ] && exit 0
+if [ "${#todo[@]}" -eq 0 ]; then commit_results; exit 0; fi
 
-commit_results() {
-  git config user.name "score-converter"
-  git config user.email "converter@users.noreply.github.com"
-  git add -A scores inbox
-  if git diff --cached --quiet; then echo "nothing to commit"; return 0; fi
-  git commit -q -m "Convert scores from inbox"
-  git push || { git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)" && git push; }
-}
-
+handled=0
 fail_all() { # $1 = reason; marks every file that is still queued as failed
+  handled=1
   echo "FATAL: $1" | tee -a "$LOG"
   for f in "${todo[@]}"; do
     [ -e "$f" ] || continue
@@ -34,6 +47,20 @@ fail_all() { # $1 = reason; marks every file that is still queued as failed
   commit_results
   exit 1
 }
+
+# Safety net: if anything unexpected kills the script, still tell the app instead of leaving it "converting" forever
+on_exit() {
+  local rc=$?
+  if [ "$rc" -ne 0 ] && [ "$handled" -eq 0 ]; then
+    handled=1
+    for f in "${todo[@]}"; do
+      [ -e "$f" ] || continue
+      [ -e "$f.failed.txt" ] || { echo "Unexpected error (exit $rc) while converting"; echo "-----"; tail -n 60 "$LOG"; } > "$f.failed.txt"
+    done
+    commit_results || true
+  fi
+}
+trap on_exit EXIT
 
 # ---- install Audiveris (unpack the .deb without running its desktop-menu post-install script) ----
 if [ -n "${AUDIVERIS_BIN:-}" ]; then
@@ -88,4 +115,4 @@ for f in "${todo[@]}"; do
   fi
 done
 
-commit_results
+commit_results || exit 1

@@ -69,3 +69,28 @@ export function clearQueued(name: string) {
     /* ignore */
   }
 }
+
+const NKEY = "pianist.new.v1";
+const readNew = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(NKEY) ?? "[]");
+  } catch {
+    return [];
+  }
+};
+/** scores that were just produced by a conversion and not opened yet */
+export const isNew = (name: string) => readNew().includes(name);
+export function markNew(name: string) {
+  try {
+    localStorage.setItem(NKEY, JSON.stringify([name, ...readNew().filter((n) => n !== name)].slice(0, 20)));
+  } catch {
+    /* ignore */
+  }
+}
+export function clearNew(name: string) {
+  try {
+    localStorage.setItem(NKEY, JSON.stringify(readNew().filter((n) => n !== name)));
+  } catch {
+    /* ignore */
+  }
+}

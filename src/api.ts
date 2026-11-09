@@ -285,5 +285,36 @@ async function remove(dir: string, name: string, message: string) {
 export const deleteScore = (name: string) => remove(SCORES, name, `Delete score: ${name}`);
 export async function deleteInbox(name: string) {
   await remove(INBOX, name + ".failed.txt", `Clear failure note: ${name}`);
+  await remove(INBOX, name + ".retry.txt", `Clear retry marker: ${name}`);
   await remove(INBOX, name, `Remove from queue: ${name}`);
+}
+
+/** Run the conversion again: clears the failure note and writes a marker file that triggers the workflow. */
+export async function retryConversion(name: string) {
+  await remove(INBOX, name + ".failed.txt", `Retry conversion: ${name}`);
+  await put(INBOX, name + ".retry.txt", new TextEncoder().encode(String(Date.now())).buffer as ArrayBuffer, `Retry conversion: ${name}`);
+}
+
+const sinceCache = new Map<string, number>();
+export const forgetSince = (name: string) => void sinceCache.delete(name);
+export async function queuedSince(name: string): Promise<number | null> {
+  const hit = sinceCache.get(name);
+  if (hit) return hit;
+  const a = need();
+  const lastCommit = async (path: string): Promise<number | null> => {
+    const r = await gh(a, `https://api.github.com/repos/${a.repo}/commits?path=${encodeURIComponent(path)}&per_page=1&sha=${encodeURIComponent(a.branch ?? "main")}`, {
+      headers: headers(a),
+      cache: "no-store",
+    });
+    if (!r.ok) return null;
+    const d = ((await r.json()) as { commit?: { committer?: { date?: string } } }[])[0]?.commit?.committer?.date;
+    const ts = d ? Date.parse(d) : NaN;
+    return Number.isFinite(ts) ? ts : null;
+  };
+  // the later of "uploaded" and "retried" (the retry marker has its own path)
+  const times = [await lastCommit(`${INBOX}/${name}`), await lastCommit(`${INBOX}/${name}.retry.txt`)].filter((t): t is number => t !== null);
+  if (!times.length) return null;
+  const ts = Math.max(...times);
+  sinceCache.set(name, ts);
+  return ts;
 }

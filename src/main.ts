@@ -6,7 +6,7 @@ import { SOUNDS, createSynth, unlockIOSAudio } from "./audio";
 import { FingerTools } from "./fingerui";
 import { Player } from "./player";
 import { extractScore, toMusicXml } from "./score";
-import { clearQueued, getRecent, loadSettings, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
+import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
@@ -26,10 +26,10 @@ function h<K extends keyof HTMLElementTagNameMap>(
   for (const k of kids) if (k) el.append(k);
   return el;
 }
-const toast = (msg: string) => {
+const toast = (msg: string, ms = 3500) => {
   const t = h("div", { class: "toast" }, msg);
   document.body.append(t);
-  setTimeout(() => t.remove(), 3500);
+  setTimeout(() => t.remove(), ms);
 };
 const displayName = (n: string) => n.replace(/\.(musicxml|xml|mxl)$/i, "");
 
@@ -244,7 +244,7 @@ async function renderHome() {
   const list = h("div", { class: "grid" });
   const recent = h("div", { class: "grid" });
   const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
-  const queue = h("div", { class: "grid" });
+  const queue = h("div", { class: "grid wide" });
   const banner = h(
     "div",
     { class: "banner", hidden: true },
@@ -257,11 +257,24 @@ async function renderHome() {
       h("a", { href: `https://github.com/${api.getAuth()?.repo ?? ""}/actions`, target: "_blank", rel: "noopener" }, "在 GitHub 查看转换进度 ↗"),
     ),
   );
+  const stalledBanner = h(
+    "div",
+    { class: "banner warn", hidden: true },
+    h("div", { class: "warnicon" }, "⚠"),
+    h(
+      "div",
+      {},
+      h("b", {}, "转换比平时久，可能已经卡住"),
+      h("div", { class: "small" }, "正常几分钟就会完成。可以点卡片上的 ↻ 重试，或到 GitHub 看运行日志找原因。"),
+      h("a", { href: `https://github.com/${api.getAuth()?.repo ?? ""}/actions`, target: "_blank", rel: "noopener" }, "在 GitHub 查看转换进度 ↗"),
+    ),
+  );
   const queueSec = h(
     "section",
     { hidden: true },
     h("h2", {}, "PDF / 图片转换"),
     banner,
+    stalledBanner,
     queue,
     h("p", { class: "muted small" }, "转换由私有琴谱仓库里的 GitHub 自动任务完成，通常需要几分钟。识别结果可能有错，请打开后核对，必要时在 MuseScore 里修改。"),
   );
@@ -305,7 +318,7 @@ async function renderHome() {
     h(
       "div",
       { class: "card" },
-      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, displayName(name)),
+      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
       del &&
         h("button", {
           class: "del",
@@ -322,29 +335,52 @@ async function renderHome() {
         }, "🗑"),
     );
 
-  const waited = (name: string): string => {
-    const ts = queuedAt()[name];
-    if (!ts) return "";
-    const m = Math.floor((Date.now() - ts) / 60000);
-    if (m < 1) return "刚刚上传";
-    return m >= 20 ? `已等待 ${m} 分钟，时间偏长，请点上方链接查看进度` : `已等待 ${m} 分钟`;
+  const STALLED_MIN = 15;
+  const since: Record<string, number> = {};
+  const minutesWaited = (name: string): number | null => {
+    const ts = Math.max(since[name] ?? 0, queuedAt()[name] ?? 0); // latest of server time and "I (re)queued it" time
+    return ts ? Math.floor((Date.now() - ts) / 60000) : null;
   };
-  const queueCard = (it: api.InboxItem) =>
-    h(
+  const isStalled = (it: api.InboxItem) => !it.failed && (minutesWaited(it.name) ?? 0) >= STALLED_MIN;
+  const retry = async (name: string) => {
+    try {
+      await api.retryConversion(name);
+      markQueued(name);
+      api.forgetSince(name);
+      delete since[name];
+      optimistic.set(name, Date.now());
+      prevPending.add(name);
+      toast(`已重新开始转换：${name}`);
+      load();
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  const queueCard = (it: api.InboxItem) => {
+    const m = minutesWaited(it.name);
+    const stalled = isStalled(it);
+    return h(
       "div",
-      { class: "card" + (it.failed ? " failed" : " busy") },
+      { class: "card" + (it.failed ? " failed" : stalled ? " stalled" : " busy") },
       it.failed
         ? h("span", { class: "open static" }, `⚠ ${it.name}（转换失败）`)
-        : h("span", { class: "open static qline" }, h("span", { class: "spin small" }), h("span", {}, h("div", {}, it.name), h("div", { class: "muted small" }, `转换中… ${waited(it.name)}`))),
+        : h(
+            "span",
+            { class: "open static qline" },
+            stalled ? h("span", {}, "⚠") : h("span", { class: "spin small" }),
+            h("span", {}, h("div", {}, it.name), h("div", { class: "muted small" }, stalled ? `已等待 ${m} 分钟，可能卡住了` : `转换中… ${m === null ? "" : m < 1 ? "刚刚上传" : `已等待 ${m} 分钟`}`)),
+          ),
       it.failed &&
         h("button", { class: "del", title: "查看原因", onclick: async () => {
           try { showLog(it.name, await api.readFailureLog(it.name)); } catch (e) { toast((e as Error).message); }
         } }, "ℹ"),
+      (it.failed || stalled) && h("button", { class: "del", title: "重试", onclick: () => void retry(it.name) }, "↻"),
       h("button", { class: "del", title: "删除", onclick: async () => {
         if (!confirm(`从队列中删除「${it.name}」？`)) return;
         try { await api.deleteInbox(it.name); clearQueued(it.name); optimistic.delete(it.name); load(); } catch (e) { toast((e as Error).message); }
       } }, "🗑"),
     );
+  };
   function showLog(name: string, text: string) {
     const dlg = h("dialog", { class: "dlg" }, h("h2", {}, `转换失败：${name}`), h("pre", { class: "log" }, text), h("button", { class: "primary", onclick: () => dlg.close() }, "关闭"));
     dlg.addEventListener("close", () => dlg.remove());
@@ -364,18 +400,22 @@ async function renderHome() {
         else if (Date.now() - ts > 90000 || scores.some((x) => x.name === n.replace(/\.[^.]+$/, ".musicxml"))) optimistic.delete(n);
         else inbox.push({ name: n, failed: false });
       }
+      for (const it of inbox) if (!it.failed && !(it.name in since)) { const t = await api.queuedSince(it.name).catch(() => null); if (t) since[it.name] = t; }
       // finished or failed since the last check -> tell the user
       const pendingNow = new Set(inbox.filter((i) => !i.failed).map((i) => i.name));
       for (const n of prevPending) {
         if (pendingNow.has(n)) continue;
         const stem = n.replace(/\.[^.]+$/, "");
-        if (scores.some((x) => x.name.startsWith(stem + "."))) { toast(`✅ 转换完成：${stem}，已加入琴谱列表（请打开核对）`); clearQueued(n); }
-        else if (inbox.some((i) => i.name === n && i.failed)) toast(`⚠ 转换失败：${n}，点它旁边的 ℹ 查看原因`);
+        const done = scores.find((x) => x.name.startsWith(stem + "."));
+        if (done) { toast(`✅ 转换完成：${stem}，已加入琴谱列表（请打开核对）`, 10000); markNew(done.name); clearQueued(n); }
+        else if (inbox.some((i) => i.name === n && i.failed)) toast(`⚠ 转换失败：${n}，点它旁边的 ℹ 查看原因`, 10000);
       }
       prevPending = pendingNow;
       queue.replaceChildren(...inbox.map(queueCard));
       queueSec.hidden = inbox.length === 0;
-      banner.hidden = pendingNow.size === 0;
+      const busy = inbox.filter((i) => !i.failed && !isStalled(i));
+      banner.hidden = busy.length === 0;
+      stalledBanner.hidden = !inbox.some(isStalled);
       if (pendingNow.size) homeTimer = window.setTimeout(load, 10000); // poll while converting
       const names = new Set(scores.map((s) => s.name));
       list.replaceChildren(...scores.sort((a, b) => a.name.localeCompare(b.name, "zh")).map((s) => card(s.name, true)));
@@ -453,6 +493,7 @@ async function renderPlayer(name: string) {
     player = new Player(osmd, score, audioCtx(), inst);
     player.volume = settings.volume;
     pushRecent(name);
+    clearNew(name);
 
     // expose for tests / debugging
     (window as unknown as { __pianist: unknown }).__pianist = { player, score, osmd, tools };

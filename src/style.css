@@ -125,3 +125,11 @@ button.danger { background: #7f1d1d; border-color: #b91c1c; }
 .spin.small { width: 18px; height: 18px; border-width: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .qline { display: flex; align-items: center; gap: 12px; }
+
+.banner.warn { background: #422006; border-color: #d97706; }
+.banner.warn .small { color: #fde68a; }
+.banner.warn a { color: #fbbf24; }
+.warnicon { font-size: 1.6rem; flex: none; }
+.card.stalled { border-color: #d97706; }
+.newtag { display: inline-block; background: var(--accent); color: #052e16; font-size: .72rem; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-right: 8px; vertical-align: 1px; }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
