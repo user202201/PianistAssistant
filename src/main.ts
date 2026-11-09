@@ -1421,29 +1421,19 @@ function buildControls(
     // is the next line (mostly) on screen already? then there is nothing to preview
     const shown = Math.max(0, Math.min(next.top + next.h, vTop + viewH) - Math.max(next.top, vTop));
     if (shown >= next.h * 0.65) return off();
-    // an overlay needs a place that is not needed right now: the lines ABOVE the current one are already played.
-    // Floating there also is exactly where the next line lands after the page turn.
-    const hgt = Math.min(next.h + 20, viewH * 0.5);
-    const curTop = boxes[i].top - vTop;
-    let y: number;
-    let edge: "top" | "below";
-    let h2 = hgt;
-    if (curTop >= hgt + 6) {
-      y = 0;
-      edge = "top";
-    } else {
-      // no room above (tiny screen / current line near the top): right below the current line, whatever space is left
-      y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
-      h2 = Math.min(hgt, viewH - y);
-      edge = "below";
-      if (h2 < 70) return off();
-    }
+    // right under the current line (so the eye just continues downwards); if that runs past the bottom of the
+    // score area it floats over the control bar, which is not needed while playing
+    const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
+    const wr = v.wrap.getBoundingClientRect();
+    const room = (split ? wr.bottom : window.innerHeight) - 6 - (wr.top + y);
+    const h2 = Math.min(next.h + 20, room);
+    if (h2 < Math.min(110, next.h * 0.6)) return off();
     // the preview is a window onto the same drawing (no copy of the score is made)
     if (!svg.id || document.querySelectorAll(`[id="${svg.id}"]`).length > 1) svg.id = `osmd-svg-${++svgSeq}`;
     const w = svg.getBoundingClientRect().width;
-    v.peek.className = `peek ${edge}`;
+    v.peek.className = "peek";
     v.peek.style.cssText = `display:block;top:${v.wrap.offsetTop + y}px;height:${h2}px`;
-    v.peek.innerHTML = `<span class="tag">下一行 · 即将翻到这里</span><svg width="${w}" height="${h2}" viewBox="0 ${next.top - 10 - oy} ${w} ${h2}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
+    v.peek.innerHTML = `<span class="tag">下一行</span><svg width="${w}" height="${h2}" viewBox="0 ${next.top - 10 - oy} ${w} ${h2}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
   }
   function syncViews() {
     if (!split) return;

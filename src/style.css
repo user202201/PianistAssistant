@@ -335,3 +335,6 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 .mq.glide .mqi { animation: mqglide var(--t, 6s) ease-in-out 1.2s infinite alternate; }
 @keyframes mqglide { 0%, 12% { transform: translateX(0); } 88%, 100% { transform: translateX(var(--d)); } }
 @media (prefers-reduced-motion: reduce) { .mq.glide .mqi { animation: none; } .mq.glide { text-overflow: ellipsis; -webkit-mask-image: none; mask-image: none; } }
+
+/* preview directly under the current line; may float over the control bar */
+.peek { z-index: 30; }
