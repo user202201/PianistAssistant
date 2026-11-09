@@ -279,6 +279,33 @@ async function showQr() {
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
   }
 
+// ---------- what to do with an uploaded PDF ----------
+function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
+  return new Promise((resolve) => {
+    let answer: "convert" | "keep" | "both" | "cancel" = "cancel";
+    const pick = (a: typeof answer) => () => { answer = a; dlg.close(); };
+    const dlg = h(
+      "dialog",
+      { class: "dlg center" },
+      h("h2", {}, "这份 PDF 怎么处理？"),
+      h("p", { class: "small" }, name),
+      h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
+      h(
+        "div",
+        { class: "row wrap stack" },
+        h("button", { class: "primary", onclick: pick("both") }, "两个都要（转换并保留 PDF）"),
+        h("button", { onclick: pick("keep") }, "只保留 PDF，当作乐谱查看"),
+        h("button", { onclick: pick("convert") }, "只转换成可播放乐谱"),
+        h("button", { onclick: pick("cancel") }, "取消"),
+      ),
+    );
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(answer); });
+    document.body.append(dlg);
+    dlg.showModal();
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+
 // ---------- same-name upload ----------
 function askConflict(info: { name: string; existing: string; kind: "score" | "convert" | "queued" }): Promise<api.Conflict> {
   return new Promise((resolve) => {
@@ -477,6 +504,8 @@ async function renderHome() {
   cleanup();
   const token = renderSeq;
   const list = h("div", { class: "grid" });
+  const pdfList = h("div", { class: "grid" });
+  const pdfSec = h("section", { hidden: true }, h("h2", {}, "PDF 乐谱"), h("p", { class: "muted small" }, "原样保存的 PDF，只能查看，不能播放。"), pdfList);
   const recent = h("div", { class: "grid" });
   const recentSec = h("section", {}, h("h2", {}, "最近打开"), recent);
   const queue = h("div", { class: "grid wide" });
@@ -519,8 +548,11 @@ async function renderHome() {
   const suggest = h("div", { class: "suggest" });
   const savePairs = async (next: api.Pair[]) => {
     try {
+      const adding = next.length > pairs.length;
+      toast(adding ? "正在合成四手联弹…稍等片刻，它会出现在列表里" : "正在保存…", 6000);
       await api.writePairs(next);
       pairs = next;
+      if (adding) toast(`✅ 已合成四手联弹「${next[next.length - 1].name}」，在列表里（带蓝色标记的那张）`, 6000);
       void load();
     } catch (e) {
       if (e instanceof api.AuthExpired) return void renderLogin(e.message);
@@ -532,7 +564,18 @@ async function renderHome() {
     const stored: string[] = [];
     for (const f of Array.from(file.files ?? [])) {
       try {
+        let mode: "convert" | "keep" | "both" = "convert";
+        if (/\.pdf$/i.test(f.name)) {
+          const a = await askPdfMode(f.name);
+          if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
+          mode = a;
+        }
         toast(`上传中：${f.name}`);
+        if (mode !== "convert") {
+          const kept = await api.storePdf(f, askConflict);
+          toast(kept ? `已保存 PDF：${kept}（在下面的“PDF 乐谱”里）` : `已跳过：${f.name}`);
+          if (mode === "keep") continue;
+        }
         const up = await api.uploadScore(f, askConflict);
         if (!up) toast(`已跳过：${f.name}`);
         else if (up.kind === "inbox") {
@@ -580,7 +623,7 @@ async function renderHome() {
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
-    h("main", { class: "home" }, queueSec, suggest, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list)),
+    h("main", { class: "home" }, queueSec, suggest, recentSec, h("section", {}, h("h2", {}, "全部琴谱"), status, list), pdfSec),
   );
 
   const deleteAction = (label: string, run: () => Promise<void>) => ({
@@ -600,7 +643,7 @@ async function renderHome() {
     return h(
       "div",
       { class: "card pair" },
-      h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, h("span", { class: "newtag duet" }, "四手"), marquee(p.name)))),
+      h("button", { class: "open", onclick: () => (location.hash = duetHash(p)) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(p.name)))),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(p.name, [
         { label: "重命名…", icon: "pencil", run: async () => {
           const v = await askText("重命名这首四手联弹", p.name, "保存");
@@ -621,6 +664,30 @@ async function renderHome() {
       ]) }, ic("chevron-down", 20)),
     );
   };
+  const pdfCard = (name: string) =>
+    h(
+      "div",
+      { class: "card pdf" },
+      h("button", { class: "open", onclick: () => (location.hash = `#/pdf/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
+      h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
+        { label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
+          try {
+            const n = await api.convertStoredPdf(name);
+            optimistic.set(n, Date.now());
+            markQueued(n);
+            prevPending.add(n);
+            toast(`已加入转换队列：${n}`);
+            void load();
+          } catch (e) {
+            showError("无法转换", e);
+          }
+        } },
+        deleteAction("删除这份 PDF", async () => {
+          if (!confirm(`删除 PDF「${name}」？`)) return;
+          await api.deletePdf(name);
+        }),
+      ]) }, ic("chevron-down", 18)),
+    );
   const partOf = (name: string) => pairs.filter((p) => p.a === name || p.b === name);
   const card = (name: string, withMenu = false) =>
     h(
@@ -718,7 +785,10 @@ async function renderHome() {
     try {
       const listed = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
       const scores = await api.listScores();
+      const pdfs = await api.listPdfs().catch(() => [] as api.ScoreInfo[]);
       if (token !== renderSeq) return;
+      pdfList.replaceChildren(...pdfs.map((x) => pdfCard(x.name)));
+      pdfSec.hidden = pdfs.length === 0;
       // a just-uploaded file may not show up in GitHub's listing for a few seconds: keep showing it
       const inbox = [...listed];
       for (const [n, ts] of optimistic) {
@@ -1267,7 +1337,7 @@ function buildControls(
   function rerender() {
     const step = player.currentStep;
     for (const v of views) {
-      v.osmd.EngravingRules.RenderFingerings = tools.visible && tools.showXml;
+      v.osmd.EngravingRules.RenderFingerings = false; // every number is drawn by our own overlay so it can follow the hand selection
       v.osmd.zoom = settings.zoom;
       v.osmd.render();
       v.osmd.cursor.show();
@@ -1494,7 +1564,19 @@ function buildControls(
   }
   for (const v of views) v.holder.addEventListener("click", (ev) => seekFromTap(v, ev));
 
+  // fingering follows the hand selection (right / left) of each part
+  let handSig = "";
+  function syncFingerHands() {
+    const sig = JSON.stringify(player.partHands);
+    if (sig === handSig) return;
+    handSig = sig;
+    tools.setHandFilter((pi, n) => {
+      const hs = player.partHands[pi];
+      return !hs || score.staffCounts[pi] < 2 || (n.hand === "R" ? hs.right : hs.left);
+    });
+  }
   function sync() {
+    syncFingerHands();
     syncViews();
     followView();
     playBtn.replaceChildren(ic(player.playing ? "pause" : "play", 30));
@@ -1620,6 +1702,63 @@ async function signInFromLink(hash: string) {
   }
 }
 
+// ---------- PDF viewer (pages drawn with pdf.js, loaded only when a PDF is opened) ----------
+async function renderPdf(name: string) {
+  cleanup();
+  const token = renderSeq;
+  const stale = () => token !== renderSeq;
+  let zoom = 1;
+  const pages = h("div", { class: "pdfpages" });
+  const wrap = h("div", { class: "pdfwrap" }, pages);
+  const status = h("span", { class: "status" }, "加载 PDF…");
+  const bump = (d: number) => { zoom = Math.min(3, Math.max(0.5, zoom + d)); pages.style.setProperty("--z", String(zoom)); };
+  pages.style.setProperty("--z", "1");
+  app.replaceChildren(
+    h(
+      "header",
+      { class: "top compact" },
+      h("button", { class: "back", title: "返回", onclick: () => (location.hash = "#/") }, ic("chevron-left", 22), "返回"),
+      h("h1", {}, name.replace(/\.pdf$/i, "")),
+      h("div", { class: "grow" }),
+      status,
+      h("button", { class: "icon", title: "缩小", onclick: () => bump(-0.25) }, ic("minus", 20)),
+      h("button", { class: "icon", title: "放大", onclick: () => bump(0.25) }, ic("plus", 20)),
+    ),
+    wrap,
+  );
+  try {
+    const [pdfjs, worker, data] = await Promise.all([
+      import("pdfjs-dist/legacy/build/pdf.min.mjs"),
+      import("pdfjs-dist/legacy/build/pdf.worker.min.mjs?url"),
+      api.downloadPdf(name),
+    ]);
+    if (stale()) return;
+    pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise;
+    if (stale()) return;
+    status.textContent = `共 ${doc.numPages} 页`;
+    const ratio = Math.min(window.devicePixelRatio || 1, 2.5);
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      if (stale()) return;
+      const base = page.getViewport({ scale: 1 });
+      const scale = (Math.max(900, Math.min(1600, wrap.clientWidth * ratio)) / base.width);
+      const vp = page.getViewport({ scale });
+      const canvas = h("canvas", { class: "pdfpage" }) as HTMLCanvasElement;
+      canvas.width = Math.floor(vp.width);
+      canvas.height = Math.floor(vp.height);
+      canvas.style.aspectRatio = `${canvas.width} / ${canvas.height}`;
+      pages.append(canvas);
+      await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+    }
+  } catch (e) {
+    if (stale()) return;
+    if (e instanceof api.AuthExpired) return renderLogin(e.message);
+    status.textContent = "";
+    showError(`无法打开 ${name}`, e);
+  }
+}
+
 function route() {
   if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
   if (!api.getAuth()) return renderLogin();
@@ -1630,6 +1769,8 @@ function route() {
     void api.readPairs().then((ps) => renderDuet(ps.find((p) => p.a === a && p.b === b) ?? { name: defaultPairName(a, b), a, b }));
     return;
   }
+  const pdf = location.hash.match(/^#\/pdf\/(.+)$/);
+  if (pdf) return void renderPdf(decodeURIComponent(pdf[1]));
   const m = location.hash.match(/^#\/score\/(.+)$/);
   if (m) void renderPlayer(decodeURIComponent(m[1]));
   else void renderHome();

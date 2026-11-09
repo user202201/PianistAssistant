@@ -100,6 +100,12 @@ export class FingerTools implements FingerApi {
     this.layer.remove();
   }
 
+  /** which notes are shown: follows the right / left hand selection (part index, note) */
+  handOk: (part: number, n: XNote) => boolean = () => true;
+  setHandFilter(fn: (part: number, n: XNote) => boolean) {
+    this.handOk = fn;
+    this.refresh();
+  }
   get supported() {
     return this.notes.length > 0;
   }
@@ -154,7 +160,7 @@ export class FingerTools implements FingerApi {
               const inst = staff.ParentInstrument;
               const key = noteKey(sheet.Instruments.indexOf(inst), mi, inst.Staves.indexOf(staff), se.relInMeasureTimestamp.RealValue, sn.halfTone + 12);
               const note = this.byKey.get(key);
-              if (!note || note.tieStop) continue;
+              if (!note || note.tieStop || !this.handOk(note.part, note)) continue;
               const a = gn.PositionAndShape.AbsolutePosition;
               this.spots.push({ x: ox + a.x * k, y: oy + a.y * k, note });
             }
@@ -212,13 +218,15 @@ export class FingerTools implements FingerApi {
     const gk = (n: XNote) => `${n.part}|${n.staff}|${n.measure}|${Math.round(n.onset * 3840)}`;
     for (const s of this.spots) size.set(gk(s.note), (size.get(gk(s.note)) ?? 0) + 1);
 
-    interface Item { spot: Spot; text: string; pend: boolean }
+    interface Item { spot: Spot; text: string; pend: boolean; xml?: boolean }
     const items: Item[] = [];
     for (const s of this.spots) {
       const idx = s.note.idx;
       if (this.pending.has(idx)) {
         const v = this.pending.get(idx);
         items.push({ spot: s, text: v === null || v === undefined ? "✕" : String(v), pend: true });
+      } else if (this.showXml && s.note.fingering !== null) {
+        items.push({ spot: s, text: String(s.note.fingering), pend: false, xml: true });
       } else if (this.showAuto && s.note.fingering === null && this.auto.has(idx)) {
         items.push({ spot: s, text: String(this.auto.get(idx)), pend: false });
       }
@@ -271,7 +279,7 @@ export class FingerTools implements FingerApi {
       if (!best) continue;
       placed.add({ l: best.cx - w / 2, t: best.cy - H / 2, r: best.cx + w / 2, b: best.cy + H / 2 });
       const b = document.createElement("div");
-      b.className = `fbadge ${it.pend ? "pend" : "auto"}`;
+      b.className = `fbadge ${it.pend ? "pend" : it.xml ? "xml" : "auto"}`;
       b.textContent = it.text;
       b.style.left = `${best.cx}px`;
       b.style.top = `${best.cy - H / 2}px`;
@@ -385,6 +393,8 @@ export interface FingerApi {
   discard(): void;
   describeSelected(): string;
   refresh(): void;
+  /** show only the fingering of the selected hands: fn(part index, note) */
+  setHandFilter(fn: (part: number, n: XNote) => boolean): void;
   dispose(): void;
   /** the individual tool sets, in screen order (for saving each to its own file) */
   parts(): FingerTools[];
@@ -420,6 +430,7 @@ export class FingerGroup implements FingerApi {
     return t ? `${this.tools.length > 1 ? `${String.fromCharCode(65 + this.active)} 声部 · ` : ""}${t.describeSelected()}` : "";
   }
   refresh() { this.tools.forEach((t) => t.refresh()); }
+  setHandFilter(fn: (part: number, n: XNote) => boolean) { this.tools.forEach((t, i) => t.setHandFilter((_p, n) => fn(i, n))); }
   dispose() { this.tools.forEach((t) => t.dispose()); }
   parts() { return this.tools; }
 }

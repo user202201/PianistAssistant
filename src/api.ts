@@ -13,6 +13,7 @@ export interface ScoreInfo {
 const AUTH_KEY = "pianist.auth.v1";
 const SCORES = "scores";
 const INBOX = "inbox";
+const PDFS = "pdfs";
 const SCORE_EXT = /\.(musicxml|xml|mxl)$/i;
 /** files that need optical music recognition first (done by a GitHub Action in the scores repo) */
 const INBOX_EXT = /\.(pdf|png|jpe?g|tiff?|bmp)$/i;
@@ -443,4 +444,34 @@ export async function putScoreText(name: string, xml: string, message: string) {
   if (!n) throw new Error("文件名不可用");
   await put(SCORES, n, new TextEncoder().encode(xml).buffer as ArrayBuffer, message);
   return n;
+}
+
+// ---------- PDFs kept as they are (just to look at; no conversion) ----------
+export async function listPdfs(): Promise<ScoreInfo[]> {
+  return (await list(PDFS)).filter((i) => /\.pdf$/i.test(i.name));
+}
+export const downloadPdf = (name: string) => getBytes(PDFS, name);
+export async function deletePdf(name: string) {
+  await remove(PDFS, name, `Delete PDF: ${name}`);
+}
+/** Keep a PDF in pdfs/ (viewing only). Returns the stored name, or null when skipped because of a same-name file. */
+export async function storePdf(file: File, onConflict?: OnConflict): Promise<string | null> {
+  let name = cleanName(file.name, "inbox");
+  if (!name || !/\.pdf$/i.test(name)) throw new Error(`文件名不可用：${file.name}`);
+  if (file.size > MAX_INBOX_BYTES) throw new Error("PDF 超过 20 MB");
+  if (await exists(PDFS, name)) {
+    const choice = onConflict ? await onConflict({ name, existing: name, kind: "score" }) : "replace";
+    if (choice === "skip") return null;
+    if (choice === "keep") name = await freeName(name, (c) => exists(PDFS, c));
+  }
+  await put(PDFS, name, await readFile(file), `Add PDF: ${name}`);
+  return name;
+}
+/** Send a PDF that is already stored for viewing to the converter as well. */
+export async function convertStoredPdf(name: string): Promise<string> {
+  const data = await getBytes(PDFS, name);
+  const target = stemOf(name) + ".musicxml";
+  if (await exists(SCORES, target)) throw new Error(`已有乐谱「${stemOf(name)}」，转换结果会覆盖它。请先改名或删除那份乐谱。`);
+  await put(INBOX, name, data, `Queue for conversion: ${name}`);
+  return name;
 }

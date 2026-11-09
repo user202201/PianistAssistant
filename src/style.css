@@ -338,3 +338,13 @@ button.fnum { min-width: 58px; min-height: 54px; font-size: 1.45rem; font-weight
 
 /* preview directly under the current line; may float over the control bar */
 .peek { z-index: 30; }
+.fbadge.xml { color: var(--text); font-style: normal; }
+
+/* four-hand pieces are told apart by a tinted card instead of a tag (names need the room) */
+.card.pair { background: linear-gradient(90deg, var(--accent-soft), var(--surface) 70%); box-shadow: inset 4px 0 0 var(--accent), var(--shadow); }
+
+/* PDF viewer */
+.pdfwrap { flex: 1; min-height: 0; overflow: auto; background: var(--bg); -webkit-overflow-scrolling: touch; padding: 12px 0 28px; }
+.pdfpages { width: calc(min(100%, 1100px) * var(--z, 1)); margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+.pdfpage { width: 100%; height: auto; background: #fff; box-shadow: var(--shadow); border-radius: 4px; display: block; }
+.card.pdf .open::before { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007aff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 3v5h5'/%3E%3C/svg%3E"); }

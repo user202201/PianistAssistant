@@ -21,6 +21,7 @@
   "dependencies": {
     "fflate": "^0.8.3",
     "opensheetmusicdisplay": "^2.3.0",
+    "pdfjs-dist": "^4.10.38",
     "qrcode": "^1.5.4",
     "smplr": "^1.2.0"
   }
