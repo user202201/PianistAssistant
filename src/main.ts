@@ -539,7 +539,7 @@ async function renderHome() {
       const swapped = !!(ra && rb && ra.role === "B" && rb.role === "A");
       const [a, b] = swapped ? [stored[1], stored[0]] : [stored[0], stored[1]];
       const r = await openPairDialog({
-        scores: allScores.filter((n) => !pairs.some((p) => p.a === n || p.b === n)),
+        scores: allScores,
         a, b,
         title: "这是一首四手联弹吗？",
         intro: "你一次上传了两个文件。如果它们是同一首歌里两个人弹的部分，合成后可以分屏一起练习。",
@@ -603,11 +603,13 @@ async function renderHome() {
       ]) }, ic("chevron-down", 20)),
     );
   };
+  const partOf = (name: string) => pairs.filter((p) => p.a === name || p.b === name);
   const card = (name: string, withMenu = false) =>
     h(
       "div",
       { class: "card" },
-      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
+      h("button", { class: "open", onclick: () => (location.hash = `#/score/${encodeURIComponent(name)}`) }, h("span", {}, h("div", {}, isNew(name) ? h("span", { class: "newtag" }, "新") : null, displayName(name)),
+        partOf(name).length ? h("div", { class: "muted small sub" }, partOf(name).map((p) => `${p.a === name ? "A" : "B"} 声部 · 四手联弹「${p.name}」`).join("；")) : null)),
       withMenu &&
         h("button", { class: "del", title: "更多", onclick: () => openCardMenu(displayName(name), [
           { label: "重命名…", icon: "pencil", run: async () => {
@@ -616,19 +618,23 @@ async function renderHome() {
             try {
               const next = await api.renameScore(name, v);
               renameRecent(name, next);
+              if (partOf(name).length) await api.writePairs(pairs.map((p) => ({ ...p, a: p.a === name ? next : p.a, b: p.b === name ? next : p.b })));
               void load();
             } catch (e) {
               toast((e as Error).message);
             }
           } },
           { label: "设为四手联弹…（与另一份合成）", icon: "note", run: async () => {
-            const free = allScores.filter((n) => !pairs.some((p) => p.a === n || p.b === n));
-            if (free.length < 2) { toast("需要至少有两份还没配对的谱子"); return; }
+            const free = allScores;
+            if (free.length < 2) { toast("需要至少有两份谱子"); return; }
             const r = await openPairDialog({ scores: free, a: name, title: "设为四手联弹", intro: "选出两个人各自的谱子：A 在上面一屏，B 在下面一屏。", okLabel: "合成四手联弹" });
             if (r) void savePairs([...pairs, r]);
           } },
           deleteAction("删除这份乐谱", async () => {
-            if (!confirm(`删除「${displayName(name)}」？`)) return;
+            const inUse = partOf(name);
+            const extra = inUse.length ? `\n它是四手联弹「${inUse.map((p) => p.name).join("、")}」的一个声部，删除后这首四手联弹也会消失（另一个声部的谱子保留）。` : "";
+            if (!confirm(`删除「${displayName(name)}」？${extra}`)) return;
+            if (inUse.length) await api.writePairs(pairs.filter((p) => !inUse.includes(p)));
             await api.deleteScore(name);
           }),
         ]) }, ic("chevron-down", 20)),
@@ -726,10 +732,10 @@ async function renderHome() {
       pairs = (await api.readPairs().catch(() => pairs)).filter((p) => names.has(p.a) && names.has(p.b));
       if (token !== renderSeq) return;
       const inPair = new Set(pairs.flatMap((p) => [p.a, p.b]));
-      const single = scores.filter((x) => !inPair.has(x.name));
+      // every score stays in the list (each part can be practised alone); a combined piece is an extra card
       const items = [
-        ...pairs.map((p) => ({ key: p.name, el: () => pairCard(p) })),
-        ...single.map((x) => ({ key: displayName(x.name), el: () => card(x.name, true) })),
+        ...pairs.map((p) => ({ key: `${p.name}\u0000`, el: () => pairCard(p) })),
+        ...scores.map((x) => ({ key: displayName(x.name), el: () => card(x.name, true) })),
       ].sort((a, b) => a.key.localeCompare(b.key, "zh"));
       list.replaceChildren(...items.map((i) => i.el()));
       status.replaceChildren(
@@ -757,7 +763,7 @@ async function renderHome() {
               h("div", { class: "row wrap sugbtn" },
                 h("button", { class: "primary", onclick: () => void savePairs([...pairs, { name: g.name, a: g.a, b: g.b }]) }, "合成四手联弹"),
                 h("button", { onclick: async () => {
-                  const r = await openPairDialog({ scores: [...names].filter((n) => !inPair.has(n)), a: g.a, b: g.b, name: g.name, title: "确认四手联弹", okLabel: "合成四手联弹" });
+                  const r = await openPairDialog({ scores: [...names], a: g.a, b: g.b, name: g.name, title: "确认四手联弹", okLabel: "合成四手联弹" });
                   if (r) void savePairs([...pairs, r]);
                 } }, "修改…"),
                 h("button", { onclick: () => { dismissPair(g.a, g.b); void load(); } }, "不是"),
@@ -772,7 +778,7 @@ async function renderHome() {
             const p = pairs.find((q) => pairKey(q) === k);
             return p ? pairCard(p) : null;
           }
-          return names.has(k) && !inPair.has(k) ? card(k) : null;
+          return names.has(k) ? card(k) : null;
         })
         .filter((x): x is HTMLDivElement => !!x);
       recent.replaceChildren(...rec);
@@ -1393,16 +1399,32 @@ function buildControls(
     const next = boxes[i + 1];
     const viewH = v.wrap.clientHeight;
     const vTop = v.wrap.scrollTop;
-    if (next.top + next.h + 6 <= vTop + viewH) return off(); // the next line is fully visible anyway
-    // starts right below the current line and only uses the space that is left (never covers the current line)
-    const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
-    const hgt = Math.min(next.h + 20, viewH * 0.6, viewH - y);
-    if (hgt < 70) return off(); // too little room to show anything useful
+    // is the next line (mostly) on screen already? then there is nothing to preview
+    const shown = Math.max(0, Math.min(next.top + next.h, vTop + viewH) - Math.max(next.top, vTop));
+    if (shown >= next.h * 0.65) return off();
+    // an overlay needs a place that is not needed right now: the lines ABOVE the current one are already played.
+    // Floating there also is exactly where the next line lands after the page turn.
+    const hgt = Math.min(next.h + 20, viewH * 0.5);
+    const curTop = boxes[i].top - vTop;
+    let y: number;
+    let edge: "top" | "below";
+    let h2 = hgt;
+    if (curTop >= hgt + 6) {
+      y = 0;
+      edge = "top";
+    } else {
+      // no room above (tiny screen / current line near the top): right below the current line, whatever space is left
+      y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
+      h2 = Math.min(hgt, viewH - y);
+      edge = "below";
+      if (h2 < 70) return off();
+    }
     // the preview is a window onto the same drawing (no copy of the score is made)
     if (!svg.id || document.querySelectorAll(`[id="${svg.id}"]`).length > 1) svg.id = `osmd-svg-${++svgSeq}`;
     const w = svg.getBoundingClientRect().width;
-    v.peek.style.cssText = `display:block;top:${v.wrap.offsetTop + y}px;height:${hgt}px`;
-    v.peek.innerHTML = `<span class="tag">下一行</span><svg width="${w}" height="${hgt}" viewBox="0 ${next.top - 10 - oy} ${w} ${hgt}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
+    v.peek.className = `peek ${edge}`;
+    v.peek.style.cssText = `display:block;top:${v.wrap.offsetTop + y}px;height:${h2}px`;
+    v.peek.innerHTML = `<span class="tag">下一行 · 即将翻到这里</span><svg width="${w}" height="${h2}" viewBox="0 ${next.top - 10 - oy} ${w} ${h2}" style="left:${sr.left - hr.left}px"><use href="#${svg.id}"/></svg>`;
   }
   function syncViews() {
     if (!split) return;
