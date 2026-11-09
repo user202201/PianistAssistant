@@ -9,6 +9,7 @@ export default defineConfig({
   define: {
     __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")),
     __MOBILE__: JSON.stringify(mobile),
+    __LOCAL_ONLY__: JSON.stringify(!!process.env.LOCAL_ONLY),
   },
   // website: GitHub Pages project site https://<user>.github.io/PianistAssistant/ ; app: relative paths
   base: mobile ? "./" : process.env.BASE_PATH ?? "/PianistAssistant/",

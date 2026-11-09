@@ -392,3 +392,8 @@ select option, select optgroup { background: var(--surface); color: var(--text);
 
 .home { flex: 1 1 0; }
 .card .star:last-child { margin-right: 10px; }
+
+/* the favourites tab carries a filled yellow star */
+.tabsbar .seg { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.tabstar { display: inline-flex; color: #ff9f0a; }
+.tabstar svg { fill: currentColor; }

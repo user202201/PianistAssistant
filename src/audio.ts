@@ -12,7 +12,11 @@ export const SOUNDS: SoundPreset[] = [
   {
     id: "fluid",
     label: "Grand Piano · FluidR3（轻量）",
-    create: (c) => Soundfont(c, { instrument: "acoustic_grand_piano", kit: "FluidR3_GM" }),
+    // in the iOS / Android / HarmonyOS apps this sound is packed into the app (mobile/scripts/fetch-sounds.sh), so it works offline from the start
+    create: (c) =>
+      __MOBILE__
+        ? Soundfont(c, { instrumentUrl: new URL("./sounds/acoustic_grand_piano-mp3.js", document.baseURI).href, kit: "FluidR3_GM" })
+        : Soundfont(c, { instrument: "acoustic_grand_piano", kit: "FluidR3_GM" }),
   },
   {
     id: "musyng",

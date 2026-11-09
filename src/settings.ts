@@ -22,7 +22,7 @@ const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, splitControlsMin: true, theme: "system", lang: "auto", peekNext: true });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, splitControlsMin: true, theme: "system", lang: "auto", peekNext: true });
 
 export function loadSettings(): Settings {
   try {

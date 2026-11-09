@@ -18,11 +18,15 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: user202201/PianistAssistant
-          path: .tools
+      # The converter scripts are taken from this repository when they are there (tools/), otherwise from the public
+      # PianistAssistant repository. After the code repository becomes private, put tools/ into this repository
+      # (see docs/going-private/README.md) and nothing else has to change.
+      - name: Get the converter
+        run: |
+          if [ -f tools/convert.sh ]; then echo "TOOLS=tools" >> "$GITHUB_ENV"; else
+            git clone --depth 1 https://github.com/user202201/PianistAssistant .tools && echo "TOOLS=.tools/scores-repo-template" >> "$GITHUB_ENV"
+          fi
       - name: Convert inbox files
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: bash .tools/scores-repo-template/convert.sh
+        run: bash "$TOOLS/convert.sh"

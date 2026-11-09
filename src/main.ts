@@ -9,6 +9,7 @@ import { Player } from "./player";
 import { applyExpression } from "./expression";
 import { defaultPairName, pairLabels, roleOf, suggestPairs } from "./pairs";
 import { extractScore, mergeScores, toMusicXml } from "./score";
+import { unzipSync, zipSync } from "fflate";
 import { setLang } from "./i18n";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
 
@@ -124,42 +125,87 @@ function renderLogin(message = "") {
   };
   btn.addEventListener("click", submit);
   token.addEventListener("keydown", (e) => e.key === "Enter" && submit());
+  const githubForm = [
+    h("p", { class: "muted" }, "琴谱存放在你的私有 GitHub 仓库中，需要访问令牌才能查看。"),
+    h("label", {}, "琴谱仓库", repo),
+    h("label", {}, "GitHub 访问令牌（也可粘贴“登录链接”）", token),
+    h("label", { class: "inline" }, remember, "保持登录（取消勾选则关闭页面后需重新登录，适合公用设备）"),
+    btn,
+    err,
+    h(
+      "details",
+      {},
+      h("summary", {}, "第一次使用？怎么获取令牌"),
+      h(
+        "ol",
+        {},
+        h("li", {}, "在 GitHub 新建一个", h("b", {}, "私有"), "仓库（例如 PianistScores）。"),
+        h(
+          "li",
+          {},
+          "打开 ",
+          h("a", { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener" }, "创建 Fine-grained token"),
+          "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
+        ),
+        h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
+        h("li", {}, "已有一台登录好的设备？在它的“设置 → 登录与设备”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
+      ),
+    ),
+  ];
+  // on this device, no account: the main way in the apps, an extra choice on the web
+  const localBtn = h("button", { class: __MOBILE__ ? "primary" : "", onclick: () => { api.useLocal(); route(); } }, "在本机使用（不需要账号）");
+  const localNote = h("p", { class: "muted small" }, __MOBILE__ ? "谱子保存在这台设备上，不需要登录；以后也可以连接 GitHub 同步。" : "谱子保存在这台设备上，不需要登录；以后也可以连接 GitHub 同步。网页版的本机数据可能被浏览器清理，建议安装成 App 或添加到主屏幕。");
   app.replaceChildren(
     h(
       "div",
       { class: "login" },
       h("h1", { class: "brand big" }, h("span", { class: "logo" }, ic("note", 24)), "Pianist Assistant"),
-      h("p", { class: "muted" }, "琴谱存放在你的私有 GitHub 仓库中，需要访问令牌才能查看。"),
-      h("label", {}, "琴谱仓库", repo),
-      h("label", {}, "GitHub 访问令牌（也可粘贴“登录链接”）", token),
-      h("label", { class: "inline" }, remember, "保持登录（取消勾选则关闭页面后需重新登录，适合公用设备）"),
-      btn,
-      err,
-      h(
-        "details",
-        {},
-        h("summary", {}, "第一次使用？怎么获取令牌"),
-        h(
-          "ol",
-          {},
-          h("li", {}, "在 GitHub 新建一个", h("b", {}, "私有"), "仓库（例如 PianistScores）。"),
-          h(
-            "li",
-            {},
-            "打开 ",
-            h("a", { href: "https://github.com/settings/personal-access-tokens/new", target: "_blank", rel: "noopener" }, "创建 Fine-grained token"),
-            "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
-          ),
-          h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
-          h("li", {}, "已有一台登录好的设备？在它的“设置 → 登录与设备”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
-        ),
-      ),
+      ...(__LOCAL_ONLY__
+        ? [localBtn, localNote]
+        : __MOBILE__
+          ? [localBtn, localNote, h("details", {}, h("summary", {}, "用 GitHub 同步（高级）"), ...githubForm)]
+          : [...githubForm, h("hr", {}), localBtn, localNote]),
     ),
   );
   token.focus();
 }
 
 // ---------- settings dialog ----------
+/** all scores / PDFs / settings of this device in one .zip (device storage mode) */
+async function exportBackup() {
+  try {
+    const files = await api.localAll();
+    const z: Record<string, Uint8Array> = {};
+    for (const f of files) z[`${f.dir}/${f.name}`] = new Uint8Array(f.data);
+    const blob = new Blob([zipSync(z)], { type: "application/zip" });
+    const link = h("a", { href: URL.createObjectURL(blob), download: `PianistAssistant-backup-${new Date().toISOString().slice(0, 10)}.zip` });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    toast("备份已生成");
+  } catch (e) {
+    showError("备份失败", e);
+  }
+}
+async function importBackup(file: File) {
+  try {
+    const z = unzipSync(new Uint8Array(await file.arrayBuffer()));
+    let n = 0;
+    for (const [path, data] of Object.entries(z)) {
+      const i = path.indexOf("/");
+      const dir = path.slice(0, i);
+      const name = path.slice(i + 1);
+      if (i < 1 || !["scores", "pdfs", "config"].includes(dir) || !name || name.includes("/")) continue;
+      await api.restoreLocalFile(dir, name, data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
+      n++;
+    }
+    toast(`已恢复 ${n} 个文件`);
+    refreshHome?.();
+  } catch (e) {
+    showError("恢复失败", e);
+  }
+}
+
 function openSettings(onSound?: () => void, onLayout?: () => void) {
   const dlg = h("dialog", { class: "dlg" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
@@ -218,6 +264,13 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     setLang(settings.lang);
     dispatchEvent(new Event("pianist-lang")); // re-measure anything whose text got longer / shorter
   });
+  const restoreInput = h("input", { type: "file", accept: ".zip,application/zip", hidden: true });
+  restoreInput.addEventListener("change", async () => {
+    const f = restoreInput.files?.[0];
+    restoreInput.value = "";
+    if (f) await importBackup(f);
+  });
+  dlg.append(restoreInput);
   const a = api.getAuth();
   dlg.append(
     // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
@@ -239,30 +292,37 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
     ]),
     h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
-    h("h3", {}, "登录与设备"),
+    ...(api.isLocal() ? [
+      h("h3", {}, "存储"),
+      h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
+      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
+      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
+      ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "连接 GitHub 同步…")]),
+    ] : []),
+    ...(api.isLocal() ? [] : [h("h3", {}, "登录与设备")]),
     h(
       "p",
-      { class: "muted" },
+      { class: "muted", hidden: api.isLocal() },
       a ? `本设备：${a.user ?? "GitHub"} · ${a.repo} · ${api.isPersistent() ? "保持登录" : "仅本次"}` : "",
     ),
-    h("button", { class: "rowbtn", id: "qr-btn", onclick: () => showQr() }, ic("qr", 20), "手机扫码登录"),
-    h("button", { class: "rowbtn", id: "copy-link", onclick: async () => {
+    ...(api.isLocal() ? [] : [h("button", { class: "rowbtn", id: "qr-btn", onclick: () => showQr() }, ic("qr", 20), "手机扫码登录")]),
+    ...(api.isLocal() ? [] : [h("button", { class: "rowbtn", id: "copy-link", onclick: async () => {
       const cur = api.getAuth();
       if (!cur) return;
       try { await navigator.clipboard.writeText(api.makeLoginLink(cur)); toast("登录链接已复制，粘贴到另一台设备的登录页即可"); }
       catch { toast("复制失败，请改用扫码"); }
-    } }, ic("hand", 20), "复制登录链接"),
-    h(
+    } }, ic("hand", 20), "复制登录链接")]),
+    ...(api.isLocal() ? [] : [h(
       "p",
       { class: "muted small" },
       "所有设备共用同一个令牌，所以无法单独移除某一台。如果设备丢失或怀疑泄露：到 ",
       h("a", { href: "https://github.com/settings/personal-access-tokens", target: "_blank", rel: "noopener" }, "GitHub 令牌管理"),
       " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。",
-    ),
+    )]),
     h(
       "div",
       { class: "row" },
-      h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"),
+      ...(api.isLocal() ? [] : [h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备")]),
       h("div", { class: "grow" }),
       h("button", { class: "primary", onclick: () => dlg.close() }, "完成"),
     ),
@@ -558,7 +618,7 @@ async function renderHome() {
       tabBtns.forEach((b, i) => b.classList.toggle("on", TABS[i][0] === k));
       renderList();
       listBox.scrollTop = 0;
-    } }, label),
+    } }, ...(k === "fav" ? [h("span", { class: "tabstar" }, ic("star", 16)), label] : [label])),
   );
   const tabsBar = h("div", { class: "tabsbar" }, h("div", { class: "group wide" }, ...tabBtns));
 
@@ -577,6 +637,16 @@ async function renderHome() {
     favDirty = true;
     document.querySelectorAll(".star[data-k]").forEach((b) => { if (b.getAttribute("data-k") === k) starState(b, k); });
     if (tab === "fav") renderList();
+    clearTimeout(favTimer);
+    favTimer = window.setTimeout(() => { api.writeFavs([...favs]).then(() => { favDirty = false; }).catch(() => toast("保存失败")); }, 600);
+  };
+  /** an item was renamed / re-paired: its favourite mark moves with it */
+  const moveFav = (from: string, to: string) => {
+    if (!favs.has(from) || from === to) return;
+    favs.delete(from);
+    favs.add(to);
+    setFavs([...favs]);
+    favDirty = true;
     clearTimeout(favTimer);
     favTimer = window.setTimeout(() => { api.writeFavs([...favs]).then(() => { favDirty = false; }).catch(() => toast("保存失败")); }, 600);
   };
@@ -614,9 +684,14 @@ async function renderHome() {
       try {
         let mode: "convert" | "keep" | "both" = "convert";
         if (/\.pdf$/i.test(f.name)) {
-          const a = await askPdfMode(f.name);
-          if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
-          mode = a;
+          if (api.isLocal()) {
+            mode = "keep"; // conversion needs the GitHub service
+            toast("本机模式：PDF 只能保存和查看，不能转换成可播放乐谱", 6000);
+          } else {
+            const a = await askPdfMode(f.name);
+            if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
+            mode = a;
+          }
         }
         toast(`上传中：${f.name}`);
         if (mode !== "convert") {
@@ -698,10 +773,10 @@ async function renderHome() {
           const v = await askText("重命名这首四手联弹", p.name, "保存");
           if (v && v !== p.name) void savePairs(pairs.map((q) => (q === p ? { ...q, name: v } : q)));
         } },
-        { label: "交换 A / B 声部", icon: "refresh", run: () => void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q))) },
+        { label: "交换 A / B 声部", icon: "refresh", run: () => { moveFav(favKey.pair(p), favKey.pair({ a: p.b, b: p.a })); void savePairs(pairs.map((q) => (q === p ? { ...q, a: q.b, b: q.a } : q))); } },
         { label: "重新选择 A / B 文件…", icon: "note", run: async () => {
           const r = await openPairDialog({ scores: allScores, a: p.a, b: p.b, name: p.name, title: "修改四手联弹", okLabel: "保存" });
-          if (r) void savePairs(pairs.map((q) => (q === p ? r : q)));
+          if (r) { moveFav(favKey.pair(p), favKey.pair(r)); void savePairs(pairs.map((q) => (q === p ? r : q))); }
         } },
         { label: "取消关联（两个文件各自保留）", icon: "x", run: () => void savePairs(pairs.filter((q) => q !== p)) },
         deleteAction("删除这首四手联弹（两个文件都会删除）", async () => {
@@ -720,7 +795,7 @@ async function renderHome() {
       h("button", { class: "open", onclick: () => (location.hash = `#/pdf/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
       starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
-        { label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
+        ...(api.isLocal() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
             const n = await api.convertStoredPdf(name);
             optimistic.set(n, Date.now());
@@ -731,7 +806,7 @@ async function renderHome() {
           } catch (e) {
             showError("无法转换", e);
           }
-        } },
+        } }]),
         deleteAction("删除这份 PDF", async () => {
           if (!confirm(`删除 PDF「${name}」？`)) return;
           await api.deletePdf(name);
@@ -754,6 +829,8 @@ async function renderHome() {
             try {
               const next = await api.renameScore(name, v);
               renameRecent(name, next);
+              moveFav(favKey.score(name), favKey.score(next));
+              for (const p of pairs) if (p.a === name || p.b === name) moveFav(favKey.pair(p), favKey.pair({ a: p.a === name ? next : p.a, b: p.b === name ? next : p.b }));
               if (partOf(name).length) await api.writePairs(pairs.map((p) => ({ ...p, a: p.a === name ? next : p.a, b: p.b === name ? next : p.b })));
               void load();
             } catch (e) {
@@ -854,7 +931,8 @@ async function renderHome() {
     try {
       const listed = await api.listInbox().catch((e) => { if (e instanceof api.AuthExpired) throw e; return [] as api.InboxItem[]; });
       const scores = await api.listScores();
-      const pdfs = await api.listPdfs().catch(() => [] as api.ScoreInfo[]);
+      let pdfsOk = true;
+      const pdfs = await api.listPdfs().catch(() => { pdfsOk = false; return [] as api.ScoreInfo[]; });
       if (token !== renderSeq) return;
       if (api.isOffline() && !offlineToldAt) { offlineToldAt = Date.now(); toast("离线：显示的是上次同步的内容，修改和上传要联网后才能进行", 8000); }
       if (!api.isOffline()) { offlineToldAt = 0; if (!prefetched) { prefetched = true; void api.prefetchLibrary(); } }
@@ -893,6 +971,16 @@ async function renderHome() {
       // every score stays in the list (each part can be practised alone); a combined piece is an extra card
       lastScores = scores;
       lastPdfs = pdfs;
+      // favourites of things that no longer exist (deleted, unlinked) are dropped; only when the lists are complete
+      if (!api.isOffline() && !favDirty) {
+        const alive = new Set([...scores.map((x) => favKey.score(x.name)), ...pairs.map((p) => favKey.pair(p)), ...pdfs.map((x) => favKey.pdf(x.name))]);
+        const kept = [...favs].filter((k) => alive.has(k) || (!pdfsOk && k.startsWith("f:")));
+        if (kept.length !== favs.size) {
+          favs = new Set(kept);
+          setFavs(kept);
+          void api.writeFavs(kept).catch(() => {});
+        }
+      }
       renderList();
       // "these two look like the two parts of one piece" (only a suggestion, never merged automatically)
       const sugg = suggestPairs([...names], inPair, getDismissed());
@@ -1837,7 +1925,7 @@ async function renderPdf(name: string) {
 
 function route() {
   if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
-  if (!api.getAuth()) return renderLogin();
+  if (!api.getAuth() && !api.isLocal()) return renderLogin();
   const d = location.hash.match(/^#\/duet\/([^/]+)\/([^/]+)$/);
   if (d) {
     const a = decodeURIComponent(d[1]);

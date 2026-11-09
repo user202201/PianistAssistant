@@ -5,7 +5,7 @@ name: mobile-packages
 on:
   push:
     branches: [main, claude/epic-dirac-38xck6]
-    paths: ["src/**", "public/**", "index.html", "vite.config.ts", "package.json", "package-lock.json", "mobile/**", "packages/**", ".github/workflows/mobile.yml"]
+    paths: ["src/**", "public/**", "index.html", "vite.config.ts", "package.json", "package-lock.json", "mobile/**", "packages/**", "scores-repo-template/**", "scripts/make-scores-repo-bundle.sh", ".github/workflows/mobile.yml"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -62,6 +62,7 @@ jobs:
       - name: Web bundle for HarmonyOS
         run: |
           MOBILE=1 npm run build
+          bash mobile/scripts/fetch-sounds.sh dist-app
           mkdir -p packages/harmonyos/out
           (cd dist-app && zip -qr ../packages/harmonyos/out/PianistAssistant-harmonyos-web-bundle.zip .)
           cp packages/harmonyos/Index.ets packages/harmonyos/out/
@@ -73,9 +74,12 @@ jobs:
     if: ${{ !cancelled() && (needs.android.result == 'success' || needs.ios.result == 'success' || needs.harmonyos.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { path: out }
         continue-on-error: true
+      - name: Bundle for the scores repository (makes PDF conversion independent of this repository)
+        run: bash scripts/make-scores-repo-bundle.sh out/scores-repo-bundle.zip
       - name: Publish to the release "app-builds"
         env:
           GH_TOKEN: ${{ github.token }}

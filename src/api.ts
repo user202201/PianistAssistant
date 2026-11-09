@@ -27,6 +27,53 @@ export interface Auth {
   user?: string;
 }
 
+// ---------- on-device storage (no account) ----------
+// Two places can hold the library: the private GitHub repository (default on the web) or this device (IndexedDB).
+// Everything below `list / getBytes / put / remove / exists` and the config files is routed here, so the UI does not care.
+const MODE_KEY = "pianist.storage";
+/** true when the library lives on this device (chosen with "use on this device") */
+export function isLocal(): boolean {
+  try { return localStorage.getItem(MODE_KEY) === "local"; } catch { return false; }
+}
+export function useLocal() {
+  try { localStorage.setItem(MODE_KEY, "local"); } catch { /* private mode: still works until the tab is closed */ }
+  try { void navigator.storage?.persist?.(); } catch { /* ask the browser not to clear it */ }
+}
+export function leaveLocal() {
+  try { localStorage.removeItem(MODE_KEY); } catch { /* ignore */ }
+}
+interface LocalFile { key: string; dir: string; name: string; size: number; t: number; data: ArrayBuffer }
+let dbPromise: Promise<IDBDatabase> | null = null;
+function idb(): Promise<IDBDatabase> {
+  return (dbPromise ??= new Promise((resolve, reject) => {
+    const open = indexedDB.open("pianist-local", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("files", { keyPath: "key" }).createIndex("dir", "dir");
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => reject(new Error("本机存储不可用（浏览器禁止了本地数据）"));
+  }));
+}
+async function idbDo<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const req = run(db.transaction("files", mode).objectStore("files"));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error ?? new Error("本机存储出错"));
+  });
+}
+const localKey = (dir: string, name: string) => `${dir}/${name}`;
+const localList = async (dir: string): Promise<ScoreInfo[]> =>
+  ((await idbDo("readonly", (s) => s.index("dir").getAll(dir))) as LocalFile[]).map((f) => ({ name: f.name, size: f.size })).filter((i) => !i.name.startsWith("."));
+const localGet = async (dir: string, name: string): Promise<ArrayBuffer | null> => ((await idbDo("readonly", (s) => s.get(localKey(dir, name)))) as LocalFile | undefined)?.data ?? null;
+const localPut = (dir: string, name: string, data: ArrayBuffer) => idbDo("readwrite", (s) => s.put({ key: localKey(dir, name), dir, name, size: data.byteLength, t: Date.now(), data: data.slice(0) } satisfies LocalFile));
+const localDel = (dir: string, name: string) => idbDo("readwrite", (s) => s.delete(localKey(dir, name)));
+const localHas = async (dir: string, name: string) => (await idbDo("readonly", (s) => s.count(localKey(dir, name)))) > 0;
+/** put one file from a backup back onto this device */
+export const restoreLocalFile = (dir: string, name: string, data: ArrayBuffer) => localPut(dir, name, data);
+/** all files of this device as a list (for a backup) */
+export async function localAll(): Promise<{ dir: string; name: string; data: ArrayBuffer }[]> {
+  return ((await idbDo("readonly", (s) => s.getAll())) as LocalFile[]).map((f) => ({ dir: f.dir, name: f.name, data: f.data }));
+}
+
 function readAuth(store: Storage): Auth | null {
   try {
     const a = JSON.parse(store.getItem(AUTH_KEY) ?? "null");
@@ -194,6 +241,7 @@ async function forgetFile(a: Auth, dir: string, name: string) {
 const isNetworkError = (e: unknown) => e instanceof ApiError && e.status === 0;
 
 async function list(dir: string): Promise<ScoreInfo[]> {
+  if (isLocal()) return localList(dir);
   const a = need();
   const key = `pianist.list.${repoKey(a)}.${dir}`;
   try {
@@ -235,6 +283,11 @@ export async function listInbox(): Promise<InboxItem[]> {
 }
 
 async function getBytes(dir: string, name: string): Promise<ArrayBuffer> {
+  if (isLocal()) {
+    const data = await localGet(dir, name);
+    if (!data) throw new Error("文件不在本机上");
+    return data;
+  }
   const a = need();
   try {
     const r = await gh(a, url(a, dir, name) + ref(a), {
@@ -260,7 +313,7 @@ async function getBytes(dir: string, name: string): Promise<ArrayBuffer> {
 /** In the background: keep a copy of every score / PDF on the device (only what is not there yet; opening a file refreshes it). */
 export async function prefetchLibrary(onProgress?: (done: number, total: number) => void) {
   const a = getAuth();
-  if (!a || isOffline()) return;
+  if (isLocal() || !a || isOffline()) return;
   const jobs: [string, string][] = [];
   for (const [dir, items] of [[SCORES, await listScores()], [PDFS, await listPdfs().catch(() => [])]] as [string, ScoreInfo[]][])
     for (const i of items) if (!(await hasCachedFile(a, dir, i.name))) jobs.push([dir, i.name]);
@@ -299,6 +352,7 @@ async function readFile(file: File): Promise<ArrayBuffer> {
 }
 
 async function put(dir: string, name: string, data: ArrayBuffer, message: string) {
+  if (isLocal()) return void (await localPut(dir, name, data));
   const a = need();
   const content = toBase64(data);
   let last: ApiError | null = null;
@@ -330,6 +384,7 @@ export type OnConflict = (info: { name: string; existing: string; kind: "score" 
 const stemOf = (n: string) => n.replace(/\.[^.]+$/, "");
 
 async function exists(dir: string, name: string): Promise<boolean> {
+  if (isLocal()) return localHas(dir, name);
   return (await sha(need(), dir, name)) !== undefined;
 }
 
@@ -350,6 +405,7 @@ async function freeName(name: string, taken: (candidate: string) => Promise<bool
  * If something with the same name would be overwritten, `onConflict` decides. Returns null when skipped.
  */
 export async function uploadScore(file: File, onConflict?: OnConflict): Promise<Uploaded | null> {
+  if (isLocal() && INBOX_EXT.test(file.name)) throw new Error("本机模式不能把 PDF / 图片转换成可播放乐谱（转换需要联网，请连接 GitHub 同步后使用）。PDF 可以选择“只保留 PDF”。");
   const ask = async (name: string, existing: string, kind: "score" | "convert" | "queued"): Promise<Conflict> =>
     onConflict ? onConflict({ name, existing, kind }) : "replace";
 
@@ -419,6 +475,7 @@ export async function saveScoreText(name: string, xml: string, message: string) 
 }
 
 async function remove(dir: string, name: string, message: string) {
+  if (isLocal()) return void (await localDel(dir, name));
   const a = need();
   const s = await sha(a, dir, name);
   if (!s) return;
@@ -448,6 +505,7 @@ export const forgetSince = (name: string) => void sinceCache.delete(name);
 export async function queuedSince(name: string): Promise<number | null> {
   const hit = sinceCache.get(name);
   if (hit) return hit;
+  if (isLocal()) return null;
   const a = need();
   const lastCommit = async (path: string): Promise<number | null> => {
     const r = await gh(a, `https://api.github.com/repos/${a.repo}/commits?path=${encodeURIComponent(path)}&per_page=1&sha=${encodeURIComponent(a.branch ?? "main")}`, {
@@ -479,6 +537,15 @@ const validPair = (p: unknown): p is Pair => {
   return !!q && typeof q.a === "string" && typeof q.b === "string" && typeof q.name === "string";
 };
 export async function readPairs(): Promise<Pair[]> {
+  if (isLocal()) {
+    const d = await localGet(CONFIG, "pairs.json");
+    try {
+      const j = JSON.parse(new TextDecoder().decode(d ?? new ArrayBuffer(0))) as { pairs?: unknown[] };
+      return Array.isArray(j.pairs) ? j.pairs.filter(validPair) : [];
+    } catch {
+      return [];
+    }
+  }
   const a = need();
   const pk = `pianist.pairs.${repoKey(a)}`;
   let text: string;
@@ -506,6 +573,7 @@ export async function writePairs(pairs: Pair[]) {
 }
 /** Favourites: keys like "s:<score>", "p:<a>|<b>", "f:<pdf>" (stored in config/favorites.json so every device sees them). */
 export async function readFavs(): Promise<string[] | null> {
+  if (isLocal()) return null; // the device's own list is the only one
   const a = need();
   const fk = `pianist.favsremote.${repoKey(a)}`;
   try {
@@ -570,6 +638,7 @@ export async function storePdf(file: File, onConflict?: OnConflict): Promise<str
 }
 /** Send a PDF that is already stored for viewing to the converter as well. */
 export async function convertStoredPdf(name: string): Promise<string> {
+  if (isLocal()) throw new Error("本机模式不能转换 PDF（转换需要联网，请连接 GitHub 同步后使用）。");
   const data = await getBytes(PDFS, name);
   const target = stemOf(name) + ".musicxml";
   if (await exists(SCORES, target)) throw new Error(`已有乐谱「${stemOf(name)}」，转换结果会覆盖它。请先改名或删除那份乐谱。`);

@@ -9,6 +9,7 @@ RUN="${GITHUB_RUN_NUMBER:-1}"
 
 [ -d node_modules ] || npm ci
 MOBILE=1 npm run build
+bash mobile/scripts/fetch-sounds.sh dist-app   # the default piano sound goes inside the app
 cd mobile
 [ -d node_modules ] || npm ci
 [ -d ios ] || npx cap add ios
