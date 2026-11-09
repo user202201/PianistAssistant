@@ -1,0 +1,86 @@
+name: mobile-packages
+# Builds the iOS / Android / HarmonyOS packages from the SAME code as the website, on every change of the app code.
+# Results: Actions artifacts of this run + the files of the release "app-builds" (always the newest build):
+#   https://github.com/user202201/PianistAssistant/releases/tag/app-builds
+on:
+  push:
+    branches: [main, claude/epic-dirac-38xck6]
+    paths: ["src/**", "public/**", "index.html", "vite.config.ts", "package.json", "package-lock.json", "mobile/**", "packages/**", ".github/workflows/mobile.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: mobile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Build Android package
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: bash mobile/scripts/build-android.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: packages/android/out/*, if-no-files-found: error }
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Build iOS package
+        env:
+          IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROFILE_B64: ${{ secrets.IOS_PROFILE_B64 }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_B64: ${{ secrets.ASC_KEY_P8_B64 }}
+        run: bash mobile/scripts/build-ios.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: ios, path: packages/ios/out/*, if-no-files-found: error }
+
+  harmonyos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Web bundle for HarmonyOS
+        run: |
+          MOBILE=1 npm run build
+          mkdir -p packages/harmonyos/out
+          (cd dist-app && zip -qr ../packages/harmonyos/out/PianistAssistant-harmonyos-web-bundle.zip .)
+          cp packages/harmonyos/Index.ets packages/harmonyos/out/
+      - uses: actions/upload-artifact@v4
+        with: { name: harmonyos, path: packages/harmonyos/out/*, if-no-files-found: error }
+
+  release:
+    needs: [android, ios, harmonyos]
+    if: ${{ !cancelled() && (needs.android.result == 'success' || needs.ios.result == 'success' || needs.harmonyos.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out }
+        continue-on-error: true
+      - name: Publish to the release "app-builds"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view app-builds --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create app-builds --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
+              --title "Latest app builds" --notes "Always the newest builds of the iOS / Android / HarmonyOS packages. How to install: see packages/*/README.md in the repository."
+          gh release upload app-builds --repo "$GITHUB_REPOSITORY" --clobber $(find out -type f)

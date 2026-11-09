@@ -167,8 +167,51 @@ export function cleanName(raw: string, kind: Kind = "score"): string | null {
   return !n || n.startsWith(".") || n.length > 120 || !re.test(n) ? null : n;
 }
 
+// ---------- offline copy ----------
+// Everything that is read is also kept on the device, so the last synced library still works without a connection
+// (train, flight, a network that blocks GitHub ...). Writes still need the connection and say so.
+let offlineSince = 0;
+/** true while the data on screen comes from the device's copy because GitHub could not be reached */
+export const isOffline = () => offlineSince > 0 && Date.now() - offlineSince < 5 * 60_000;
+const markOffline = () => { offlineSince = Date.now(); };
+const markOnline = () => { offlineSince = 0; };
+const repoKey = (a: Auth) => a.repo.toLowerCase();
+const lsGet = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* storage full / private mode */ } };
+const fileReq = (a: Auth, dir: string, name: string) => new Request(`https://offline.pianist.invalid/${repoKey(a)}/${dir}/${encodeURIComponent(name)}`);
+async function cacheFile(a: Auth, dir: string, name: string, data: ArrayBuffer) {
+  try { await (await caches.open("pianist-data-v1")).put(fileReq(a, dir, name), new Response(data.slice(0))); } catch { /* no Cache API */ }
+}
+async function cachedFile(a: Auth, dir: string, name: string): Promise<ArrayBuffer | null> {
+  try { const r = await (await caches.open("pianist-data-v1")).match(fileReq(a, dir, name)); return r ? await r.arrayBuffer() : null; } catch { return null; }
+}
+async function hasCachedFile(a: Auth, dir: string, name: string): Promise<boolean> {
+  try { return !!(await (await caches.open("pianist-data-v1")).match(fileReq(a, dir, name))); } catch { return false; }
+}
+async function forgetFile(a: Auth, dir: string, name: string) {
+  try { await (await caches.open("pianist-data-v1")).delete(fileReq(a, dir, name)); } catch { /* ignore */ }
+}
+const isNetworkError = (e: unknown) => e instanceof ApiError && e.status === 0;
+
 async function list(dir: string): Promise<ScoreInfo[]> {
   const a = need();
+  const key = `pianist.list.${repoKey(a)}.${dir}`;
+  try {
+    const items = await listLive(a, dir);
+    markOnline();
+    lsSet(key, JSON.stringify(items));
+    return items;
+  } catch (e) {
+    const saved = lsGet(key);
+    if (isNetworkError(e) && saved) {
+      markOffline();
+      return JSON.parse(saved) as ScoreInfo[];
+    }
+    throw e;
+  }
+}
+
+async function listLive(a: Auth, dir: string): Promise<ScoreInfo[]> {
   const r = await gh(a, url(a, dir) + ref(a), { headers: headers(a), cache: "no-store" });
   if (r.status === 404) return [];
   if (!r.ok) throw new Error(`读取列表失败 (${r.status})`);
@@ -193,12 +236,39 @@ export async function listInbox(): Promise<InboxItem[]> {
 
 async function getBytes(dir: string, name: string): Promise<ArrayBuffer> {
   const a = need();
-  const r = await gh(a, url(a, dir, name) + ref(a), {
-    headers: headers(a, "application/vnd.github.raw+json"),
-    cache: "no-store",
-  });
-  if (!r.ok) throw new Error(`下载失败 (${r.status})`);
-  return r.arrayBuffer();
+  try {
+    const r = await gh(a, url(a, dir, name) + ref(a), {
+      headers: headers(a, "application/vnd.github.raw+json"),
+      cache: "no-store",
+    });
+    if (!r.ok) throw new Error(`下载失败 (${r.status})`);
+    const data = await r.arrayBuffer();
+    markOnline();
+    void cacheFile(a, dir, name, data);
+    return data;
+  } catch (e) {
+    if (isNetworkError(e)) {
+      const saved = await cachedFile(a, dir, name);
+      if (saved) {
+        markOffline();
+        return saved;
+      }
+    }
+    throw e;
+  }
+}
+/** In the background: keep a copy of every score / PDF on the device (only what is not there yet; opening a file refreshes it). */
+export async function prefetchLibrary(onProgress?: (done: number, total: number) => void) {
+  const a = getAuth();
+  if (!a || isOffline()) return;
+  const jobs: [string, string][] = [];
+  for (const [dir, items] of [[SCORES, await listScores()], [PDFS, await listPdfs().catch(() => [])]] as [string, ScoreInfo[]][])
+    for (const i of items) if (!(await hasCachedFile(a, dir, i.name))) jobs.push([dir, i.name]);
+  let done = 0;
+  for (const [dir, name] of jobs) {
+    try { await getBytes(dir, name); } catch { /* try again next time */ }
+    onProgress?.(++done, jobs.length);
+  }
 }
 export const downloadScore = (name: string) => getBytes(SCORES, name);
 export async function readFailureLog(name: string): Promise<string> {
@@ -358,6 +428,7 @@ async function remove(dir: string, name: string, message: string) {
     body: JSON.stringify({ message, sha: s, branch: a.branch }),
   });
   if (!r.ok) throw await apiError(r, "删除失败");
+  void forgetFile(a, dir, name);
 }
 export const deleteScore = (name: string) => remove(SCORES, name, `Delete score: ${name}`);
 export async function deleteInbox(name: string) {
@@ -409,11 +480,21 @@ const validPair = (p: unknown): p is Pair => {
 };
 export async function readPairs(): Promise<Pair[]> {
   const a = need();
-  const r = await gh(a, url(a, CONFIG, "pairs.json") + ref(a), { headers: headers(a, "application/vnd.github.raw+json"), cache: "no-store" });
-  if (r.status === 404) return [];
-  if (!r.ok) throw new Error(`读取四手联弹配置失败 (${r.status})`);
+  const pk = `pianist.pairs.${repoKey(a)}`;
+  let text: string;
   try {
-    const j = JSON.parse(await r.text()) as { pairs?: unknown[] };
+    const r = await gh(a, url(a, CONFIG, "pairs.json") + ref(a), { headers: headers(a, "application/vnd.github.raw+json"), cache: "no-store" });
+    if (r.status === 404) return [];
+    if (!r.ok) throw new Error(`读取四手联弹配置失败 (${r.status})`);
+    text = await r.text();
+    lsSet(pk, text);
+  } catch (e) {
+    const saved = lsGet(pk);
+    if (isNetworkError(e) && saved) text = saved;
+    else throw e;
+  }
+  try {
+    const j = JSON.parse(text) as { pairs?: unknown[] };
     return Array.isArray(j.pairs) ? j.pairs.filter(validPair) : [];
   } catch {
     return [];

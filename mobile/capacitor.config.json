@@ -1,0 +1,7 @@
+{
+  "appId": "com.pianistassistant.app",
+  "appName": "Pianist Assistant",
+  "webDir": "../dist-app",
+  "ios": { "contentInset": "never" },
+  "android": { "allowMixedContent": false }
+}

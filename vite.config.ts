@@ -1,11 +1,20 @@
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+// MOBILE=1: build for the iOS / Android / HarmonyOS apps (mobile/): files are loaded from inside the app, relative paths,
+// no service worker (the app itself is the offline copy). Everything else is the same code as the website.
+const mobile = !!process.env.MOBILE;
+
 export default defineConfig({
-  define: { __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")) },
-  // GitHub Pages project site: https://<user>.github.io/PianistAssistant/
-  base: process.env.BASE_PATH ?? "/PianistAssistant/",
-  plugins: [
+  define: {
+    __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")),
+    __MOBILE__: JSON.stringify(mobile),
+  },
+  // website: GitHub Pages project site https://<user>.github.io/PianistAssistant/ ; app: relative paths
+  base: mobile ? "./" : process.env.BASE_PATH ?? "/PianistAssistant/",
+  build: mobile ? { outDir: "dist-app" } : {},
+  resolve: mobile ? { alias: { "virtual:pwa-register": new URL("./src/pwa-stub.ts", import.meta.url).pathname } } : {},
+  plugins: mobile ? [] : [
     VitePWA({
       registerType: "prompt", // the app decides when it is safe to reload (not while playing / editing)
       manifest: {

@@ -1,5 +1,7 @@
 // Source strings are the Chinese texts used in the code; see i18n.ts for how they are looked up.
 export const EN: Record<string, string> = {
+  "离线：显示的是上次同步的内容，修改和上传要联网后才能进行": "Offline: showing what was last synced; changes and uploads need a connection.",
+  "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。": "No scores yet — tap \"Upload score\" at the top right (MusicXML / .mxl / PDF).",
   "它是四手联弹「{0}」的一个声部，删除后这首四手联弹也会消失（另一个声部的谱子保留）。": "It is one part of the four-hand piece \"{0}\"; deleting it also removes that piece (the other part's score stays).",
   " · 当前 {0}": " · current {0}",
   " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。": " Deleting the token signs out every device at once; create a new token and sign in again.",
@@ -284,6 +286,8 @@ export const EN: Record<string, string> = {
 };
 
 export const FR: Record<string, string> = {
+  "离线：显示的是上次同步的内容，修改和上传要联网后才能进行": "Hors ligne : contenu de la dernière synchronisation ; les modifications et envois nécessitent une connexion.",
+  "还没有琴谱，点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。": "Pas encore de partition — touchez « Ajouter une partition » en haut à droite (MusicXML / .mxl / PDF).",
   "它是四手联弹「{0}」的一个声部，删除后这首四手联弹也会消失（另一个声部的谱子保留）。": "C'est une partie du morceau à quatre mains « {0} » ; le supprimer supprime aussi ce morceau (l'autre partition est conservée).",
   " · 当前 {0}": " · actuel {0}",
   " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。": " Supprimer le jeton déconnecte tous les appareils ; créez-en un nouveau et reconnectez-vous.",

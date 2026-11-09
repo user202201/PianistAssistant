@@ -14,6 +14,8 @@ import { clearNew, clearQueued, getRecent, isNew, loadSettings, markNew, markQue
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
+let offlineToldAt = 0; // the "you are offline" notice is shown once per outage
+let prefetched = false; // the library is copied to the device once per session
 setLang(settings.lang); // texts are translated as they appear on screen
 settings.volume = 1; // loudness is the iPad's own volume; the app always plays at full level
 
@@ -231,8 +233,10 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("label", { class: "inline" }, "提前显示下一行（浮在下方，翻页后消失）", peekBox),
     ...(onLayout ? [h("label", { class: "inline" }, "多声部（四手联弹）分屏显示", splitBox)] : []),
     h("h3", {}, "应用"),
-    h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
-    h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
+    ...(__MOBILE__ ? [] : [
+      h("button", { class: "rowbtn", id: "check-update", onclick: () => void checkUpdate() }, ic("refresh", 20), "检查更新"),
+      h("button", { class: "rowbtn", id: "hard-refresh", title: "一直显示旧版本时使用，不会退出登录", onclick: () => void hardRefresh() }, ic("trash", 20), "强制刷新（清除缓存）"),
+    ]),
     h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
     h("h3", {}, "登录与设备"),
     h(
@@ -812,6 +816,8 @@ async function renderHome() {
       const scores = await api.listScores();
       const pdfs = await api.listPdfs().catch(() => [] as api.ScoreInfo[]);
       if (token !== renderSeq) return;
+      if (api.isOffline() && !offlineToldAt) { offlineToldAt = Date.now(); toast("离线：显示的是上次同步的内容，修改和上传要联网后才能进行", 8000); }
+      if (!api.isOffline()) { offlineToldAt = 0; if (!prefetched) { prefetched = true; void api.prefetchLibrary(); } }
       pdfList.replaceChildren(...pdfs.map((x) => pdfCard(x.name)));
       pdfSec.hidden = pdfs.length === 0;
       // a just-uploaded file may not show up in GitHub's listing for a few seconds: keep showing it
@@ -1871,7 +1877,7 @@ async function checkUpdate(quiet = false) {
   else if (!quiet) toast("已是最新版本");
 }
 
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
+if ("serviceWorker" in navigator && import.meta.env.PROD && !__MOBILE__) {
   import("virtual:pwa-register")
     .then(({ registerSW }) => {
       const updateSW = registerSW({

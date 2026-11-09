@@ -1,0 +1,18 @@
+{
+  "name": "pianist-assistant-mobile",
+  "private": true,
+  "description": "Native shells (iOS / Android) around the web app. The app code is the same as the website; only the packaging differs.",
+  "scripts": {
+    "web": "cd .. && MOBILE=1 npm run build",
+    "sync": "npm run web && cap sync"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}
