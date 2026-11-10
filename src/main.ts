@@ -15,9 +15,9 @@ import { extractScore, mergeScores, toMusicXml } from "./score";
 import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
-import { createGameView } from "./gameview";
+import { createGameView, GAME_PRE } from "./gameview";
 import { confetti } from "./confetti";
-import { goSound, readySound, say, stopSaying } from "./gamesound";
+import { goSound, readySound } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -381,8 +381,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     dlg.close();
     onLayout?.();
   });
-  const voiceBox = h("input", { type: "checkbox", checked: settings.gameVoice });
-  voiceBox.addEventListener("change", () => { settings.gameVoice = voiceBox.checked; saveSettings(settings); });
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -429,7 +427,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
-    ...(settings.gameMode ? [h("label", { class: "inline" }, "游戏开始语音（Ready / Go）", voiceBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [
@@ -2006,14 +2003,13 @@ function buildControls(
   });
   // game view: READY ... GO! (instead of the metronome count-in): the notes fall in during the lead, the music starts exactly at GO
   async function startGame() {
-    const LEAD = 3.2;
-    await player.play(false, { lead: LEAD });
+    const GO_AT = 1.9; // seconds after the tap: READY ... GO (the screen stands still), then the notes fall in for GAME_PRE seconds, then the music
+    await player.play(false, { lead: GO_AT + GAME_PRE });
     if (!player.playing) return;
     clearCountIn();
-    const ctx = audioCtx(), go = player.startsAt, ready = go - LEAD + 0.35;
+    const ctx = audioCtx(), base = player.startsAt - GO_AT - GAME_PRE, ready = base + 0.35, go = base + GO_AT;
     const vol = settings.volume;
     readySound(ctx, ready, vol); goSound(ctx, go, vol);
-    if (settings.gameVoice) { countTimers.push(say("Ready", ready - ctx.currentTime + 0.1, vol) ?? 0); countTimers.push(say("Go!", go - ctx.currentTime, vol) ?? 0); } // the voice of the device, English
     countEl = h("div", { class: "gostart" }, h("span", { class: "word" }));
     document.body.append(countEl);
     const word = countEl.firstElementChild as HTMLElement;
@@ -2021,13 +2017,12 @@ function buildControls(
     const show = (txt: string, cls: string) => { word.textContent = txt; word.className = "word " + cls; void word.offsetWidth; word.classList.add("in"); };
     at(ready, () => show("READY", "ready"));
     at(go - 0.04, () => show("GO!", "go"));
-    countTimers.push(window.setTimeout(clearCountIn, Math.max(0, (go - ctx.currentTime) * 1000) + 1100));
+    countTimers.push(window.setTimeout(() => { countEl?.remove(); countEl = null; }, Math.max(0, (go - ctx.currentTime) * 1000) + 1100)); // (the words go; the pre-roll runs on)
   }
   // the count-in is also shown as big numbers (1 2 3 4), so you know when the music starts
   let countTimers: number[] = [];
   let countEl: HTMLElement | null = null;
   function clearCountIn() {
-    stopSaying();
     countTimers.forEach((t) => clearTimeout(t));
     countTimers = [];
     countEl?.remove();

@@ -16,6 +16,8 @@ export interface GameView {
 /** how long a note is shown / lit: as WRITTEN (the sounding length includes the pedal, which would keep keys pressed for seconds) */
 export const noteLength = (e: NoteEvent) => Math.max(e.dur0, 0.12);
 
+/** game start: after GO the notes fall in for this many seconds before the music begins; before GO everything stands still */
+export const GAME_PRE = 2.2;
 const WINDOW = 3;
 const PULSE = 0.45; // a struck key glows only briefly (a flash that fades): the note's length is shown by the block above, a held key is NOT kept lit // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
@@ -107,6 +109,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     const playing = player.playing;
     let t = player.position();
     if (!playing && t <= 0.001) t = -WINDOW - 1;
+    else if (playing && t < -GAME_PRE * player.speed - 0.02) t = -WINDOW - 1; // READY ... GO: still empty, nothing moves yet
     const ww = W / whites.length, kh = Math.min(H * 0.56, 112), top = H - kh;
     // octave guide lines
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(25,211,255,.13)";
