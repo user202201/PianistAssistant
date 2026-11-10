@@ -93,7 +93,10 @@ export class Player {
     const hands = this.partHands[e.part];
     return e.staff % 2 === 0 ? hands.right : hands.left;
   }
+  /** score mode of the game: the notes the player has to play are NOT played by the app */
+  practiceMute = false;
   private audible(e: NoteEvent): boolean {
+    if (this.practiceMute && this.isShown(e)) return false;
     if (!this.partOn[e.part]) return false;
     if (this.score.staffCounts[e.part] < 2) return true; // hand split only for 2-staff parts
     const hands = this.partHands[e.part];

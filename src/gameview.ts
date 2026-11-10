@@ -1,5 +1,6 @@
 import type { Player } from "./player";
 import type { NoteEvent, ParsedScore } from "./score";
+import type { Judgement } from "./gamescore";
 import { icon } from "./icons";
 
 /**
@@ -10,6 +11,11 @@ import { icon } from "./icons";
 export interface GameView {
   el: HTMLElement;
   setTilt(on: boolean): void;
+  /** score mode: nothing is played or lit by itself, the player\'s own keys light up */
+  setScoring(on: boolean): void;
+  judge(j: Judgement): void;
+  press(midi: number, colour: string): void;
+  release(midi: number): void;
   destroy(): void;
 }
 
@@ -22,7 +28,7 @@ const WINDOW = 3;
 const PULSE = 0.45; // a struck key glows only briefly (a flash that fades): the note's length is shown by the block above, a held key is NOT kept lit // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
 
-export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void }): GameView {
+export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void }): GameView {
   const canvas = document.createElement("canvas");
   canvas.className = "gcanvas";
   const stage = document.createElement("div");
@@ -34,7 +40,15 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   el.className = "gamepanel";
   const grip = document.createElement("div");
   grip.className = "ggrip"; grip.setAttribute("role", "separator");
-  el.append(stage, tiltBtn, grip);
+  // demo (the app plays and shows) / score (you play, the app judges)
+  let scoring = opts.scoring;
+  const modeBtn = (sc: boolean, label: string) => { const b = document.createElement("button"); b.className = "seg"; b.dataset.gmode = sc ? "score" : "demo"; b.textContent = label; b.onclick = () => { if (scoring === sc) return; scoring = sc; syncMode(); opts.onMode(sc); }; return b; };
+  const modes = document.createElement("div");
+  modes.className = "group gmode";
+  const bDemo = modeBtn(false, "演示"), bScore = modeBtn(true, "计分");
+  modes.append(bDemo, bScore);
+  const syncMode = () => { bDemo.classList.toggle("on", !scoring); bScore.classList.toggle("on", scoring); el.classList.toggle("scoring", scoring); };
+  el.append(stage, tiltBtn, modes, grip);
   // The panel height: default a little more than the keyboard; the user drags the top edge. Never lower than the keyboard plus a strip of the coming notes.
   const MINH = 150;
   const maxH = () => Math.max(MINH, Math.round(window.innerHeight * 0.6));
@@ -63,6 +77,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   const whiteIndex = new Map(whites.map((m, i) => [m, i]));
 
   let tilt = opts.tilt, raf = 0, W = 0, H = 0, dead = false;
+  setTimeout(() => syncMode(), 0);
   const apply = () => {
     el.classList.toggle("tilt", tilt);
     tiltBtn.replaceChildren(icon(tilt ? "keys-tilt" : "keys-flat", 22));
@@ -94,6 +109,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   // a held key keeps a thin trickle of puffs and a soft beam stands above a sounding key
   interface Puff { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; col: string }
   const sparks: Puff[] = []; // (the puffs)
+  const pressed = new Map<number, string>(); // keys the player holds (score mode)
+  const popups: { x: number; text: string; col: string; t: number }[] = [];
+  let geo = { ww: 20, top: 100 };
   const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
   let prevActive = new Map<number, string>(), last = 0;
   const emit = (x: number, y: number, col: string, n: number) => {
@@ -146,7 +164,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.shadowBlur = 0;
       if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
     }
-    if (!playing) { active.clear(); ring.clear(); }
+    if (!playing || scoring) { active.clear(); ring.clear(); }
+    geo = { ww, top };
     // the keyboard
     ctx.shadowBlur = 0;
     const draws = (black: boolean) => {
@@ -161,6 +180,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
         path();
         const rg = ring.get(m);
         if (rg && !on) { ctx.globalAlpha = rg.u; ctx.fillStyle = rg.col; path(); ctx.globalAlpha = 1; } // the sound still rings: pale, and gone when it has died away
+        const pr = pressed.get(m);
+        if (pr) { ctx.globalAlpha = 0.92; ctx.shadowColor = pr; ctx.shadowBlur = 26; const pg = ctx.createLinearGradient(0, top, 0, top + h); pg.addColorStop(0, pr); pg.addColorStop(1, pr + "aa"); ctx.fillStyle = pg; path(); ctx.globalAlpha = 1; ctx.shadowBlur = 0; }
         if (on) { // the strike flash: full colour first, fading out within PULSE seconds
           const u = Math.max(0, 1 - (age.get(m) ?? 0) / PULSE);
           ctx.globalAlpha = u; ctx.shadowColor = on; ctx.shadowBlur = 30 * u;
@@ -196,6 +217,11 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
+    for (let i = popups.length - 1; i >= 0; i--) { // judgement words rise from the key and fade
+      const p = popups[i]; p.t += dt; const u = p.t / 0.9; if (u >= 1) { popups.splice(i, 1); continue; }
+      ctx.save(); ctx.globalAlpha = 1 - u * u; ctx.font = `900 ${Math.round(17 + (1 - u) * 6)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.shadowColor = p.col; ctx.shadowBlur = 14; ctx.fillStyle = p.col;
+      ctx.fillText(p.text, Math.max(40, Math.min(W - 40, p.x)), top - 18 - u * 60); ctx.restore();
+    }
     el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
@@ -206,6 +232,16 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   return {
     el,
     setTilt(on) { tilt = on; apply(); },
+    setScoring(on) { scoring = on; syncMode(); if (on) pressed.clear(); },
+    judge(j) {
+      const k = keyBox(j.midi, geo.ww, 0), cx = k.x + k.w / 2;
+      const look: Record<string, [string, string]> = { perfect: ["PERFECT", "#ffd60a"], good: ["GOOD", "#7dff6b"], early: ["EARLY", "#9ad1ff"], late: ["LATE", "#ffb86b"], miss: ["MISS", "#ff5a5a"], wrong: ["×", "#ff5a5a"] };
+      const [text, col] = look[j.kind];
+      popups.push({ x: cx, text, col, t: 0 });
+      if (j.kind !== "miss" && j.kind !== "wrong") { flares.push({ x: cx, y: geo.top, t: 0, col, w: Math.max(geo.ww * 2.4, 40) }); emit(cx, geo.top, col, j.kind === "perfect" ? 3 : 2); }
+    },
+    press(m, col) { pressed.set(m, col); },
+    release(m) { pressed.delete(m); },
     destroy() { dead = true; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener("resize", applyH); el.remove(); },
   };
 }

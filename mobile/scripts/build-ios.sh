@@ -18,15 +18,16 @@ npx capacitor-assets generate --ios --iconBackgroundColor '#1f2937' --splashBack
 npx cap sync ios
 
 cd ios/App
-# trial + one-time purchase (docs: packages/ios/README.md). PAYWALL=0 builds a version without it.
-if [ "${PAYWALL:-1}" != "0" ]; then
-  cp ../../ios-store/PianistStorePlugin.swift ../../ios-store/MainViewController.swift App/
-  ruby -e 'require "xcodeproj"' 2>/dev/null || gem install xcodeproj --no-document --user-install
-  ruby ../../ios-store/add-to-project.rb App.xcodeproj
-  # the first screen must be our subclass (it registers the plugin)
-  sed -i '' 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MainViewController" customModule="App"/' App/Base.lproj/Main.storyboard
-  grep -q 'customClass="MainViewController"' App/Base.lproj/Main.storyboard || { echo "could not point Main.storyboard at MainViewController"; exit 1; }
-fi
+# native plugins: the MIDI keyboard input (always) and the trial + one-time purchase (docs: packages/ios/README.md; PAYWALL=0 builds a version without the purchase)
+cp ../../ios-store/PianistStorePlugin.swift ../../ios-store/PianistMidiPlugin.swift ../../ios-store/MainViewController.swift App/
+[ "${PAYWALL:-1}" = "0" ] && sed -i '' '/PianistStorePlugin()/d' App/MainViewController.swift
+ruby -e 'require "xcodeproj"' 2>/dev/null || gem install xcodeproj --no-document --user-install
+ruby ../../ios-store/add-to-project.rb App.xcodeproj
+# the first screen must be our subclass (it registers the plugins)
+sed -i '' 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MainViewController" customModule="App"/' App/Base.lproj/Main.storyboard
+grep -q 'customClass="MainViewController"' App/Base.lproj/Main.storyboard || { echo "could not point Main.storyboard at MainViewController"; exit 1; }
+# Bluetooth MIDI keyboards: iOS asks for permission with this text
+/usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Used to connect a Bluetooth MIDI keyboard or digital piano. Nothing is sent anywhere." App/Info.plist 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSBluetoothAlwaysUsageDescription 'Used to connect a Bluetooth MIDI keyboard or digital piano. Nothing is sent anywhere.'" App/Info.plist || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${RUN}" App/Info.plist || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${RUN}" App/Info.plist || true
 # App Store Connect asks about encryption on every upload: the app only uses the system's HTTPS, which is exempt

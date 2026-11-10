@@ -133,3 +133,13 @@ Xcode 只能装在 Mac 上，所以 Windows 上有两条路：
 Die App spricht Chinesisch, Englisch, Französisch, Deutsch, Japanisch und Koreanisch (Info.plist `CFBundleLocalizations` wird vom Build gesetzt).
 **Die App-Store-Seite** (Name, Beschreibung, Screenshots, Stichwörter) wird in App Store Connect pro Sprache angelegt: App-Informationen → Lokalisierungen → Sprache hinzufügen.
 The in-app texts were translated by an AI and have not been reviewed by native speakers; before a release, let a native speaker of each language read the main screens.
+
+
+## MIDI keyboard / digital piano (game mode, score mode)
+
+The app contains a small native plugin (`mobile/ios-store/PianistMidiPlugin.swift`, CoreMIDI) that reads a piano connected to the iPad and gives every key press to the game
+(iPad Safari has no Web MIDI, so only the app can do this). Nothing is sent anywhere.
+- USB piano: plug it in (USB-C iPad: cable; Lightning iPad: Apple "Lightning to USB 3 Camera Adapter"). Class-compliant pianos need no driver.
+- Bluetooth MIDI piano: in the score window press "Bluetooth piano": the system pairing screen opens.
+- The build adds `NSBluetoothAlwaysUsageDescription` to Info.plist by itself (build-ios.sh).
+- Not testable without a real piano: the CI only checks that it compiles.

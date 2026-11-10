@@ -16,6 +16,9 @@ import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView, GAME_PRE } from "./gameview";
+import { GameScore } from "./gamescore";
+import { createHud } from "./gamehud";
+import { midi, MidiInput } from "./midi";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
@@ -2003,6 +2006,8 @@ function buildControls(
   });
   // game view: READY ... GO! (instead of the metronome count-in): the notes fall in during the lead, the music starts exactly at GO
   async function startGame() {
+    player.practiceMute = scoringOn();
+    if (scoringOn() && (!gs || roundOver || player.position() <= 0.05)) beginRound();
     const GO_AT = 1.9; // seconds after the tap: READY ... GO (the screen stands still), then the notes fall in for GAME_PRE seconds, then the music
     await player.play(false, { lead: GO_AT + GAME_PRE });
     if (!player.playing) return;
@@ -2364,11 +2369,55 @@ function buildControls(
   if (strip) app.querySelector(".top")?.after(strip);
   app.append(bar);
   // the game panel (falling notes + keyboard) sits between the score and the bottom bar while the Game switch is on
-  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); } });
+  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); },
+    scoring: settings.gameScoring, onMode: (sc) => { settings.gameScoring = sc; saveSettings(settings); syncGame(); } });
+  // ---- score mode: you play on a MIDI keyboard, the app judges the timing ----
+  let gs: GameScore | null = null, roundOver = false;
+  const scoringOn = () => gameOn() && settings.gameScoring;
+  const keyColour = (k: string) => (k === "wrong" || k === "miss" ? "#ff5a5a" : k === "perfect" ? "#ffd60a" : "#ffffff");
+  const hud = createHud({
+    level: settings.gameLevel,
+    onLevel: (l) => { settings.gameLevel = l; saveSettings(settings); },
+    onConnect: () => { void midi.start(); },
+    onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
+    onRetry: () => { player.stop(); void startGame(); },
+  });
+  app.append(hud.el);
+  hud.midi(midi.status());
+  const offState = midi.onState((st) => hud.midi(st));
+  const offNote = midi.onNote((n) => {
+    if (!scoringOn()) return;
+    if (n.type === "off") return void gv.release(n.note);
+    if (!gs || !player.playing || roundOver) return void gv.press(n.note, "#ffffff"); // free play: the key just lights
+    const t = player.position() - ((performance.now() - n.time) / 1000) * player.speed; // the moment the key was struck
+    const j = gs.strike(n.note, t);
+    gv.judge(j); gv.press(n.note, keyColour(j.kind)); hud.judged(j); hud.update(gs.stats, gs.accuracy());
+  });
+  // keys that were let go are never reported twice: clear the lit keys when they have been struck for a while
+  const beginRound = () => {
+    gs = new GameScore(score.events.filter((e) => player.isShown(e)), settings.gameLevel, player.speed);
+    roundOver = false;
+    hud.reset();
+    hud.update(gs.stats, 1);
+  };
+  const roundTimer = window.setInterval(() => {
+    if (!scoringOn() || !gs || roundOver) return;
+    const pos = player.position();
+    const ended = !player.playing && pos >= score.duration - 0.05;
+    if (player.playing || ended) {
+      for (const j of gs.advance(ended ? Infinity : pos)) { gv.judge(j); hud.judged(j); }
+      hud.update(gs.stats, gs.accuracy());
+    }
+    if (gs.finished && (player.playing || ended)) { roundOver = true; hud.result(gs.stats, gs.stars(), gs.accuracy(true)); }
+  }, 60);
   const syncGame = () => {
-    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); gv.destroy(); return; }
+    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); clearInterval(roundTimer); offNote(); offState(); hud.destroy(); gv.destroy(); return; }
     gv.el.hidden = !(settings.gameMode && settings.gameView);
     gv.setTilt(settings.gameTilt);
+    gv.setScoring(settings.gameScoring);
+    player.practiceMute = scoringOn();
+    hud.setHidden(!scoringOn());
+    if (scoringOn() && MidiInput.available()) void midi.start(); // (the browser asks for permission now)
     refreshMore(); // the game view is a small-screen layout: small bar, the score gets the room
   };
   bar.before(gv.el);
