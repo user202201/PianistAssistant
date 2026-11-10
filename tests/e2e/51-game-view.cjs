@@ -70,11 +70,12 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(pk, 'the "next line" preview never covers the game panel');
   // four hands: the part that is switched OFF is the one you practise -> the game shows that part (the other one is only the accompaniment)
   await page.evaluate(() => (location.hash = '#/duet/Ode_Primo.musicxml/Ode_Secondo.musicxml')); await page.waitForSelector('.gamepanel', { timeout: 20000 }); await page.waitForTimeout(2000);
-  const shownParts = (on) => page.evaluate((on) => { const p = window.__pianist.player; p.partOn = on; return [...new Set(p.score.events.filter((e) => p.isShown(e)).map((e) => e.part))].sort().join(','); }, on);
-  ok(await shownParts([true, true]) === '0,1', 'four hands, both parts on: the game shows both');
-  ok(await shownParts([false, true]) === '0', 'part A switched off (you play A): only A is shown, B is the accompaniment');
-  ok(await shownParts([true, false]) === '1', 'part B switched off: only B is shown');
-  ok(await shownParts([false, false]) === '0,1', 'both off: both are shown');
+  const shownParts = () => page.evaluate(() => { const p = window.__pianist.player; return [...new Set(p.score.events.filter((e) => p.isShown(e)).map((e) => e.part))].sort().join(','); });
+  ok(await shownParts() === '0,1', 'four hands, both parts on: the game shows both');
+  await page.click('.panehead:nth-of-type(1) .pname, .pname >> nth=0'); await page.waitForTimeout(300); // the real button: switch part A off (you play A)
+  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true' && await shownParts() === '0', 'part A switched off with its button (you play A): only A is shown, B is the accompaniment');
+  await page.click('.pname >> nth=0'); await page.click('.pname >> nth=1'); await page.waitForTimeout(300); // A back on, then B off
+  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'true,false' && await shownParts() === '1', 'A back on, then part B off with its button: only B is shown');
   await page.evaluate(() => { window.__pianist.player.partOn = [true, true]; });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForTimeout(2000);
   // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...
