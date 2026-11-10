@@ -116,7 +116,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now;
     for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
       const e = events[i];
-      if (e.midi < lo || e.midi > hi || !player.isAudible(e)) continue;
+      if (e.midi < lo || e.midi > hi || !player.isShown(e)) continue;
       const end = e.sec + noteLength(e);
       if (end < t) continue;
       const k = keyBox(e.midi, ww, kh);

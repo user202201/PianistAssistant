@@ -80,8 +80,19 @@ export class Player {
     return this.startPos + (this.ctx.currentTime - this.startAudio) * this.speed;
   }
 
-  /** is this note sounding with the current part / hand choice (the game view shows only these) */
-  isAudible(e: NoteEvent): boolean { return this.audible(e); }
+  /**
+   * Is this note one the PLAYER has to play (the game view shows exactly these)? Four hands: a part that is switched off is the one you practise (it
+   * is silent, the other one plays along as the accompaniment), so only the switched-off parts are shown; with every part on (or every part off)
+   * all parts are shown. The hand choice of a part applies as usual.
+   */
+  isShown(e: NoteEvent): boolean {
+    const on = this.partOn;
+    const mixed = on.some(Boolean) && on.some((x) => !x);
+    if (mixed && on[e.part]) return false;
+    if (this.score.staffCounts[e.part] < 2) return true;
+    const hands = this.partHands[e.part];
+    return e.staff % 2 === 0 ? hands.right : hands.left;
+  }
   private audible(e: NoteEvent): boolean {
     if (!this.partOn[e.part]) return false;
     if (this.score.staffCounts[e.part] < 2) return true; // hand split only for 2-staff parts

@@ -3,7 +3,7 @@
 const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 (async () => {
-  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'long.musicxml')], ['scores/dyn.musicxml', fs.readFileSync(D + 'dyn.musicxml')]]);
+  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'long.musicxml')], ['scores/dyn.musicxml', fs.readFileSync(D + 'dyn.musicxml')], ['scores/Ode_Primo.musicxml', fs.readFileSync(D + 'Ode_Primo.musicxml')], ['scores/Ode_Secondo.musicxml', fs.readFileSync(D + 'Ode_Secondo.musicxml')]]);
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}'); s.gameMode = true; s.gameView = false; s.gameTilt = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.reload(); await page.waitForSelector('.top .modetoggle', { timeout: 20000 }); await page.waitForTimeout(1500);
@@ -68,6 +68,14 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.evaluate((x) => { window.__pianist.player.paused = x - 1.2; }, sec0); await page.waitForTimeout(400);
   const pk = await page.evaluate(() => { const p = document.querySelector('.peek'), g = document.querySelector('.gamepanel').getBoundingClientRect(); return !p || getComputedStyle(p).display === 'none' || p.getBoundingClientRect().bottom <= g.top + 1; });
   ok(pk, 'the "next line" preview never covers the game panel');
+  // four hands: the part that is switched OFF is the one you practise -> the game shows that part (the other one is only the accompaniment)
+  await page.evaluate(() => (location.hash = '#/duet/Ode_Primo.musicxml/Ode_Secondo.musicxml')); await page.waitForSelector('.gamepanel', { timeout: 20000 }); await page.waitForTimeout(2000);
+  const shownParts = (on) => page.evaluate((on) => { const p = window.__pianist.player; p.partOn = on; return [...new Set(p.score.events.filter((e) => p.isShown(e)).map((e) => e.part))].sort().join(','); }, on);
+  ok(await shownParts([true, true]) === '0,1', 'four hands, both parts on: the game shows both');
+  ok(await shownParts([false, true]) === '0', 'part A switched off (you play A): only A is shown, B is the accompaniment');
+  ok(await shownParts([true, false]) === '1', 'part B switched off: only B is shown');
+  ok(await shownParts([false, false]) === '0,1', 'both off: both are shown');
+  await page.evaluate(() => { window.__pianist.player.partOn = [true, true]; });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForTimeout(2000);
   // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...
   await page.click('.modetoggle .seg[data-mode=practice]'); await page.setViewportSize({ width: 1194, height: 700 }); await page.waitForTimeout(500);
