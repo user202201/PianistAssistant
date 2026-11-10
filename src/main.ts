@@ -435,7 +435,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
-    ...(settings.gameMode ? [h("label", { class: "inline" }, "显示判定文字（Perfect / Miss 等）", judgeBox), h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
+    ...(settings.gameMode ? [h("label", { class: "inline" }, "显示判定文字和连击横幅（Perfect / Miss / COMBO）", judgeBox), h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [

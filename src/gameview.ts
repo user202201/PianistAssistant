@@ -297,6 +297,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       if (j.kind !== "miss" && j.kind !== "wrong") { flares.push({ x: cx, y: geo.top, t: 0, col, w: Math.max(geo.ww * 2.4, 40) }); emit(cx, geo.top, col, j.kind === "perfect" ? 3 : 2); }
     },
     milestone(n) {
+      if (!opts.judgeText()) return; // one option for all the words and banners: Perfect / Miss ... and the big COMBO
       const col = n >= 100 ? "#ff4fd8" : n >= 50 ? "#ffd60a" : n >= 25 ? "#7dff6b" : "#19d3ff";
       banners.push({ text: `${n} COMBO!`, col, t: 0 });
       for (let i = 1; i <= 4; i++) flares.push({ x: (W * i) / 5, y: geo.top, t: -0.05 * i, col, w: Math.max(W / 4, 80) }); // rings of light across the lane

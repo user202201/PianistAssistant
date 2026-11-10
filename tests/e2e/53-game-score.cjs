@@ -81,9 +81,10 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // the judgement words can be switched off (a complex piece is not covered by them)
   const wordsAfter = async (on) => { await page.evaluate((on) => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameJudgeText = on; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); }, on);
     await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1200);
-    await page.click('button[title^=播放]'); await page.evaluate(() => { window.__pmax = 0; setInterval(() => { window.__pmax = Math.max(window.__pmax, Number(document.querySelector('.gamepanel').dataset.popups || 0)); }, 30); }); await page.waitForTimeout(8000); const n = await page.evaluate(() => window.__pmax); await page.evaluate(() => window.__pianist.player.stop()); return n; };
+    await page.click('button[title^=播放]'); await page.evaluate(() => { window.__pmax = 0; window.__bmax = 0; setInterval(() => { const pn = document.querySelector('.gamepanel'); window.__pmax = Math.max(window.__pmax, Number(pn.dataset.popups || 0)); window.__bmax = Math.max(window.__bmax, Number(pn.dataset.banners || 0)); }, 30); }); await page.waitForTimeout(12500); const n = await page.evaluate(() => [window.__pmax, window.__bmax]); await page.evaluate(() => window.__pianist.player.stop()); return n; };
   const withWords = await wordsAfter(true), withoutWords = await wordsAfter(false);
-  ok(withWords > 0 && withoutWords === 0, `the words PERFECT / MISS ... can be switched off in the settings (${withWords} shown -> ${withoutWords})`);
+  ok(withWords[0] > 0 && withoutWords[0] === 0, `the words PERFECT / MISS ... can be switched off in the settings (${withWords[0]} shown -> ${withoutWords[0]})`);
+  ok(withWords[1] > 0 && withoutWords[1] === 0, `the same option switches the big COMBO banner (${withWords[1]} shown -> ${withoutWords[1]})`);
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameJudgeText = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameDemoMistakes = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
