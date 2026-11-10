@@ -65,11 +65,13 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     if (at !== null) { p.playing = true; p.startAudio = p.ctx.currentTime; p.startPos = at; } else p.playing = false;
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200 && d[i + 2] > 230 && d[i + 1] > 190 && d[i] < 60) n++;
-    p.playing = false; return n; }, at);
+    const lit = document.querySelector('.gamepanel').dataset.lit.split(',').filter(Boolean).map(Number), ring = document.querySelector('.gamepanel').dataset.ring.split(',').filter(Boolean).map(Number); p.playing = false; return at === null ? n : { n, lit, ring }; }, at);
   const sec0 = await page.evaluate(() => { const p = window.__pianist.player; const e = p.score.events.find((x) => x.dur0 >= 1); p.paused = 0; return e.sec; });
-  const empty = await litAt(null); const fresh = await litAt(sec0 + 0.02); const held = await litAt(sec0 + 0.9);
+  const empty = await litAt(null); const f1 = await litAt(sec0 + 0.02); const h1 = await litAt(sec0 + 0.9); const fresh = f1.n, held = h1.n; const longMidi = await page.evaluate(() => window.__pianist.player.score.events.find((x) => x.dur0 >= 1).midi);
   ok(empty < fresh * 0.5, `before the start the lane and the keyboard are empty: nothing lit, no note at the keyboard (${empty} bright px, against ${fresh} while a key sounds)`);
-  ok(fresh > held, `a struck key is fully bright, then softer while it is held (${fresh} -> ${held} bright px)`);
+  ok(f1.lit.includes(longMidi) && !h1.lit.includes(longMidi), `the key of a long note is lit when it is struck (${f1.lit.join(' ')}) and dark again while the note is held (${h1.lit.join(' ')})`);
+  ok(h1.ring.includes(longMidi), `while it is held the key rings: pale, not struck (ring: ${h1.ring.join(' ')})`);
+  ok(fresh > held + 30, `a struck key flashes and fades out: it is NOT kept lit while the note is held (${fresh} -> ${held} bright px)`);
   await page.evaluate((x) => { window.__pianist.player.paused = x - 1.2; }, sec0); await page.waitForTimeout(400);
   const pk = await page.evaluate(() => { const p = document.querySelector('.peek'), g = document.querySelector('.gamepanel').getBoundingClientRect(); return !p || getComputedStyle(p).display === 'none' || p.getBoundingClientRect().bottom <= g.top + 1; });
   ok(pk, 'the "next line" preview never covers the game panel');

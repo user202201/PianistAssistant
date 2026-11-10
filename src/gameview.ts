@@ -16,7 +16,8 @@ export interface GameView {
 /** how long a note is shown / lit: as WRITTEN (the sounding length includes the pedal, which would keep keys pressed for seconds) */
 export const noteLength = (e: NoteEvent) => Math.max(e.dur0, 0.12);
 
-const WINDOW = 3; // seconds of score shown above the keyboard
+const WINDOW = 3;
+const PULSE = 0.45; // a struck key glows only briefly (a flash that fades): the note's length is shown by the block above, a held key is NOT kept lit // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
 
 export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void }): GameView {
@@ -112,19 +113,25 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     for (const m of whites) if (m % 12 === 0 || m % 12 === 5) { const x = (whiteIndex.get(m) ?? 0) * ww; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, top); ctx.stroke(); }
     // find the first event that could still be visible
     let a = 0, b = events.length;
-    while (a < b) { const mid = (a + b) >> 1; if (events[mid].sec < t - 6) a = mid + 1; else b = mid; }
+    while (a < b) { const mid = (a + b) >> 1; if (events[mid].sec < t - 12) a = mid + 1; else b = mid; }
+    const ring = new Map<number, { col: string; u: number }>(); // keys that still RING after the strike (sustain): shown pale, fading out
     const active = new Map<number, string>(); const age = new Map<number, number>(); // age: seconds since the key was struck
     const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now;
     for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
       const e = events[i];
       if (e.midi < lo || e.midi > hi || !player.isShown(e)) continue;
       const end = e.sec + noteLength(e);
+      const ringEnd = e.sec + Math.max(e.dur, noteLength(e)); // how long it SOUNDS (pedal included)
+      if (t - e.sec >= PULSE && t < ringEnd) {
+        const u = 0.34 * (1 - (t - e.sec) / (ringEnd - e.sec));
+        if (u > (ring.get(e.midi)?.u ?? 0)) ring.set(e.midi, { col: colour(e), u });
+      }
       if (end < t) continue;
       const k = keyBox(e.midi, ww, kh);
       const y1 = top - ((e.sec - t) / WINDOW) * top; // bottom edge (start of the note)
       const y0 = Math.max(-20, top - ((end - t) / WINDOW) * top);
       const yb = Math.min(y1, top);
-      if (yb - y0 < 1) { if (e.sec <= t && t < end) { active.set(e.midi, colour(e)); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); } continue; }
+      if (yb - y0 < 1) { if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, colour(e)); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); } continue; }
       const col = colour(e);
       const x = k.x + (k.black ? 1 : 2), w = k.w - (k.black ? 2 : 4);
       const rr = (yy: number, hh: number, r2: number) => { ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(x, yy, w, Math.max(2, hh), r2) : ctx.rect(x, yy, w, Math.max(2, hh)); ctx.fill(); };
@@ -134,9 +141,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const headH = long ? Math.min(22, yb - y0) : yb - y0;
       ctx.shadowBlur = 16; ctx.fillStyle = col; rr(yb - headH, headH, Math.min(8, w / 2, headH / 2));
       ctx.shadowBlur = 0;
-      if (e.sec <= t && t < end) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
+      if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
     }
-    if (!playing) active.clear();
+    if (!playing) { active.clear(); ring.clear(); }
     // the keyboard
     ctx.shadowBlur = 0;
     const draws = (black: boolean) => {
@@ -144,14 +151,19 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
         if (isBlack(m) !== black) continue;
         const k = keyBox(m, ww, kh); const on = active.get(m);
         const h = black ? kh * 0.62 : kh;
-        if (on) { ctx.shadowColor = on; ctx.shadowBlur = (age.get(m) ?? 0) < 0.2 ? 28 : 12; }
         const g = ctx.createLinearGradient(0, top, 0, top + h);
-        if (on) { const fresh = (age.get(m) ?? 0) < 0.2; g.addColorStop(0, fresh ? on : on + "cc"); g.addColorStop(1, fresh ? on + "99" : on + "55"); }
-        else if (black) { g.addColorStop(0, "#1a2340"); g.addColorStop(1, "#05070f"); }
-        else { g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#c9d6ee"); }
+        if (black) { g.addColorStop(0, "#1a2340"); g.addColorStop(1, "#05070f"); } else { g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#c9d6ee"); }
         ctx.fillStyle = g;
-        ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(k.x + 0.5, top, k.w - 1, h, [0, 0, 5, 5]) : ctx.rect(k.x + 0.5, top, k.w - 1, h); ctx.fill();
-        ctx.shadowBlur = 0;
+        const path = () => { ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(k.x + 0.5, top, k.w - 1, h, [0, 0, 5, 5]) : ctx.rect(k.x + 0.5, top, k.w - 1, h); ctx.fill(); };
+        path();
+        const rg = ring.get(m);
+        if (rg && !on) { ctx.globalAlpha = rg.u; ctx.fillStyle = rg.col; path(); ctx.globalAlpha = 1; } // the sound still rings: pale, and gone when it has died away
+        if (on) { // the strike flash: full colour first, fading out within PULSE seconds
+          const u = Math.max(0, 1 - (age.get(m) ?? 0) / PULSE);
+          ctx.globalAlpha = u; ctx.shadowColor = on; ctx.shadowBlur = 30 * u;
+          const gg = ctx.createLinearGradient(0, top, 0, top + h); gg.addColorStop(0, on); gg.addColorStop(1, on + "99"); ctx.fillStyle = gg; path();
+          ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+        }
       }
     };
     draws(false); draws(true);
@@ -160,7 +172,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     for (const [m, col] of active) {
       const k = keyBox(m, ww, kh), cx = k.x + k.w / 2;
       const g = ctx.createLinearGradient(0, top - 110, 0, top); g.addColorStop(0, col + "00"); g.addColorStop(1, col + "88"); // the beam above the key
-      ctx.fillStyle = g; ctx.fillRect(k.x + k.w * 0.2, top - 110, k.w * 0.6, 110);
+      ctx.globalAlpha = Math.max(0, 1 - (age.get(m) ?? 0) / PULSE); ctx.fillStyle = g; ctx.fillRect(k.x + k.w * 0.2, top - 110, k.w * 0.6, 110); ctx.globalAlpha = 1;
       if (playing) {
         if (!prevActive.has(m)) { emit(cx, top, col, 3); flares.push({ x: cx, y: top, t: 0, col, w: Math.max(ww * 2.2, 36) }); }
         else if (Math.random() < 0.1) emit(cx, top, col, 1);
@@ -181,7 +193,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
-    el.dataset.sparks = String(sparks.length);
+    el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
     raf = requestAnimationFrame(draw);
