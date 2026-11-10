@@ -60,10 +60,15 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // held notes: bright head at the start (when to press), see-through body (how long); a struck key is bright first, softer while held
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameView = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1800);
-  const lit2 = () => page.evaluate(() => { const c = document.querySelector('.gcanvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200 && d[i + 2] > 230 && d[i + 1] > 190 && d[i] < 60) n++; return n; });
-  const sec0 = await page.evaluate(() => { const p = window.__pianist.player; const e = p.score.events.find((x) => x.dur0 >= 1); p.paused = e.sec + 0.05; return e.sec; });
-  await page.waitForTimeout(300); const fresh = await lit2();
-  await page.evaluate((x) => { window.__pianist.player.paused = x + 0.8; }, sec0); await page.waitForTimeout(300); const held = await lit2();
+  // brightness of the lit pixels; `at` = a time (score seconds) the clock is forced to for ~2 frames while "playing"
+  const litAt = (at) => page.evaluate(async (at) => { const p = window.__pianist.player; const c = document.querySelector('.gcanvas'); const old = { pl: p.playing, sa: p.startAudio, sp: p.startPos, pa: p.paused };
+    if (at !== null) { p.playing = true; p.startAudio = p.ctx.currentTime; p.startPos = at; } else p.playing = false;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200 && d[i + 2] > 230 && d[i + 1] > 190 && d[i] < 60) n++;
+    p.playing = false; return n; }, at);
+  const sec0 = await page.evaluate(() => { const p = window.__pianist.player; const e = p.score.events.find((x) => x.dur0 >= 1); p.paused = 0; return e.sec; });
+  const empty = await litAt(null); const fresh = await litAt(sec0 + 0.02); const held = await litAt(sec0 + 0.9);
+  ok(empty < fresh * 0.5, `before the start the lane and the keyboard are empty: nothing lit, no note at the keyboard (${empty} bright px, against ${fresh} while a key sounds)`);
   ok(fresh > held, `a struck key is fully bright, then softer while it is held (${fresh} -> ${held} bright px)`);
   await page.evaluate((x) => { window.__pianist.player.paused = x - 1.2; }, sec0); await page.waitForTimeout(400);
   const pk = await page.evaluate(() => { const p = document.querySelector('.peek'), g = document.querySelector('.gamepanel').getBoundingClientRect(); return !p || getComputedStyle(p).display === 'none' || p.getBoundingClientRect().bottom <= g.top + 1; });

@@ -102,7 +102,10 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     if (!W || !H) resize();
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, W, H);
-    const t = player.position();
+    // before the start (and while stopped at the beginning) the lane is EMPTY: the notes are still above the picture; keys light up only while playing
+    const playing = player.playing;
+    let t = player.position();
+    if (!playing && t <= 0.001) t = -WINDOW - 1;
     const ww = W / whites.length, kh = Math.min(H * 0.56, 112), top = H - kh;
     // octave guide lines
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(25,211,255,.13)";
@@ -133,6 +136,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.shadowBlur = 0;
       if (e.sec <= t && t < end) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
     }
+    if (!playing) active.clear();
     // the keyboard
     ctx.shadowBlur = 0;
     const draws = (black: boolean) => {
@@ -152,7 +156,6 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     };
     draws(false); draws(true);
     // effects
-    const playing = player.playing;
     ctx.globalCompositeOperation = "lighter";
     for (const [m, col] of active) {
       const k = keyBox(m, ww, kh), cx = k.x + k.w / 2;
