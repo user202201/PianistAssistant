@@ -319,8 +319,9 @@ function openFeedback() {
 
 /** all scores / PDFs / settings of this device in one .zip (device storage mode) */
 async function exportBackup() {
+  const done = toast("正在备份…", 0, true);
   try {
-    const files = await api.localAll();
+    const files = await api.backupAll((n, total) => { const t = document.querySelector("#toasts .toast.working span"); if (t) t.textContent = `正在备份…（${n} / ${total}）`; });
     const z: Record<string, Uint8Array> = {};
     for (const f of files) z[`${f.dir}/${f.name}`] = new Uint8Array(f.data);
     const blob = new Blob([zipSync(z)], { type: "application/zip" });
@@ -328,23 +329,32 @@ async function exportBackup() {
     document.body.append(link);
     link.click();
     link.remove();
+    done();
     toast("备份已生成");
   } catch (e) {
+    done();
     showError("备份失败", e);
   }
 }
 async function importBackup(file: File) {
   try {
     const z = unzipSync(new Uint8Array(await file.arrayBuffer()));
-    let n = 0;
-    for (const [path, data] of Object.entries(z)) {
+    const items = Object.entries(z).flatMap(([path, data]) => {
       const i = path.indexOf("/");
       const dir = path.slice(0, i);
       const name = path.slice(i + 1);
-      if (i < 1 || !["scores", "pdfs", "config"].includes(dir) || !name || name.includes("/")) continue;
-      await api.restoreLocalFile(dir, name, data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer);
-      n++;
-    }
+      return i < 1 || !["scores", "pdfs", "config"].includes(dir) || !name || name.includes("/") ? [] : [{ dir, name, data }];
+    });
+    if (!api.isLocal() && items.length && !confirm(`把备份里的 ${items.length} 个文件放回 GitHub 仓库？同名的文件会被备份里的版本覆盖。`)) return; // (no "done" message when cancelled)
+    const done = toast("正在恢复…", 0, true);
+    let n = 0;
+    try {
+      for (const f of items) {
+        await api.restoreFile(f.dir, f.name, f.data.buffer.slice(f.data.byteOffset, f.data.byteOffset + f.data.byteLength) as ArrayBuffer);
+        n++;
+        const t = document.querySelector("#toasts .toast.working span"); if (t) t.textContent = `正在恢复…（${n} / ${items.length}）`;
+      }
+    } finally { done(); }
     toast(`已恢复 ${n} 个文件`);
     refreshHome?.();
   } catch (e) {
@@ -452,6 +462,12 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
       ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "连接 GitHub 同步…")]),
     ] : []),
+    ...(api.isLocal() ? [] : [
+      h("h3", {}, "备份"),
+      h("p", { class: "muted" }, "谱子保存在你的 GitHub 仓库里。备份会把它们全部下载成一个压缩包；恢复会把压缩包里的文件放回仓库。"),
+      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
+      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
+    ]),
     ...(api.isLocal() ? [] : [h("h3", {}, "登录与设备")]),
     h(
       "p",

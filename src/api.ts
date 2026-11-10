@@ -69,6 +69,26 @@ const localDel = (dir: string, name: string) => idbDo("readwrite", (s) => s.dele
 const localHas = async (dir: string, name: string) => (await idbDo("readonly", (s) => s.count(localKey(dir, name)))) > 0;
 /** put one file from a backup back onto this device */
 export const restoreLocalFile = (dir: string, name: string, data: ArrayBuffer) => localPut(dir, name, data);
+/**
+ * Everything the library consists of, for a backup: the scores, the PDFs (with their notes) and the config files (pairs, favourites).
+ * On the device in local mode; from the repository when signed in. `onProgress(done, total)` is called while the files are fetched.
+ */
+export async function backupAll(onProgress?: (done: number, total: number) => void): Promise<{ dir: string; name: string; data: ArrayBuffer }[]> {
+  if (isLocal()) return localAll();
+  const names: { dir: string; name: string }[] = [];
+  for (const dir of [SCORES, PDFS, CONFIG]) for (const f of await list(dir)) names.push({ dir, name: f.name });
+  const out: { dir: string; name: string; data: ArrayBuffer }[] = [];
+  for (const f of names) {
+    out.push({ ...f, data: await getBytes(f.dir, f.name) });
+    onProgress?.(out.length, names.length);
+  }
+  return out;
+}
+/** Put one file of a backup back: onto the device, or into the repository (a file of the same name is replaced). */
+export async function restoreFile(dir: string, name: string, data: ArrayBuffer): Promise<void> {
+  if (isLocal()) { await restoreLocalFile(dir, name, data); return; }
+  await put(dir, name, data, `Restore from backup: ${name}`);
+}
 /** all files of this device as a list (for a backup) */
 export async function localAll(): Promise<{ dir: string; name: string; data: ArrayBuffer }[]> {
   return ((await idbDo("readonly", (s) => s.getAll())) as LocalFile[]).map((f) => ({ dir: f.dir, name: f.name, data: f.data }));

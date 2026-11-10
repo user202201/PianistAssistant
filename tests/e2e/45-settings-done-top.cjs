@@ -30,7 +30,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.evaluate(() => { const b = document.querySelector('.dlgbody'); b.scrollTop = b.scrollHeight; }); await page.waitForTimeout(200);
   await page.click('#done-top'); await page.waitForTimeout(300);
   ok(await page.locator('dialog.dlg').count() === 0, 'Done closes the settings (also when scrolled to the bottom)');
-  await page.setViewportSize({ width: 440, height: 1400 }); await openSettings(); await page.waitForTimeout(300); v = await st();
+  await page.setViewportSize({ width: 440, height: 2000 }); await openSettings(); await page.waitForTimeout(300); v = await st();
   ok(!v.bodyScrolls && !v.fade, 'when everything fits there is nothing to scroll and no fade');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

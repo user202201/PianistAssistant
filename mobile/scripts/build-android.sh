@@ -16,6 +16,11 @@ cd mobile
 npx capacitor-assets generate --android --iconBackgroundColor '#1f2937' --splashBackgroundColor '#f2f2f7'
 npx cap sync android
 
+# the microphone (game mode listens to an acoustic piano; nothing is recorded or sent anywhere)
+MANIFEST=android/app/src/main/AndroidManifest.xml
+grep -q RECORD_AUDIO "$MANIFEST" || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <application#' "$MANIFEST"
+grep -q RECORD_AUDIO "$MANIFEST" || { echo "could not add the microphone permission"; exit 1; }
+
 # every build gets a higher version number (Google Play insists on it)
 sed -i "s/versionCode [0-9]*/versionCode ${RUN}/; s/versionName \"[^\"]*\"/versionName \"1.0.${RUN}\"/" android/app/build.gradle
 

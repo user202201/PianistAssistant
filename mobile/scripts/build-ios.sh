@@ -26,6 +26,8 @@ ruby ../../ios-store/add-to-project.rb App.xcodeproj
 # the first screen must be our subclass (it registers the plugins)
 sed -i '' 's/customClass="CAPBridgeViewController" customModule="Capacitor"/customClass="MainViewController" customModule="App"/' App/Base.lproj/Main.storyboard
 grep -q 'customClass="MainViewController"' App/Base.lproj/Main.storyboard || { echo "could not point Main.storyboard at MainViewController"; exit 1; }
+# the microphone (game mode listens to an acoustic piano): iOS asks for permission with this text
+/usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Used to hear your piano in the game mode. Nothing is recorded or sent anywhere." App/Info.plist 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription 'Used to hear your piano in the game mode. Nothing is recorded or sent anywhere.'" App/Info.plist || true
 # Bluetooth MIDI keyboards: iOS asks for permission with this text
 /usr/libexec/PlistBuddy -c "Add :NSBluetoothAlwaysUsageDescription string Used to connect a Bluetooth MIDI keyboard or digital piano. Nothing is sent anywhere." App/Info.plist 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSBluetoothAlwaysUsageDescription 'Used to connect a Bluetooth MIDI keyboard or digital piano. Nothing is sent anywhere.'" App/Info.plist || true
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.${RUN}" App/Info.plist || true
