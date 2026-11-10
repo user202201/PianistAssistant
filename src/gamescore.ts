@@ -25,14 +25,17 @@ export class GameScore {
   private notes: { e: NoteEvent; done: boolean }[];
   private win: [number, number, number];
   private speed: number;
+  private shown: ((e: NoteEvent) => boolean) | null;
+  private dropped = 0;
   stats: Stats;
 
-  /** @param events  only the notes the player has to play;  @param speed  playing speed (1 = 100 %): the windows are real seconds, the notes are in score seconds */
-  constructor(events: NoteEvent[], level: Level = "normal", speed = 1) {
+  /** @param events  the notes of the piece;  @param shown  asked again and again: is this note one the player has to play right now (a part / hand switched off later takes its notes out of the game);  @param speed  playing speed (1 = 100 %): the windows are real seconds, the notes are in score seconds */
+  constructor(events: NoteEvent[], level: Level = "normal", speed = 1, shown: ((e: NoteEvent) => boolean) | null = null) {
+    this.shown = shown;
     this.notes = [...events].sort((a, b) => a.sec - b.sec).map((e) => ({ e, done: false }));
     this.win = WINDOWS[level];
     this.speed = speed;
-    this.stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, early: 0, late: 0, miss: 0, wrong: 0, total: this.notes.length };
+    this.stats = { score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, early: 0, late: 0, miss: 0, wrong: 0, total: shown ? this.notes.filter((n) => shown(n.e)).length : this.notes.length };
   }
 
   private mark(kind: JudgeKind, midi: number, delta: number): Judgement {
@@ -53,7 +56,7 @@ export class GameScore {
     let best = -1, bestAbs = Infinity;
     for (let i = 0; i < this.notes.length; i++) {
       const n = this.notes[i];
-      if (n.done || n.e.midi !== midi) continue;
+      if (n.done || n.e.midi !== midi || (this.shown && !this.shown(n.e))) continue;
       const d = Math.abs(t - n.e.sec) / this.speed;
       if (d < bestAbs) { best = i; bestAbs = d; }
       if (n.e.sec - t > ow * this.speed * 2) break; // sorted: nothing nearer further on
@@ -72,8 +75,12 @@ export class GameScore {
     const ow = this.win[2] * this.speed;
     for (const n of this.notes) {
       if (n.e.sec > t - ow) break;
-      if (!n.done) { n.done = true; out.push(this.mark("miss", n.e.midi, ow / this.speed)); }
+      if (n.done) continue;
+      n.done = true;
+      if (this.shown && !this.shown(n.e)) { this.dropped++; continue; } // not a note of the player: nothing to judge
+      out.push(this.mark("miss", n.e.midi, ow / this.speed));
     }
+    this.stats.total = this.notes.length - this.dropped;
     return out;
   }
 

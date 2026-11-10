@@ -31,12 +31,19 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     // each note can be hit once
     const twice = new GameScore([ev(1, 60)], 'normal', 1); twice.strike(60, 1); const second = twice.strike(60, 1.01).kind;
     const full = new GameScore(notes, 'normal', 1); for (const n of notes) full.strike(n.midi, n.sec);
-    return { r, combo, s, slowKind, easy, hard, second, fullStars: full.stars(), fullAcc: full.accuracy(true), finished: full.finished, noneStars: new GameScore(notes).stars() };
+    // a part that is switched off is not the player's: its notes are neither judged nor counted
+    const two = [{ ...ev(1, 60), part: 0 }, { ...ev(1, 48), part: 1 }, { ...ev(2, 62), part: 0 }, { ...ev(2, 50), part: 1 }];
+    const pg = new GameScore(two, 'normal', 1, (e) => e.part === 0);
+    const startTotal = pg.stats.total; pg.strike(60, 1);
+    const pm = pg.advance(99).map((j) => j.kind);
+    const partial = { startTotal, pm, total: pg.stats.total, miss: pg.stats.miss, perfect: pg.stats.perfect, stars: pg.stats.perfect, finished: pg.finished };
+    return { partial, r, combo, s, slowKind, easy, hard, second, fullStars: full.stars(), fullAcc: full.accuracy(true), finished: full.finished, noneStars: new GameScore(notes).stars() };
   });
   ok(logic.r.slice(0, 4).join() === 'perfect,good,early,wrong', `windows: ${logic.r.slice(0, 4).join(' ')}`);
   ok(logic.r[4] === 'miss' && logic.s.miss === 2 && logic.r[5] === 'wrong', `a note nobody struck is a Miss once its window is over, a key far off is a wrong key (${logic.r.slice(4).join(' ')})`);
   ok(logic.combo === 0 && logic.s.maxCombo === 3, `the combo runs up with hits and breaks at a miss / wrong key (max ${logic.s.maxCombo})`);
   ok(logic.slowKind === 'good' && logic.easy === 'perfect' && logic.hard === 'late', `windows are real time: slower playing does not make them longer (${logic.slowKind}); easy is wider (${logic.easy}), hard is narrower (${logic.hard})`);
+  ok(logic.partial.startTotal === 2 && logic.partial.miss === 1 && logic.partial.total === 2 && logic.partial.finished, `only the notes of the part you play are judged: the other part is no Miss (${JSON.stringify(logic.partial)})`);
   ok(logic.second === 'wrong', 'one key hits one note only');
   ok(logic.fullStars === 3 && logic.fullAcc === 1 && logic.finished && logic.noneStars === 0, 'all perfect = 3 stars, nothing played = 0 stars');
   ok(logic.s.score > 0 && logic.s.perfect === 1, `points are counted (${logic.s.score})`);
@@ -54,13 +61,19 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}'); s.gameMode = true; s.gameView = true; s.gameScoring = false; s.gameLevel = 'easy'; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/score/dyn.musicxml')); await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
-  ok(await page.evaluate(() => { const hud = document.querySelector('.gamehud'); return !hud || hud.hidden || getComputedStyle(hud).display === 'none'; }), 'demo mode: no score window');
+  ok(await page.evaluate(() => { const hud = document.querySelector('.hudcompact'); return !hud || hud.hidden || getComputedStyle(hud).display === 'none'; }), 'demo mode: no score numbers');
   ok(await page.evaluate(() => [...document.querySelectorAll('.gamepanel .gmode .seg')].map((b) => b.innerText.trim()).join('|')) === '演示|计分', 'the panel has a Demo / Score switch');
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.waitForTimeout(700);
-  const hud0 = await page.evaluate(() => { const hud = document.querySelector('.gamehud'); const r = hud.getBoundingClientRect(); return { shown: !hud.hidden && r.width > 0, right: Math.round(window.innerWidth - r.right), status: hud.querySelector('.hudstatus').innerText.replace(/\s+/g, ' ').trim(), level: hud.querySelector('.hudlevel .on').innerText.trim() }; });
-  ok(hud0.shown && hud0.right < 40, `score mode: a floating score window at the side (${hud0.right}px from the edge)`);
-  ok(/已连接.*Test Piano/.test(hud0.status), `it asks the browser for MIDI and shows the piano (${hud0.status})`);
-  ok(hud0.level === '轻松', 'the level starts easy (children)');
+  const hud0 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'), r = c.getBoundingClientRect(), pn = document.querySelector('.gamepanel').getBoundingClientRect(), sc = document.querySelector('.scorewrap').getBoundingClientRect();
+    return { shown: !c.hidden && r.width > 0, inPanel: r.top >= pn.top - 1 && r.bottom <= pn.bottom + 1 && r.right <= pn.right + 1, overScore: r.top < sc.bottom - 1, bg: getComputedStyle(c).backgroundColor, lines: [...c.querySelectorAll('span')].map((x) => x.innerText).join('|') }; });
+  ok(hud0.shown && hud0.inPanel && !hud0.overScore, 'score mode: score, combo and accuracy sit in the game panel, they do not cover the music');
+  ok(hud0.bg === 'rgba(0, 0, 0, 0)' && hud0.lines === '连击|准确率', `and they are transparent, just these three (${hud0.lines})`);
+  await page.waitForTimeout(1200);
+  ok(await page.evaluate(() => !document.querySelector('.gamesetup').hidden) === false, 'a connected piano: the setup card does not pop up by itself');
+  await page.click('.hudchip'); await page.waitForTimeout(200);
+  const su = await page.evaluate(() => { const c = document.querySelector('.gamesetup'); return { open: !c.hidden, status: c.querySelector('.hudstatus').innerText.replace(/\s+/g, ' ').trim(), level: c.querySelector('.hudlevel .on').innerText.trim(), dot: document.querySelector('.hudchip').classList.contains('connected') }; });
+  ok(su.open && /已连接.*Test Piano/.test(su.status) && su.dot, `the piano button opens a small card with the connection (${su.status})`);
+  ok(su.level === '轻松', 'the level starts easy (children)');
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameScoring) === true, 'the switch is remembered');
   await page.screenshot({ path: D + 'game-score-idle.png' });
 
@@ -78,30 +91,30 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     for (let i = 0; i < 3; i++) { await window.__wait(ev[i].sec); window.__key(ev[i].midi); await new Promise((r) => setTimeout(r, 60)); window.__key(ev[i].midi, false); out.push(ev[i].midi); }
     window.__key(23); // a key that belongs to no note
     return out; });
-  const st1 = await page.evaluate(() => { const h2 = document.querySelector('.gamehud'); const num = (label) => { const c = [...h2.querySelectorAll('.hudcount')].find((x) => x.querySelector('span').innerText === label); return Number(c.querySelector('b').innerText); };
-    return { score: Number(h2.querySelector('.hudscore').innerText), combo: Number(h2.querySelector('.hudcombo b').innerText), perfect: num('完美'), wrong: num('错键') }; });
-  ok(st1.perfect >= 2 && st1.score > 150 && st1.wrong === 1, `three keys struck on time are judged (perfect ${st1.perfect}, score ${st1.score}), the stray key is a wrong key (${st1.wrong})`);
+  const st1 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'); return { score: Number(c.querySelector('.hudscore').innerText), combo: Number(c.querySelectorAll('.hudline b')[0].innerText) }; });
+  ok(st1.score > 250 && st1.combo === 0, `three keys struck on time are scored (${st1.score}); the stray key broke the combo`);
   await page.screenshot({ path: D + 'game-score-play.png' });
   ok(await page.evaluate(() => window.__started) === 0, 'the app does not play the notes you have to play (you play them on your piano)');
   // the next note is left out: after its window it is a miss
   await page.waitForTimeout(2600);
-  const st2 = await page.evaluate(() => { const h2 = document.querySelector('.gamehud'); const num = (label) => { const c = [...h2.querySelectorAll('.hudcount')].find((x) => x.querySelector('span').innerText === label); return Number(c.querySelector('b').innerText); }; return { miss: num('漏掉'), combo: Number(h2.querySelector('.hudcombo b').innerText) }; });
-  ok(st2.miss >= 1 && st2.combo === 0, `notes that were not played are misses and break the combo (${st2.miss} missed)`);
-  // finish: the rest is missed, the result shows stars
-  await page.evaluate(() => { const p = window.__pianist.player; p.seekStep(p.score.steps.length - 1); });
-  await page.waitForTimeout(300);
-  await page.click('button[title^=播放]').catch(() => {}); await page.waitForTimeout(200);
-  await page.evaluate(() => window.__pianist.player.pause());
+  // the round ends: the rest is missed and the summary appears
+  await page.evaluate(() => { const p = window.__pianist.player; p.pause(); p.paused = p.score.duration; });
+  await page.waitForTimeout(500);
+  const rs = await page.evaluate(() => { const c = document.querySelector('.gameresult'); const n = (l) => Number([...c.querySelectorAll('.hudcount')].find((x) => x.querySelector('span').innerText === l).querySelector('b').innerText); const r = c.getBoundingClientRect();
+    return { open: !c.hidden, stars: c.querySelector('.hudstars').innerText, perfect: n('完美'), wrong: n('错键'), miss: n('漏掉'), centred: Math.abs(r.left + r.width / 2 - window.innerWidth / 2) < 3 }; });
+  ok(rs.open && rs.perfect >= 3 && rs.wrong === 1 && rs.miss >= 1 && rs.centred, `at the end the summary shows: stars ${rs.stars}, ${rs.perfect} perfect, ${rs.wrong} wrong key, ${rs.miss} missed`);
+  await page.screenshot({ path: D + 'game-score-result.png' });
+  await page.click('.gameresult .hudbtn:not(.primary)'); ok(await page.evaluate(() => document.querySelector('.gameresult').hidden), 'the summary can be closed');
   // level buttons
-  await page.click('.gamehud .hudlevel .seg >> nth=1'); ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameLevel) === 'normal', 'the level can be changed in the window and is remembered');
+  await page.click('.hudchip'); await page.click('.gamesetup .hudlevel .seg >> nth=1'); ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameLevel) === 'normal', 'the level can be changed in the window and is remembered');
   // back to demo: the window is gone
   await page.click('.gamepanel .gmode .seg[data-gmode=demo]'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => { const hud = document.querySelector('.gamehud'); return hud.hidden || getComputedStyle(hud).display === 'none'; }), 'back to Demo: the score window is gone');
+  ok(await page.evaluate(() => { const hud = document.querySelector('.hudcompact'); return hud.hidden || getComputedStyle(hud).display === 'none'; }), 'back to Demo: the score numbers are gone');
   ok(await page.evaluate(() => window.__pianist.player.practiceMute) === false, 'and the app plays the notes again');
   // phone
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.setViewportSize({ width: 390, height: 780 }); await page.waitForTimeout(600);
-  const ph = await page.evaluate(() => { const r = document.querySelector('.gamehud').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 391, noScroll: document.documentElement.scrollWidth <= 390, folded: document.querySelector('.gamehud').classList.contains('min') || r.height < 80 }; });
-  ok(ph.inside && ph.noScroll, 'phone: the score window stays on the screen');
+  const ph = await page.evaluate(() => { const r = document.querySelector('.hudcompact').getBoundingClientRect(), c = document.querySelector('.hudchip').getBoundingClientRect(), m = document.querySelector('.gmode').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 391, noScroll: document.documentElement.scrollWidth <= 390, noOverlap: c.left >= m.right - 1 }; });
+  ok(ph.inside && ph.noScroll && ph.noOverlap, 'phone: the numbers and the piano button stay on the screen and do not overlap the switch');
   await page.screenshot({ path: D + 'game-score-phone.png' });
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

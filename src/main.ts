@@ -2372,7 +2372,7 @@ function buildControls(
   const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); },
     scoring: settings.gameScoring, onMode: (sc) => { settings.gameScoring = sc; saveSettings(settings); syncGame(); } });
   // ---- score mode: you play on a MIDI keyboard, the app judges the timing ----
-  let gs: GameScore | null = null, roundOver = false;
+  let gs: GameScore | null = null, roundOver = false, setupShown = false;
   const scoringOn = () => gameOn() && settings.gameScoring;
   const keyColour = (k: string) => (k === "wrong" || k === "miss" ? "#ff5a5a" : k === "perfect" ? "#ffd60a" : "#ffffff");
   const hud = createHud({
@@ -2382,7 +2382,9 @@ function buildControls(
     onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
     onRetry: () => { player.stop(); void startGame(); },
   });
-  app.append(hud.el);
+  gv.el.append(hud.compact);
+  gv.el.querySelector(".gtopleft")!.append(hud.chip); // (numbers + the piano button live in the game panel; the cards float above everything)
+  app.append(hud.setup, hud.result);
   hud.midi(midi.status());
   const offState = midi.onState((st) => hud.midi(st));
   const offNote = midi.onNote((n) => {
@@ -2395,7 +2397,7 @@ function buildControls(
   });
   // keys that were let go are never reported twice: clear the lit keys when they have been struck for a while
   const beginRound = () => {
-    gs = new GameScore(score.events.filter((e) => player.isShown(e)), settings.gameLevel, player.speed);
+    gs = new GameScore(score.events, settings.gameLevel, player.speed, (e) => player.isShown(e)); // what counts is asked at every moment: a part switched off / on later changes it
     roundOver = false;
     hud.reset();
     hud.update(gs.stats, 1);
@@ -2408,7 +2410,7 @@ function buildControls(
       for (const j of gs.advance(ended ? Infinity : pos)) { gv.judge(j); hud.judged(j); }
       hud.update(gs.stats, gs.accuracy());
     }
-    if (gs.finished && (player.playing || ended)) { roundOver = true; hud.result(gs.stats, gs.stars(), gs.accuracy(true)); }
+    if (gs.finished && (player.playing || ended)) { roundOver = true; hud.showResult(gs.stats, gs.stars(), gs.accuracy(true)); }
   }, 60);
   const syncGame = () => {
     if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); clearInterval(roundTimer); offNote(); offState(); hud.destroy(); gv.destroy(); return; }
@@ -2418,6 +2420,7 @@ function buildControls(
     player.practiceMute = scoringOn();
     hud.setHidden(!scoringOn());
     if (scoringOn() && MidiInput.available()) void midi.start(); // (the browser asks for permission now)
+    if (scoringOn() && !setupShown) { setupShown = true; setTimeout(() => { if (scoringOn() && !midi.status().devices.length) hud.openSetup(true); }, 900); } // no piano yet: show how to connect it, once
     refreshMore(); // the game view is a small-screen layout: small bar, the score gets the room
   };
   bar.before(gv.el);

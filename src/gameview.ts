@@ -48,7 +48,10 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   const bDemo = modeBtn(false, "演示"), bScore = modeBtn(true, "计分");
   modes.append(bDemo, bScore);
   const syncMode = () => { bDemo.classList.toggle("on", !scoring); bScore.classList.toggle("on", scoring); el.classList.toggle("scoring", scoring); };
-  el.append(stage, tiltBtn, modes, grip);
+  const topLeft = document.createElement("div");
+  topLeft.className = "gtopleft";
+  topLeft.append(modes);
+  el.append(stage, tiltBtn, topLeft, grip);
   // The panel height: default a little more than the keyboard; the user drags the top edge. Never lower than the keyboard plus a strip of the coming notes.
   const MINH = 150;
   const maxH = () => Math.max(MINH, Math.round(window.innerHeight * 0.6));
