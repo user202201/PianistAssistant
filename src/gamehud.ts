@@ -66,10 +66,22 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const step = (d: number) => { lat = Math.max(-200, Math.min(200, lat + d)); latVal.textContent = `${lat} ms`; o.onLatency(lat); };
   const minus = el("button", "hudbtn small", "−"), plus = el("button", "hudbtn small", "+");
   minus.onclick = () => step(-10); plus.onclick = () => step(10);
-  const latRow = el("div", "hudlat", "", [el("span", "", "延迟补偿"), minus, latVal, plus]);
-  setup.append(status, connect, ...(pair ? [pair] : []), levelRow, latRow);
-  const place = () => { const r = chip.getBoundingClientRect(); setup.style.left = `${Math.max(8, r.left)}px`; setup.style.bottom = `${window.innerHeight - r.top + 8}px`; };
-  const openSetup = (open?: boolean) => { const want = open ?? setup.hidden; if (want) place(); setup.hidden = !want; };
+  const latRow = el("div", "hudlat", "", [el("span", "", "延迟补偿"), el("div", "hudlatctl", "", [minus, latVal, plus])]);
+  // rarely needed: hidden behind a handle at the bottom edge of the card; click it or pull it down to show
+  const more = el("div", "hudmore");
+  more.append(latRow);
+  const handle = el("button", "hudmorehandle");
+  handle.title = "延迟补偿";
+  handle.append(el("span", "hudgrip"), el("span", "hudcaret", "⌄"));
+  const toggleMore = (open?: boolean) => { const on = open ?? !setup.classList.contains("open"); setup.classList.toggle("open", on); handle.querySelector(".hudcaret")!.textContent = on ? "⌃" : "⌄"; };
+  let y0: number | null = null;
+  handle.onpointerdown = (e) => { y0 = e.clientY; };
+  handle.onpointermove = (e) => { if (y0 !== null && e.clientY - y0 > 10) { toggleMore(true); y0 = null; } else if (y0 !== null && y0 - e.clientY > 10) { toggleMore(false); y0 = null; } };
+  handle.onpointerup = () => { y0 = null; };
+  handle.onclick = () => toggleMore();
+  setup.append(status, connect, ...(pair ? [pair] : []), levelRow, more, handle);
+  const place = () => { const r = chip.getBoundingClientRect(); setup.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - (setup.offsetWidth || 250) - 8))}px`; setup.style.bottom = `${window.innerHeight - r.top + 8}px`; };
+  const openSetup = (open?: boolean) => { const want = open ?? setup.hidden; setup.hidden = !want; if (want) place(); }; // (shown first: its width is needed to keep it on the screen)
   chip.onclick = (e) => { e.stopPropagation(); openSetup(); };
   const closeOutside = (e: Event) => { if (!setup.hidden && !(e.target as HTMLElement).closest(".gamesetup, .hudchip")) setup.hidden = true; };
   document.addEventListener("click", closeOutside);

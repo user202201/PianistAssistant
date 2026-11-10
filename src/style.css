@@ -851,5 +851,11 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamesetup .hudlevel .seg { flex: 1; min-width: 0; min-height: 32px; padding: 0 4px; font-size: .8rem; background: rgba(25, 211, 255, .1); color: #bfeaff; border: 1px solid rgba(25, 211, 255, .3); border-radius: 8px; }
 .gamesetup .hudlevel .seg.on { background: #19d3ff; color: #021019; font-weight: 700; box-shadow: 0 0 10px #19d3ff; }
 
-.gamesetup .hudlat { display: flex; align-items: center; gap: 8px; } .gamesetup .hudlat span { flex: 1; } .gamesetup .hudlat b { min-width: 58px; text-align: center; }
+.gamesetup .hudmore { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
+.gamesetup.open .hudmore { max-height: 120px; }
+.gamesetup .hudlat { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; font-size: .8rem; color: rgba(190, 225, 255, .9); }
+.gamesetup .hudlatctl { display: flex; align-items: center; justify-content: center; gap: 12px; } .gamesetup .hudlatctl b { min-width: 64px; text-align: center; color: #fff; }
+.gamesetup .hudmorehandle { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; min-height: 20px; padding: 0; margin: 2px 0 -6px; background: transparent; border: 0; color: rgba(25, 211, 255, .85); touch-action: none; }
+.gamesetup .hudgrip { width: 38px; height: 3px; border-radius: 2px; background: rgba(25, 211, 255, .7); box-shadow: 0 0 8px rgba(25, 211, 255, .8); margin-top: 6px; }
+.gamesetup .hudmorehandle .hudcaret { font-size: .8rem; line-height: .8; }
 .gamesetup .hudbtn.small { min-height: 32px; min-width: 36px; padding: 0 8px; }

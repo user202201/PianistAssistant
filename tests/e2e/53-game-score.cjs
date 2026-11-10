@@ -100,10 +100,16 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const su = await page.evaluate(() => { const c = document.querySelector('.gamesetup'); return { open: !c.hidden, status: c.querySelector('.hudstatus').innerText.replace(/\s+/g, ' ').trim(), level: c.querySelector('.hudlevel .on').innerText.trim(), dot: document.querySelector('.hudchip').classList.contains('connected') }; });
   ok(su.open && /已连接.*Test Piano/.test(su.status) && su.dot, `the piano button opens a small card with the connection (${su.status})`);
   ok(su.level === '轻松', 'the level starts easy (children)');
+  const hid = await page.evaluate(() => { const m = document.querySelector('.gamesetup .hudmore').getBoundingClientRect(); return { h: Math.round(m.height), hasHandle: !!document.querySelector('.gamesetup .hudmorehandle') }; });
+  ok(hid.h === 0 && hid.hasHandle, 'the latency compensation is hidden behind a handle at the bottom edge of the card');
+  await page.click('.gamesetup .hudmorehandle'); await page.waitForTimeout(450);
+  const vis = await page.evaluate(() => { const r = document.querySelector('.gamesetup .hudlat').getBoundingClientRect(), c = document.querySelector('.gamesetup').getBoundingClientRect(); return { h: Math.round(r.height), inside: r.bottom <= c.bottom + 1 && r.right <= c.right + 1 }; });
+  ok(vis.h > 30 && vis.inside, 'pulling / tapping the handle shows it, fully inside the card');
   await page.click('.gamesetup .hudlat .hudbtn >> nth=1'); await page.click('.gamesetup .hudlat .hudbtn >> nth=1');
   const lat = await page.evaluate(() => ({ shown: document.querySelector('.gamesetup .hudlat b').innerText, saved: JSON.parse(localStorage.getItem('pianist.settings.v1')).gameLatency }));
   ok(lat.saved === 20 && /20/.test(lat.shown), `latency compensation: + + = ${lat.shown}, remembered`);
   await page.click('.gamesetup .hudlat .hudbtn >> nth=0'); await page.click('.gamesetup .hudlat .hudbtn >> nth=0');
+  await page.click('.gamesetup .hudmorehandle'); await page.waitForTimeout(400);
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameScoring) === true, 'the switch is remembered');
   await page.screenshot({ path: D + 'game-score-idle.png' });
 
