@@ -3,7 +3,7 @@
 const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 (async () => {
-  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'long.musicxml')]]);
+  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'long.musicxml')], ['scores/dyn.musicxml', fs.readFileSync(D + 'dyn.musicxml')]]);
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}'); s.gameMode = true; s.gameView = false; s.gameTilt = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.reload(); await page.waitForSelector('.top .modetoggle', { timeout: 20000 }); await page.waitForTimeout(1500);
@@ -52,6 +52,12 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const ph = await page.evaluate(() => { const g = document.querySelector('.gamepanel').getBoundingClientRect(), s = document.querySelector('.scorewrap').getBoundingClientRect(); return { fits: g.right <= 391 && g.left >= -1, scoreH: Math.round(s.height), noScroll: document.documentElement.scrollWidth <= 390 }; });
   ok(ph.fits && ph.noScroll && ph.scoreH >= 120, `phone: panel fits the screen, the score keeps room (${ph.scoreH}px)`);
   await page.screenshot({ path: D + 'game-phone.png' });
+  // bug: with the sustain pedal the sounding length of a note is many seconds; the game view showed that, as if the key had to be held
+  await page.evaluate(() => (location.hash = '#/score/dyn.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1800);
+  const pedal = await page.evaluate(async () => { const g = await import('/PianistAssistant/src/gameview.ts'); const ev = window.__pianist.player.score.events;
+    const long = ev.filter((e) => e.dur > e.dur0 * 1.5); return { n: long.length, ok: long.every((e) => Math.abs(g.noteLength(e) - Math.max(e.dur0, 0.12)) < 1e-9), maxSound: Math.max(0, ...long.map((e) => e.dur)), maxShown: Math.max(0, ...long.map((e) => g.noteLength(e))) }; });
+  ok(pedal.n > 0 && pedal.ok && pedal.maxShown < pedal.maxSound, `pedal: notes are shown as written (${pedal.maxShown.toFixed(2)} s), not as long as they ring (${pedal.maxSound.toFixed(2)} s), ${pedal.n} notes checked`);
+  await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForTimeout(2000);
   // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...
   await page.click('.modetoggle .seg[data-mode=practice]'); await page.setViewportSize({ width: 1194, height: 700 }); await page.waitForTimeout(500);
   const follow = () => page.evaluate(async () => { const w = document.querySelector('.scorewrap'); w.scrollTop = 0; await new Promise((r) => setTimeout(r, 200)); window.__pianist.player.seekMeasure(20); await new Promise((r) => setTimeout(r, 800)); const c = document.querySelector('[id^=cursorImg]').getBoundingClientRect(), r = w.getBoundingClientRect(); return { top: w.scrollTop, inView: c.top >= r.top - 2 && c.bottom <= r.bottom + 2 }; });

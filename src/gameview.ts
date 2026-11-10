@@ -13,6 +13,9 @@ export interface GameView {
   destroy(): void;
 }
 
+/** how long a note is shown / lit: as WRITTEN (the sounding length includes the pedal, which would keep keys pressed for seconds) */
+export const noteLength = (e: NoteEvent) => Math.max(e.dur0, 0.12);
+
 const WINDOW = 3; // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
 
@@ -114,7 +117,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
       const e = events[i];
       if (e.midi < lo || e.midi > hi || !player.isAudible(e)) continue;
-      const end = e.sec + Math.max(e.dur, 0.12);
+      const end = e.sec + noteLength(e);
       if (end < t) continue;
       const k = keyBox(e.midi, ww, kh);
       const y1 = top - ((e.sec - t) / WINDOW) * top; // bottom edge (start of the note)
