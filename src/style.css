@@ -654,3 +654,6 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 /* the logo in the top bar is only a picture: no filled background (that made it look like a button) */
 .top .brand .logo { width: auto; height: auto; background: transparent; color: var(--accent); }
 .top .brand .logo svg { width: 28px; height: 28px; }
+/* the suggestion banners: the text column may shrink and long button names wrap instead of pushing the banner off the screen */
+.banner > .grow { min-width: 0; }
+.banner button { white-space: normal; max-width: 100%; }

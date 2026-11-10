@@ -91,7 +91,7 @@ export function startFitting() {
     frame = 0;
     observer.disconnect(); // what we change here must not trigger us again
     for (const g of Array.from(document.querySelectorAll<HTMLElement>(GROUPS))) fitGroup(g);
-    for (const b of Array.from(document.querySelectorAll<HTMLElement>("button"))) if (!b.closest("svg, .pdfwrap, .scorewrap")) fitButton(b);
+    for (const b of Array.from(document.querySelectorAll<HTMLElement>("button, .top h1"))) if (!b.closest("svg, .pdfwrap, .scorewrap")) fitButton(b); // (a long title in the top bar shrinks a little before it is cut off)
     // keep a drop-down in step with the buttons it stands for
     for (const g of Array.from(document.querySelectorAll<HTMLElement>(".group.as-select"))) mirror(g);
     observe();
