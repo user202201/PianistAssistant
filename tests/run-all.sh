@@ -19,9 +19,9 @@ up || { echo "dev server did not start"; tail -n 20 "$OUT/vite.log"; exit 1; }
 trap '[ -n "$SERVER" ] && kill $SERVER 2>/dev/null' EXIT
 
 # the cloud converter script against fake engines (only when running everything)
-SHELLFAIL=0
+SHELLFAIL=0; SHELLLINE=""
 if [ $# -eq 0 ]; then
-  if bash tests/shell/convert-script.sh > "$OUT/convert-script.log" 2>&1; then echo "PASS  shell/convert-script"; else echo "FAIL  shell/convert-script"; tail -n 12 "$OUT/convert-script.log" | sed 's/^/        /'; SHELLFAIL=1; fi
+  if bash tests/shell/convert-script.sh > "$OUT/convert-script.log" 2>&1; then SHELLLINE="PASS  shell/convert-script"; echo "$SHELLLINE"; else SHELLLINE="FAIL  shell/convert-script"; echo "$SHELLLINE"; tail -n 12 "$OUT/convert-script.log" | sed 's/^/        /'; SHELLFAIL=1; fi
 fi
 
 if [ $# -gt 0 ]; then SUITES=("$@"); else mapfile -t SUITES < tests/suites.txt; fi
@@ -36,6 +36,7 @@ run_one() {
 }
 export -f run_one; export OUT ROOT
 printf '%s\n' "${SUITES[@]}" | xargs -P 2 -I{} bash -c 'run_one {}' | tee "$OUT/summary.txt"
+[ -n "$SHELLLINE" ] && echo "$SHELLLINE" >> "$OUT/summary.txt"
 FAILED=$(grep -c '^FAIL' "$OUT/summary.txt")
 echo; echo "$(grep -c '^PASS' "$OUT/summary.txt") passed, $FAILED failed"
 [ "$FAILED" = 0 ] && [ "$SHELLFAIL" = 0 ]

@@ -7,7 +7,7 @@
  * Everything is measured on the real screen, so it works for every language, font and screen width; it runs again when the language,
  * the window size or the content changes.
  */
-const GROUPS = ".group:not(.pair)";
+const GROUPS = ".group:not(.pair):not(.pgroup)"; // (.pgroup = the part bar of four hands: it is fitted by ROWS below, in a fixed order)
 const MIN_SCALE = 0.78;
 
 const visible = (el: HTMLElement) => {
@@ -85,16 +85,52 @@ function fitButton(b: HTMLElement) {
   }
 }
 
+/**
+ * Bars that must stay on ONE line (the bottom bar, the part bars of four hands, the hand strip): when the row does not fit (it wraps, or overflows),
+ * things are given up in a fixed order, the least important first. The classes (fit1.. / p1..) are styled in style.css.
+ */
+const ROWS: { sel: string; steps: string[] }[] = [
+  { sel: ".controls", steps: ["fit1", "fit2", "fit3", "fit4"] }, // 1 measure number, 2 the tempo (only the %), 3 the speed text, 4 names -> icons
+  { sel: ".panehead, .handstrip", steps: ["p1", "p2", "p3"] }, // 1 full screen / fold -> icons, 2 hands -> R / L, 3 the part name -> its letter
+];
+function rowKids(el: HTMLElement): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const walk = (n: Element) => {
+    for (const c of Array.from(n.children) as HTMLElement[]) {
+      const cs = getComputedStyle(c);
+      if (cs.display === "contents") walk(c);
+      else if (cs.position !== "absolute" && cs.position !== "fixed" && !c.matches(".panel, .editbar, .dlgfade") && c.getBoundingClientRect().width > 0) out.push(c);
+    }
+  };
+  walk(el);
+  return out;
+}
+function rowTooLong(el: HTMLElement): boolean {
+  if (el.scrollWidth > el.clientWidth + 1) return true;
+  const mids = rowKids(el).map((c) => { const r = c.getBoundingClientRect(); return r.top + r.height / 2; });
+  return mids.length > 1 && Math.max(...mids) - Math.min(...mids) > 14; // wrapped onto a second line
+}
+function fitRow(el: HTMLElement, steps: string[]) {
+  el.classList.remove(...steps);
+  if (!visible(el)) return;
+  for (const c of steps) {
+    if (!rowTooLong(el)) return;
+    el.classList.add(c);
+  }
+}
+
 export function startFitting() {
   let frame = 0;
   const run = () => {
     frame = 0;
     observer.disconnect(); // what we change here must not trigger us again
     for (const g of Array.from(document.querySelectorAll<HTMLElement>(GROUPS))) fitGroup(g);
+    for (const r of ROWS) for (const el of Array.from(document.querySelectorAll<HTMLElement>(r.sel))) fitRow(el, r.steps);
     for (const b of Array.from(document.querySelectorAll<HTMLElement>("button, .top h1"))) if (!b.closest("svg, .pdfwrap, .scorewrap")) fitButton(b); // (a long title in the top bar shrinks a little before it is cut off)
     // keep a drop-down in step with the buttons it stands for
     for (const g of Array.from(document.querySelectorAll<HTMLElement>(".group.as-select"))) mirror(g);
     observe();
+    window.dispatchEvent(new Event("pianist-fit"));
   };
   const schedule = () => {
     if (!frame) frame = requestAnimationFrame(run);

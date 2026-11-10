@@ -18,6 +18,19 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get install -y poppler-utils   # pdftoppm, used by the converter-script test (tests/shell)
       - run: bash tests/run-all.sh
+      - name: Test report (what is wrong, with screenshots)
+        if: always()
+        run: |
+          node tests/make-report.cjs
+          cat tests/out/report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: e2e-logs, path: tests/out/*.log }
+        with:
+          name: e2e-report
+          path: |
+            tests/out/report.html
+            tests/out/report.md
+            tests/out/gallery.html
+            tests/out/work/layout-*.png
+            tests/out/work/matrix-*.png
+            tests/out/*.log

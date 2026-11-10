@@ -12,7 +12,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // phone, portrait
   let { browser, page } = await open(390, 760); let hd = await heads(page);
   ok(hd.every((x) => x.shown && x.h <= 56), `portrait phone: every part bar is one slim row (${hd.map((x) => x.h + 'px').join(', ')})`);
-  ok(hd.every((x) => !x.name && !x.lbl && x.focus && x.hand === '双右左'), 'icons and short hand names only (no wide texts), the full screen button stays');
+  ok(hd.every((x) => x.name && !x.lbl && x.focus && x.hand === '双右左'), 'the part name stays (it tells Primo from Secondo), the hands are short, full screen is an icon');
   ok(hd.map((x) => x.letter).join('') === 'AB', 'the part is told by its letter');
   ok(await page.evaluate(() => [...document.querySelectorAll('.panemenu')].every((b) => b.getBoundingClientRect().width === 0)), 'no floating menu button in portrait');
   await browser.close();
@@ -34,6 +34,19 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await page.evaluate(() => document.getElementById('app').classList.contains('focusing')), 'full screen of a part works from the menu');
   await browser.close();
 
+  // a LONG name (the file names are the part names): full screen -> icon first, then short hands, only then the name is shortened: it glides a few times and rests at its end
+  { const a = 'Merry Christmas Darling (4 hands) – Secondo (left hand part).musicxml', b = 'primo.musicxml';
+    const m = new Map([['scores/' + a, long], ['scores/' + b, long], ['config/pairs.json', Buffer.from(JSON.stringify({ pairs: [{ name: 'M', a, b }] }))]]);
+    for (const w of [834, 390]) {
+      const r = await h.start(m, { locale: 'fr-FR', context: { viewport: { width: w, height: 900 }, hasTouch: true, isMobile: true, locale: 'fr-FR' } }); // (French: the long labels are what make the row too long)
+      await r.page.evaluate((n) => (location.hash = '#/duet/' + encodeURIComponent(n[0]) + '/' + encodeURIComponent(n[1])), [a, b]); await r.page.waitForFunction(() => document.querySelectorAll('.pane').length === 2 && window.__pianist, null, { timeout: 20000 }); await r.page.waitForTimeout(1600);
+      const st = await r.page.evaluate(() => { const e = document.querySelector('.panehead'); const q = (s) => [...e.querySelectorAll(s)].some((x) => x.getBoundingClientRect().width > 0); return { cls: e.className, oneRow: e.getBoundingClientRect().height < 70, focusLabel: q('.focusbtn .lbl'), handsShort: q('.hand .sh') && !q('.hand .lbl'), over: e.scrollWidth - e.clientWidth }; });
+      if (w === 834) ok(/p1/.test(st.cls) && !st.focusLabel && st.oneRow && st.over <= 1, `${w}px: too long -> full screen became an icon first (${st.cls})`);
+      if (w === 390) { ok(/p1/.test(st.cls) && /p2/.test(st.cls) && /p3/.test(st.cls) && st.handsShort && st.oneRow && st.over <= 1, `${w}px: then the hands are short, then the name is shortened - still ONE row (${st.cls})`);
+        await r.page.waitForTimeout(11500);
+        const end = await r.page.evaluate(() => { const pn = document.querySelector('.panehead .pn'), i = pn.querySelector('.mqi'); return { glide: pn.classList.contains('glide'), gap: Math.round(pn.getBoundingClientRect().right - i.getBoundingClientRect().right) }; });
+        ok(end.glide && end.gap >= 0 && end.gap <= 10, `the name glided a few times and rests at its END, where Primo / Secondo is (gap ${end.gap}px)`); }
+      await r.browser.close(); } }
   // tablet: unchanged
   ({ browser, page } = await open(1194, 834)); hd = await heads(page);
   ok(hd.every((x) => x.shown && x.name && x.lbl), 'a tablet keeps the full part bars (names and labels)');

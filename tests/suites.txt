@@ -45,3 +45,8 @@
 44-tab-slide
 45-settings-done-top
 46-pdf-fullscreen-menu
+47-matrix-iphone-portrait
+47-matrix-iphone-landscape
+47-matrix-ipad-portrait
+47-matrix-ipad-landscape-mac
+48-settings-one-heading

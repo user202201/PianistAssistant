@@ -45,7 +45,8 @@ function armMarquee() {
       const over = i.scrollWidth - m.clientWidth;
       if (over > 2 && m.clientWidth > 0) {
         m.style.setProperty("--d", `-${over + 6}px`);
-        m.style.setProperty("--t", `${Math.max(4, (over / 28) * 1).toFixed(1)}s`);
+        // cards glide slowly and for ever; a part name glides faster, only a few times, and then rests at its end (Primo / Secondo)
+        m.style.setProperty("--t", m.classList.contains("few") ? `${Math.max(1.4, over / 110).toFixed(1)}s` : `${Math.max(4, (over / 28) * 1).toFixed(1)}s`);
         m.classList.add("glide");
       } else m.classList.remove("glide");
     });
@@ -53,6 +54,7 @@ function armMarquee() {
 }
 window.addEventListener("resize", () => armMarquee());
 window.addEventListener("pianist-lang", () => armMarquee());
+window.addEventListener("pianist-fit", () => armMarquee()); // (a bar that gave something up may have a name that must now glide)
 
 function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -353,7 +355,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   });
   const scrollSelect = h(
     "select",
-    {},
+    { title: "谱面滚动" },
     h("option", { value: "page", selected: settings.scrollMode === "page" }, "整屏翻页（推荐）"),
     h("option", { value: "smooth", selected: settings.scrollMode === "smooth" }, "平滑滚动"),
     h("option", { value: "off", selected: settings.scrollMode === "off" }, "不滚动"),
@@ -420,7 +422,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     h("h3", {}, "语言 / Language"),
     langSelect,
     h("h3", {}, "乐谱显示"),
-    h("label", {}, "谱面滚动", scrollSelect),
+    scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
@@ -1718,7 +1720,7 @@ function buildControls(
       player.partOn[g] = !player.partOn[g];
       if (!player.partOn.some(Boolean)) player.partOn[g] = true; // keep at least one part audible
       sync();
-    } }, ...(multi ? [h("span", { class: "pl" }, partLetter(g)), h("span", { class: "pn" }, ` · ${score.parts[g]}`)] : [label]));
+    } }, ...(multi ? [h("span", { class: "pl" }, partLetter(g)), h("span", { class: "pn mq few" }, h("span", { class: "mqi" }, ` · ${score.parts[g]}`))] : [label]));
     // same as for a single score: both hands / right only / left only (one choice, not two switches)
     const hand = (r: boolean, l: boolean, full: string, short: string) => h("button", { class: "seg hand", title: full, onclick: () => {
       player.partHands[g] = { right: r, left: l };
@@ -2143,8 +2145,9 @@ function buildControls(
   const moreBtn = h("button", { class: "morebtn", title: "展开 / 收起更多控制" });
   const hideBtn = h("button", { class: "icon hidebtn", title: "隐藏工具栏", onclick: () => setBar("hidden") }, ic("chevron-down", 20));
   // on a wide screen everything fits in one row, so there is nothing to fold away
-  const narrow = () => window.innerWidth < 820 || window.innerHeight <= 480;
-  const barMode = (): "full" | "min" | "hidden" => (!narrow() ? "full" : settings.barMode ?? (split ? "min" : "full"));
+  const narrow = () => window.innerWidth < 820 || window.innerHeight <= 480; // the zoom buttons then live on the strip above the score
+  const canFold = () => window.innerWidth < 1100 || window.innerHeight <= 480; // iPad portrait too: the bar can be made smaller or hidden
+  const barMode = (): "full" | "min" | "hidden" => (!canFold() ? "full" : settings.barMode ?? (split && narrow() ? "min" : "full"));
   const setBar = (m: "full" | "min" | "hidden") => {
     settings.barMode = m;
     saveSettings(settings);
@@ -2155,15 +2158,15 @@ function buildControls(
   const refreshMore = () => {
     const m = barMode();
     bar.classList.toggle("min", m === "min");
-    bar.classList.toggle("splitwide", split && !narrow());
+    bar.classList.toggle("splitwide", split && !canFold());
     bar.hidden = m === "hidden";
     handle.hidden = m !== "hidden";
     if (strip) {
       (narrow() ? strip : wrapRow).append(zoomOut, zoomIn);
       strip.hidden = !(handContent.length || narrow());
     }
-    moreBtn.hidden = !narrow() || m === "hidden";
-    hideBtn.hidden = !narrow() || m !== "min";
+    moreBtn.hidden = !canFold() || m === "hidden";
+    hideBtn.hidden = !canFold() || m !== "min";
     moreBtn.replaceChildren(ic(m === "min" ? "chevron-up" : "chevron-down", 18), h("span", { class: "lbl" }, m === "min" ? "更多" : "收起"));
     setTimeout(() => followView(false), 60);
   };

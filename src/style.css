@@ -587,7 +587,7 @@ input.clickvol { flex: 1; min-width: 90px; max-width: 160px; }
   .controls .row.wrap .group > button { padding: 0 8px; min-width: 36px; }
   /* four hands: one slim row per part: letter, hands, and icons */
   .panehead { flex-wrap: nowrap; gap: 6px; padding: 4px 8px; }
-  .panehead .pn, .panehead .lbl { display: none; }
+  .panehead .lbl { display: none; } /* (the part name stays: it tells Primo from Secondo; see p3 below) */
   .panehead button { min-height: 36px; min-width: 36px; padding: 0 9px; }
   .panehead .hand .lbl { display: none; }
 }
@@ -657,3 +657,26 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 /* the suggestion banners: the text column may shrink and long button names wrap instead of pushing the banner off the screen */
 .banner > .grow { min-width: 0; }
 .banner button { white-space: normal; max-width: 100%; }
+
+/* ---- one line, always: what is given up first when the row is too long (see ROWS in fit.ts) ---- */
+.controls.fit1 .pos { display: none; }
+.controls.fit2 .speedlabel .bpm { display: none; }
+.controls.fit3 .speedlabel { display: none; }
+.controls.fit4 .lbl { display: none; }
+.controls .morebtn { margin-left: auto; } /* "fold" sits at the right end */
+.panehead, .handstrip { flex-wrap: nowrap; }
+.panehead .pgroup, .handstrip .pgroup { flex: 0 0 auto; } /* it does not shrink by itself: a row that is too long must be noticed (fit.ts) and give things up in order */
+.panehead.p3 .pgroup, .handstrip.p3 .pgroup { flex: 0 1 auto; min-width: 0; }
+.panehead .pname, .handstrip .pname { flex: 0 0 auto; white-space: nowrap; } /* the name keeps its full length for as long as possible */
+.pname .pn.mq { flex: 0 1 auto; display: inline-block; vertical-align: bottom; }
+.panehead.p1 .focusbtn .lbl, .panehead.p1 .collbtn .lbl, .handstrip.p1 .lbl { display: none; }
+.panehead.p2 .hand .lbl, .handstrip.p2 .hand .lbl { display: none; }
+.panehead.p2 .hand .sh, .handstrip.p2 .hand .sh { display: inline; }
+/* last resort: the name gets what is left (at least ~6 characters), glides a few times and rests at its END (where Primo / Secondo is) */
+.panehead.p3 .pname, .handstrip.p3 .pname { flex: 0 1 auto; min-width: 0; }
+.panehead.p3 .pname .pn, .handstrip.p3 .pname .pn { display: block; min-width: 6em; flex: 1 1 auto; }
+.mq.few.glide { text-overflow: clip; -webkit-mask-image: none; mask-image: none; }
+.mq.few.glide .mqi { animation: mqglide var(--t, 6s) ease-in-out .8s 3 alternate forwards; }
+@media (prefers-reduced-motion: reduce) { .mq.few.glide .mqi { animation: none; transform: translateX(var(--d)); } }
+/* the home lists in ONE column (a tablet held upright, a phone): the whole page scrolls together, no second scroll bar inside */
+@media (max-width: 920px) { .listbox { flex: none; overflow: visible; min-height: 0; } }
