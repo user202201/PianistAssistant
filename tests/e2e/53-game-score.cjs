@@ -66,8 +66,18 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await page.evaluate(() => [...document.querySelectorAll('.gamepanel .gmode .seg')].map((b) => b.innerText.trim()).join('|')) === '演示|计分', 'the panel has a Demo / Score switch');
   await page.click('button[title^=播放]'); await page.waitForTimeout(8200); // READY, GO, then the imaginary player plays
   const demoScore = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), acc: '' }; });
+  const st = await page.evaluate(() => window.__gs());
+  ok(st.perfect >= 8 && st.good + st.early + st.late + st.miss + st.wrong === 0, `the demo player is perfect by default (${st.perfect} perfect, no other kind)`);
   ok(demoScore.score > 100, `demo mode: the imaginary player scores (${demoScore.score}, ${demoScore.acc})`);
   await page.screenshot({ path: D + 'game-demo-score.png' });
+  // with "mistakes in the demo" on, the imaginary player also slips (to watch those effects)
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameDemoMistakes = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
+  await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
+  await page.click('button[title^=播放]'); await page.waitForTimeout(12000);
+  const st2 = await page.evaluate(() => window.__gs());
+  ok(st2.good + st2.early + st2.late + st2.miss + st2.wrong >= 1, `with the setting on it makes mistakes too (${st2.good} good, ${st2.early + st2.late} early/late, ${st2.miss} missed, ${st2.wrong} wrong)`);
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameDemoMistakes = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
+  await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
   await page.evaluate(() => window.__pianist.player.stop()); await page.waitForTimeout(300);
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.waitForTimeout(700);
   const hud0 = await page.evaluate(() => { const s = document.querySelector('.hudscorebox').getBoundingClientRect(), c = document.querySelector('.hudcombobox').getBoundingClientRect(), tb = document.querySelector('.gtilt').getBoundingClientRect(), m = document.querySelector('.gmode').getBoundingClientRect(), pn = document.querySelector('.gamepanel').getBoundingClientRect();

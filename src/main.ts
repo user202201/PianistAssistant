@@ -384,6 +384,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     dlg.close();
     onLayout?.();
   });
+  const mistakeBox = h("input", { type: "checkbox", checked: settings.gameDemoMistakes });
+  mistakeBox.addEventListener("change", () => { settings.gameDemoMistakes = mistakeBox.checked; saveSettings(settings); });
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -430,6 +432,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
+    ...(settings.gameMode ? [h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [
@@ -2387,6 +2390,7 @@ function buildControls(
   app.append(hud.setup, hud.result);
   hud.midi(midi.status());
   const offState = midi.onState((st) => hud.midi(st));
+  (window as unknown as { __gs?: () => unknown }).__gs = () => gs?.stats; // (for the tests)
   const MILESTONES = [10, 25, 50, 100, 150, 200];
   const judged = (j: { kind: string; combo: number } & Parameters<typeof gv.judge>[0]) => {
     gv.judge(j); hud.judged(j);
@@ -2408,7 +2412,7 @@ function buildControls(
     hud.reset();
     hud.update(gs.stats, 1);
   };
-  // Demo mode scores too, with an imaginary player (so that the score window and its effects can be watched): mostly on time, now and then late, a miss, a wrong key
+  // Demo mode scores too, with an imaginary player: a perfect one (with the setting "mistakes in the demo" on: also late, a miss, a wrong key, to watch those effects)
   let simAt = 0, simSeed = 7, lastPos = 0;
   const rnd = () => { simSeed = (simSeed * 1664525 + 1013904223) % 4294967296; return simSeed / 4294967296; };
   const simulate = (pos: number) => {
@@ -2417,7 +2421,8 @@ function buildControls(
     while (simAt < shown.length && shown[simAt].sec <= pos) {
       const e = shown[simAt++];
       const r = rnd(), d = (rnd() - 0.5) * 2; // d: -1 .. 1
-      if (r < 0.74) judged(gs!.strike(e.midi, e.sec + d * 0.04 * player.speed));
+      if (!settings.gameDemoMistakes) judged(gs!.strike(e.midi, e.sec)); // the demo plays perfectly
+      else if (r < 0.74) judged(gs!.strike(e.midi, e.sec + d * 0.04 * player.speed));
       else if (r < 0.9) judged(gs!.strike(e.midi, e.sec + d * 0.14 * player.speed));
       else if (r < 0.95) judged(gs!.strike(e.midi, e.sec + (d < 0 ? -0.26 : 0.26) * player.speed));
       else if (r < 0.975) judged(gs!.strike(e.midi + 1, e.sec)); // a wrong key; the note itself is then missed
