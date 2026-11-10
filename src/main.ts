@@ -16,7 +16,7 @@ import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView, GAME_PRE } from "./gameview";
-import { GameScore, WINDOWS } from "./gamescore";
+import { GameScore, WINDOWS, isComboMilestone } from "./gamescore";
 import { createHud } from "./gamehud";
 import { midi, MidiInput, type MidiNote } from "./midi";
 import { mic, MicInput } from "./mic";
@@ -2412,10 +2412,9 @@ function buildControls(
   hud.midi(midi.status());
   const offState = midi.onState((st) => hud.midi(st));
   (window as unknown as { __gs?: () => unknown }).__gs = () => gs?.stats; // (for the tests)
-  const MILESTONES = [10, 25, 50, 100, 150, 200];
   const judged = (j: { kind: string; combo: number } & Parameters<typeof gv.judge>[0]) => {
     gv.judge(j); hud.judged(j);
-    if (j.kind !== "miss" && j.kind !== "wrong" && MILESTONES.includes(j.combo)) gv.milestone(j.combo);
+    if (j.kind !== "miss" && j.kind !== "wrong" && isComboMilestone(j.combo)) gv.milestone(j.combo);
   };
   const handleKey = (n: MidiNote) => {
     if (!scoringOn()) return;

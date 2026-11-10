@@ -8,7 +8,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 
   // ---- 1. the scoring logic on its own
   const logic = await page.evaluate(async () => {
-    const { GameScore, WINDOWS } = await import('/PianistAssistant/src/gamescore.ts');
+    const { GameScore, WINDOWS, isComboMilestone } = await import('/PianistAssistant/src/gamescore.ts');
+    const miles = [10, 25, 50, 100, 150, 200, 250, 300, 400, 500, 1000].map((n) => isComboMilestone(n)); const notMiles = [9, 11, 99, 201, 299, 301].map((n) => isComboMilestone(n));
     const ev = (sec, midi) => ({ sec, midi, dur: 1, dur0: 1, part: 0, staff: 0, step: 0, measure: 0, onset: 0, spw: 2, vel: 80 });
     const notes = [ev(1, 60), ev(2, 62), ev(3, 64), ev(4, 65), ev(5, 67)];
     const g = new GameScore(notes, 'normal', 1); const [pw, gw, ow] = WINDOWS.normal;
@@ -37,13 +38,14 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     const startTotal = pg.stats.total; pg.strike(60, 1);
     const pm = pg.advance(99).map((j) => j.kind);
     const partial = { startTotal, pm, total: pg.stats.total, miss: pg.stats.miss, perfect: pg.stats.perfect, stars: pg.stats.perfect, finished: pg.finished };
-    return { partial, r, combo, s, slowKind, easy, hard, second, fullStars: full.stars(), fullAcc: full.accuracy(true), finished: full.finished, noneStars: new GameScore(notes).stars() };
+    return { miles, notMiles, partial, r, combo, s, slowKind, easy, hard, second, fullStars: full.stars(), fullAcc: full.accuracy(true), finished: full.finished, noneStars: new GameScore(notes).stars() };
   });
   ok(logic.r.slice(0, 4).join() === 'perfect,good,early,wrong', `windows: ${logic.r.slice(0, 4).join(' ')}`);
   ok(logic.r[4] === 'miss' && logic.s.miss === 2 && logic.r[5] === 'wrong', `a note nobody struck is a Miss once its window is over, a key far off is a wrong key (${logic.r.slice(4).join(' ')})`);
   ok(logic.combo === 0 && logic.s.maxCombo === 3, `the combo runs up with hits and breaks at a miss / wrong key (max ${logic.s.maxCombo})`);
   ok(logic.slowKind === 'good' && logic.easy === 'perfect' && logic.hard === 'late', `windows are real time: slower playing does not make them longer (${logic.slowKind}); easy is wider (${logic.easy}), hard is narrower (${logic.hard})`);
   ok(logic.partial.startTotal === 2 && logic.partial.miss === 1 && logic.partial.total === 2 && logic.partial.finished, `only the notes of the part you play are judged: the other part is no Miss (${JSON.stringify(logic.partial)})`);
+  ok(logic.miles.join() === 'true,true,true,true,true,true,false,true,true,true,true' && logic.notMiles.every((x) => x === false), 'the combo banner continues past 200: 300, 400, 500 ... (every 100), not at other numbers');
   ok(logic.second === 'wrong', 'one key hits one note only');
   ok(logic.fullStars === 3 && logic.fullAcc === 1 && logic.finished && logic.noneStars === 0, 'all perfect = 3 stars, nothing played = 0 stars');
   ok(logic.s.score > 0 && logic.s.perfect === 1, `points are counted (${logic.s.score})`);

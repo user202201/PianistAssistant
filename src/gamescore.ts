@@ -113,3 +113,6 @@ export class GameScore {
   /** every note has been judged */
   get finished(): boolean { return this.notes.every((n) => n.done); }
 }
+
+/** the runs that get the big combo banner: 10, 25, 50, 100, 150, 200 and then every 100 (no upper end) */
+export const isComboMilestone = (n: number) => [10, 25, 50, 100, 150, 200].includes(n) || (n > 200 && n % 100 === 0);
