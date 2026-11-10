@@ -7,6 +7,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
   await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
   const popup = () => page.evaluate(() => { const d = document.querySelector('dialog.popup[open]'); if (!d) return null; const r = d.getBoundingClientRect(); return { title: d.querySelector('h2').innerText, btns: [...d.querySelectorAll('button')].map((b) => b.innerText.trim()), cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2) }; });
+  ok(await page.evaluate(() => getComputedStyle(document.querySelector('.top .brand .logo')).touchAction === 'manipulation' && getComputedStyle(document.querySelector('.top .brand')).touchAction === 'manipulation'), 'the note ignores double-tap zoom (fast tapping on an iPad must not zoom the page)');
   await page.evaluate(() => { window.__vib = []; navigator.vibrate = (p) => { window.__vib.push(p); return true; }; });
   for (let i = 0; i < 4; i++) await page.click('.top .logo');
   ok(!(await page.evaluate(() => document.querySelector('.top .logo').classList.contains('shake'))), '4 taps: the note is still calm');

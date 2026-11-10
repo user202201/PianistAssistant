@@ -803,3 +803,6 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 @keyframes ggo { 0% { opacity: 0; transform: scale(.3) rotate(-6deg); } 25% { opacity: 1; transform: scale(1.25) rotate(2deg); } 60% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(1.6); filter: blur(6px); } }
 @keyframes gring { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(34); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .gostart .word.ready.in, .gostart .word.go.in { animation: gfade 1s linear both; } .gostart .word.go::after { display: none; } @keyframes gfade { 0%, 100% { opacity: 0; } 20%, 80% { opacity: 1; } } }
+
+/* the secret note is tapped many times quickly: no double-tap zoom of the page (iPad Safari), no text selection / callout */
+.top .brand, .top .brand .logo { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
