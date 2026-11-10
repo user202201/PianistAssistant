@@ -16,9 +16,10 @@ import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView, GAME_PRE } from "./gameview";
-import { GameScore } from "./gamescore";
+import { GameScore, WINDOWS } from "./gamescore";
 import { createHud } from "./gamehud";
-import { midi, MidiInput } from "./midi";
+import { midi, MidiInput, type MidiNote } from "./midi";
+import { mic, MicInput } from "./mic";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
@@ -2387,6 +2388,11 @@ function buildControls(
     onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
     onRetry: () => { player.stop(); void startGame(); },
     latency: settings.gameLatency, onLatency: (ms) => { settings.gameLatency = ms; saveSettings(settings); },
+    onMic: async () => {
+      if (mic.running) { mic.stop(); hud.micState("off"); return; }
+      const r = await mic.start(() => { const pos = player.position(), w = (WINDOWS[settings.gameLevel][2] - 0.05) * player.speed; return score.events.filter((e) => player.isShown(e) && Math.abs(e.sec - pos) < w).map((e) => e.midi); }); // only the notes that are due are listened for
+      hud.micState(r === "ok" ? "on" : r);
+    },
   });
   gv.el.append(hud.scoreBox, hud.comboBox); // the score next to the 3D button, the combo under the demo / score switch
   gv.el.querySelector(".gtopleft")!.append(hud.chip); // (numbers + the piano button live in the game panel; the cards float above everything)
@@ -2399,14 +2405,16 @@ function buildControls(
     gv.judge(j); hud.judged(j);
     if (j.kind !== "miss" && j.kind !== "wrong" && MILESTONES.includes(j.combo)) gv.milestone(j.combo);
   };
-  const offNote = midi.onNote((n) => {
+  const handleKey = (n: MidiNote) => {
     if (!scoringOn()) return;
     if (n.type === "off") return void gv.release(n.note);
     if (!gs || !player.playing || roundOver) return void gv.press(n.note, "#ffffff"); // free play: the key just lights
     const t = player.position() - ((performance.now() - n.time) / 1000) * player.speed - (settings.gameLatency / 1000) * player.speed; // the moment the key was struck (minus the delay of the piano's signal, if the player set one)
     const j = gs.strike(n.note, t);
     judged(j); gv.press(n.note, keyColour(j.kind)); hud.update(gs.stats, gs.accuracy());
-  });
+  };
+  const offNote = midi.onNote(handleKey);
+  const offMic = mic.onNote((n) => { handleKey(n); window.setTimeout(() => gv.release(n.note), 260); }); // (a microphone does not tell when the key is let go)
   // keys that were let go are never reported twice: clear the lit keys when they have been struck for a while
   const beginRound = () => {
     simAt = 0; lastPos = player.position();
@@ -2433,6 +2441,7 @@ function buildControls(
     }
   };
   const roundTimer = window.setInterval(() => {
+    if (mic.running) hud.micLevel(mic.level);
     if (!gameOn() || !gs || roundOver) return;
     const pos = player.position();
     const ended = !player.playing && pos >= score.duration - 0.05;
@@ -2446,7 +2455,7 @@ function buildControls(
     if (gs.finished && (player.playing || ended)) { roundOver = true; hud.showResult(gs.stats, gs.stars(), gs.accuracy(true)); }
   }, 60);
   const syncGame = () => {
-    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); clearInterval(roundTimer); offNote(); offState(); hud.destroy(); gv.destroy(); return; }
+    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); clearInterval(roundTimer); offNote(); offMic(); mic.stop(); offState(); hud.destroy(); gv.destroy(); return; }
     gv.el.hidden = !(settings.gameMode && settings.gameView);
     gv.setTilt(settings.gameTilt);
     gv.setScoring(settings.gameScoring);

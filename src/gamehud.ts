@@ -20,6 +20,9 @@ export interface Hud {
   judged(j: Judgement): void;
   showResult(s: Stats, stars: number, accuracy: number): void;
   midi(s: MidiState): void;
+  /** the microphone (an acoustic piano): on / off / why not */
+  micState(s: "off" | "on" | "denied" | "unsupported"): void;
+  micLevel(l: number): void;
   setLevel(l: Level): void;
   openSetup(open?: boolean): void;
   setHidden(hidden: boolean): void;
@@ -37,7 +40,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "", 
 };
 const KINDS: [keyof Stats, string, string][] = [["perfect", "完美", "#ffd60a"], ["good", "不错", "#7dff6b"], ["early", "偏早", "#9ad1ff"], ["late", "偏晚", "#ffb86b"], ["miss", "漏掉", "#ff5a5a"], ["wrong", "错键", "#ff5a5a"]];
 
-export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConnect: () => void; onPair: (() => void) | null; onRetry: () => void; latency: number; onLatency: (ms: number) => void }): Hud {
+export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConnect: () => void; onPair: (() => void) | null; onRetry: () => void; latency: number; onLatency: (ms: number) => void; onMic: () => void }): Hud {
   // ---- compact numbers
   const scoreBox = el("div", "hudscorebox");
   const score = el("div", "hudscore", "0");
@@ -55,6 +58,11 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const status = el("div", "hudstatus");
   const connect = el("button", "hudbtn", "连接钢琴");
   connect.onclick = () => o.onConnect();
+  const micBtn = el("button", "hudbtn", "用麦克风听");
+  micBtn.onclick = () => o.onMic();
+  const micText = el("div", "hudstatus");
+  const meter = el("div", "hudmeter"), meterFill = el("i");
+  meter.append(meterFill); meter.hidden = true;
   const pair = o.onPair ? el("button", "hudbtn", "蓝牙钢琴") : null;
   if (pair) pair.onclick = () => o.onPair!();
   const levelRow = el("div", "hudlevel");
@@ -79,7 +87,7 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   handle.onpointermove = (e) => { if (y0 !== null && e.clientY - y0 > 10) { toggleMore(true); y0 = null; } else if (y0 !== null && y0 - e.clientY > 10) { toggleMore(false); y0 = null; } };
   handle.onpointerup = () => { y0 = null; };
   handle.onclick = () => toggleMore();
-  setup.append(status, connect, ...(pair ? [pair] : []), levelRow, more, handle);
+  setup.append(status, connect, ...(pair ? [pair] : []), micBtn, micText, meter, levelRow, more, handle);
   const place = () => { const r = chip.getBoundingClientRect(); setup.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - (setup.offsetWidth || 250) - 8))}px`; setup.style.bottom = `${window.innerHeight - r.top + 8}px`; };
   const openSetup = (open?: boolean) => { const want = open ?? setup.hidden; setup.hidden = !want; if (want) place(); }; // (shown first: its width is needed to keep it on the screen)
   chip.onclick = (e) => { e.stopPropagation(); openSetup(); };
@@ -127,6 +135,14 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
       );
       chip.classList.toggle("connected", s.kind === "ready");
     },
+    micState(st) {
+      micBtn.textContent = st === "on" ? "关闭麦克风" : "用麦克风听";
+      meter.hidden = st !== "on";
+      micText.replaceChildren(st === "on" ? el("span", "ok", "麦克风已开启") : st === "denied" ? el("span", "", "没有麦克风许可") : st === "unsupported" ? el("span", "", "这个浏览器不能用麦克风") : el("span", ""));
+      micText.hidden = st === "off";
+      chip.classList.toggle("mic", st === "on");
+    },
+    micLevel(l) { meterFill.style.width = `${Math.round(Math.max(0, Math.min(1, l)) * 100)}%`; },
     setLevel, openSetup,
     setChip(show) { chip.hidden = !show; if (!show) setup.hidden = true; },
     setHidden(hidden) { scoreBox.hidden = hidden; comboBox.hidden = hidden; if (hidden) { chip.hidden = true; setup.hidden = true; result.hidden = true; } },

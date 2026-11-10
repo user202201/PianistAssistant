@@ -2,8 +2,8 @@
 const { chromium } = require('playwright');
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {}) {
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({ locale: opts.locale || 'zh-CN', ...(opts.context || { viewport: opts.viewport || { width: 1200, height: 800 } }) });
+  const browser = await chromium.launch(opts.launchArgs ? { args: opts.launchArgs } : {});
+  const ctx = await browser.newContext({ locale: opts.locale || 'zh-CN', ...(opts.permissions ? { permissions: opts.permissions } : {}), ...(opts.context || { viewport: opts.viewport || { width: 1200, height: 800 } }) });
   const page = await ctx.newPage();
   // the count-in before playback is on by default now; the older suites measure scheduling, so they switch it off (opts.countIn keeps it)
   if (!opts.countIn) await page.addInitScript(() => { try { const k = 'pianist.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (s.countIn === undefined) { s.countIn = false; localStorage.setItem(k, JSON.stringify(s)); } } catch {} });

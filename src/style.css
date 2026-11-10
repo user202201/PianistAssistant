@@ -859,3 +859,6 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamesetup .hudgrip { width: 38px; height: 3px; border-radius: 2px; background: rgba(25, 211, 255, .7); box-shadow: 0 0 8px rgba(25, 211, 255, .8); margin-top: 6px; }
 .gamesetup .hudmorehandle .hudcaret { font-size: .8rem; line-height: .8; }
 .gamesetup .hudbtn.small { min-height: 32px; min-width: 36px; padding: 0 8px; }
+
+.gamesetup .hudmeter { height: 6px; border-radius: 3px; background: rgba(25, 211, 255, .15); overflow: hidden; } .gamesetup .hudmeter[hidden] { display: none; } .gamesetup .hudmeter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #19d3ff, #7dff6b); transition: width .08s linear; }
+.gamesetup .hudstatus[hidden] { display: none; }
