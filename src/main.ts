@@ -2390,7 +2390,7 @@ function buildControls(
     latency: settings.gameLatency, onLatency: (ms) => { settings.gameLatency = ms; saveSettings(settings); },
     onMic: async () => {
       if (mic.running) { mic.stop(); hud.micState("off"); return; }
-      const r = await mic.start(() => { const pos = player.position(), w = (WINDOWS[settings.gameLevel][2] - 0.05) * player.speed; return score.events.filter((e) => player.isShown(e) && Math.abs(e.sec - pos) < w).map((e) => e.midi); }); // only the notes that are due are listened for
+      const r = await mic.start(() => { const pos = player.position(), w = (WINDOWS[settings.gameLevel][2] - 0.16) * player.speed; return score.events.filter((e) => player.isShown(e) && Math.abs(e.sec - pos) < w).map((e) => e.midi); }); // only the notes that are due are listened for
       hud.micState(r === "ok" ? "on" : r);
     },
   });
@@ -2414,7 +2414,9 @@ function buildControls(
     judged(j); gv.press(n.note, keyColour(j.kind)); hud.update(gs.stats, gs.accuracy());
   };
   const offNote = midi.onNote(handleKey);
-  const offMic = mic.onNote((n) => { handleKey(n); window.setTimeout(() => gv.release(n.note), 260); }); // (a microphone does not tell when the key is let go)
+  const micHandler = (n: MidiNote) => { handleKey(n); window.setTimeout(() => gv.release(n.note), 260); }; // (a microphone does not tell when the key is let go)
+  mic.setHandler(micHandler);
+  const offMic = () => mic.setHandler(null);
   // keys that were let go are never reported twice: clear the lit keys when they have been struck for a while
   const beginRound = () => {
     simAt = 0; lastPos = player.position();

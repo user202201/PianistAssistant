@@ -23,7 +23,7 @@ function wav(path) {
   ok(/麦克风已开启/.test(on.txt) && on.meter, 'the microphone is on, with a level bar');
   await page.mouse.click(5, 5);
   await page.click('button[title^=播放]'); await page.waitForTimeout(11000); // READY, GO, the notes fall in, 5 s of the piece
-  const st = await page.evaluate(() => window.__gs()); console.log('STATS', JSON.stringify(st));
+  const st = await page.evaluate(() => window.__gs());
   ok(st.perfect + st.good + st.early + st.late >= 1, `a C4 heard by the microphone is judged as a hit (${st.perfect} perfect, ${st.good} good, ${st.early} early, ${st.late} late)`);
   ok(st.wrong === 0, 'and nothing is reported as a wrong key (only the notes that are due are listened for)');
   await page.evaluate(() => window.__pianist.player.pause());

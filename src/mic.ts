@@ -31,6 +31,9 @@ export class MicInput {
   private armed = new Map<number, { on: boolean; peak: number }>();
   private handlers = new Set<(n: MidiNote) => void>();
   onNote(fn: (n: MidiNote) => void) { this.handlers.add(fn); return () => this.handlers.delete(fn); }
+  /** ONE consumer (the game screen that is open now): a screen that was replaced cannot go on receiving notes */
+  private single: ((n: MidiNote) => void) | null = null;
+  setHandler(fn: ((n: MidiNote) => void) | null) { this.single = fn; }
 
   static available(): boolean { return typeof navigator !== "undefined" && !!navigator.mediaDevices?.getUserMedia; }
 
@@ -98,7 +101,9 @@ export class MicInput {
     this.level = Math.min(1, Math.sqrt(s / this.wave.length) * 6);
     an.getFloatFrequencyData(this.spec);
     const sr = ctx.sampleRate, now = performance.now();
-    for (const m of new Set(cands)) {
+    const want = new Set(cands);
+    for (const m of [...this.hist.keys()]) if (!want.has(m)) this.hist.delete(m); // a pitch that is not due has no history: when it becomes due, a tone that is already ringing is not a new key
+    for (const m of want) {
       const f0 = 440 * 2 ** ((m - 69) / 12);
       if (f0 < 55 || f0 * 2 > sr / 2) continue;
       const sal = this.salience(f0, sr); // (only the fundamental decides: the overtones of one note are the fundamentals of others)
@@ -110,10 +115,11 @@ export class MicInput {
       const st = this.armed.get(m) ?? { on: true, peak: 0 };
       if (!st.on) { st.peak = Math.max(st.peak, sal); if (sal < st.peak - 10 || now - (this.last.get(m) ?? 0) > 900) st.on = true; }
       this.armed.set(m, st);
-      if (st.on && sal > 18 && sal - low > 10) {
+      if (st.on && h.length >= 5 && sal > 18 && sal - low > 10) {
         this.last.set(m, now); st.on = false; st.peak = sal; this.dbg?.(m, sal, sal - low);
         const ev: MidiNote = { type: "on", note: m, velocity: 80, time: now - WINDOW_DELAY_MS };
         this.handlers.forEach((fn) => fn(ev));
+        this.single?.(ev);
       }
     }
   }
