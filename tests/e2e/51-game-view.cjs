@@ -21,7 +21,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.handstrip .hand[title=右手]'); await page.waitForTimeout(250); l = await lit(); // wait until the left-hand notes have passed
   await page.waitForTimeout(600); l = await lit();
   ok(l.gr === 0 && l.cy > 0, `right hand only: no green notes any more (${l.gr})`);
-  ok(await page.evaluate(() => Number(document.querySelector('.gamepanel').dataset.sparks) > 3), 'a struck key throws sparks');
+  ok(await page.evaluate(() => Number(document.querySelector('.gamepanel').dataset.sparks) >= 2), 'a struck key sends up soft puffs of light (no hard particles)');
   await page.evaluate(() => window.__pianist.player.pause());
   // size: small by default, the top edge can be dragged, never below keyboard + a strip of coming notes
   const ph0 = await page.evaluate(() => Math.round(document.querySelector('.gamepanel').getBoundingClientRect().height));

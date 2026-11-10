@@ -87,16 +87,14 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   }
   const colour = (e: NoteEvent) => (e.staff % 2 === 0 ? RIGHT : LEFT);
 
-  // sparks: when a key is struck a flare and a burst of sparks fly up from it; a held key keeps trickling a few; a soft beam stands above a sounding key
-  interface Spark { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; col: string }
-  const sparks: Spark[] = [];
+  // smoke and light: when a key is struck a flare opens and a few soft puffs of light drift up from it (no hard particles: they would hide the keys behind);
+  // a held key keeps a thin trickle of puffs and a soft beam stands above a sounding key
+  interface Puff { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; col: string }
+  const sparks: Puff[] = []; // (the puffs)
   const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
   let prevActive = new Map<number, string>(), last = 0;
-  const emit = (x: number, y: number, col: string, n: number, spread = 1) => {
-    for (let i = 0; i < n && sparks.length < 500; i++) {
-      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2 * spread, sp = 50 + Math.random() * 190;
-      sparks.push({ x: x + (Math.random() - 0.5) * 10, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.45 + Math.random() * 0.7, size: 1.2 + Math.random() * 2.6, col });
-    }
+  const emit = (x: number, y: number, col: string, n: number) => {
+    for (let i = 0; i < n && sparks.length < 60; i++) sparks.push({ x: x + (Math.random() - 0.5) * 12, y: y - 4, vx: (Math.random() - 0.5) * 22, vy: -(22 + Math.random() * 34), life: 0, max: 0.9 + Math.random() * 0.7, r: 12 + Math.random() * 16, col });
   };
   function draw(now = 0) {
     if (dead) return;
@@ -161,8 +159,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const g = ctx.createLinearGradient(0, top - 110, 0, top); g.addColorStop(0, col + "00"); g.addColorStop(1, col + "88"); // the beam above the key
       ctx.fillStyle = g; ctx.fillRect(k.x + k.w * 0.2, top - 110, k.w * 0.6, 110);
       if (playing) {
-        if (!prevActive.has(m)) { emit(cx, top, col, 16); flares.push({ x: cx, y: top, t: 0, col, w: Math.max(ww * 2.2, 36) }); }
-        else if (Math.random() < 0.45) emit(cx, top, col, 1, 0.6);
+        if (!prevActive.has(m)) { emit(cx, top, col, 3); flares.push({ x: cx, y: top, t: 0, col, w: Math.max(ww * 2.2, 36) }); }
+        else if (Math.random() < 0.1) emit(cx, top, col, 1);
       }
     }
     prevActive = active;
@@ -172,11 +170,12 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       g.addColorStop(0, f.col + Math.round((1 - u) * 170).toString(16).padStart(2, "0")); g.addColorStop(1, f.col + "00");
       ctx.fillStyle = g; ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
     }
-    for (let i = sparks.length - 1; i >= 0; i--) {
+    for (let i = sparks.length - 1; i >= 0; i--) { // a puff: a soft round glow that rises slowly, grows and fades
       const p = sparks[i]; p.life += dt; if (p.life >= p.max) { sparks.splice(i, 1); continue; }
-      p.vy += 140 * dt; p.vx *= 1 - 0.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
-      const u = 1 - p.life / p.max; ctx.globalAlpha = u; ctx.fillStyle = p.col; ctx.shadowColor = p.col; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + u * 0.5), 0, Math.PI * 2); ctx.fill();
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const u = p.life / p.max, r = p.r * (1 + u * 1.2), g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      g.addColorStop(0, p.col + Math.round((1 - u) * 70).toString(16).padStart(2, "0")); g.addColorStop(1, p.col + "00");
+      ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
     el.dataset.sparks = String(sparks.length);
