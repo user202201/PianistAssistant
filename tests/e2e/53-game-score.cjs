@@ -61,20 +61,21 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}'); s.gameMode = true; s.gameView = true; s.gameScoring = false; s.gameLevel = 'easy'; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/score/dyn.musicxml')); await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
-  ok(await page.evaluate(() => { const hud = document.querySelector('.hudcompact'); return !!hud && !hud.hidden && hud.getBoundingClientRect().width > 0; }), 'demo mode shows the score numbers too (an imaginary player), so the effects can be watched');
+  ok(await page.evaluate(() => { const hud = document.querySelector('.hudscorebox'); return !!hud && !hud.hidden && hud.getBoundingClientRect().width > 0; }), 'demo mode shows the score numbers too (an imaginary player), so the effects can be watched');
   ok(await page.evaluate(() => document.querySelector('.hudchip').hidden), 'but the piano button is only for score mode');
   ok(await page.evaluate(() => [...document.querySelectorAll('.gamepanel .gmode .seg')].map((b) => b.innerText.trim()).join('|')) === '演示|计分', 'the panel has a Demo / Score switch');
   await page.click('button[title^=播放]'); await page.waitForTimeout(8200); // READY, GO, then the imaginary player plays
-  const demoScore = await page.evaluate(() => { const c = document.querySelector('.hudcompact'); return { score: Number(c.querySelector('.hudscore').innerText), acc: c.querySelector('.hudline b').innerText }; });
+  const demoScore = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), acc: '' }; });
   ok(demoScore.score > 100, `demo mode: the imaginary player scores (${demoScore.score}, ${demoScore.acc})`);
   await page.screenshot({ path: D + 'game-demo-score.png' });
   await page.evaluate(() => window.__pianist.player.stop()); await page.waitForTimeout(300);
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.waitForTimeout(700);
-  const hud0 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'), r = c.getBoundingClientRect(); const kids = [...c.children].map((x) => x.className.split(' ')[0]);
-    return { shown: !c.hidden && r.width > 0, right: Math.round(window.innerWidth - r.right), top: Math.round(r.top), h: Math.round(r.height), order: kids.join('|'), fixed: getComputedStyle(c).position }; });
-  ok(hud0.shown && hud0.fixed === 'fixed' && hud0.right < 24 && hud0.top < 220, `the score floats at the top right of the screen (${hud0.right}px from the right, ${hud0.top}px from the top)`);
-  ok(await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.hudcompact')); return c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.boxShadow === 'none' && c.borderTopWidth === '0px'; }), 'no background behind the numbers');
-  ok(hud0.order === 'hudscore|hudline|hudcombo', `the combo is the last line, so nothing above it jumps (${hud0.order})`);
+  const hud0 = await page.evaluate(() => { const s = document.querySelector('.hudscorebox').getBoundingClientRect(), c = document.querySelector('.hudcombobox').getBoundingClientRect(), tb = document.querySelector('.gtilt').getBoundingClientRect(), m = document.querySelector('.gmode').getBoundingClientRect(), pn = document.querySelector('.gamepanel').getBoundingClientRect();
+    return { scoreLeftOfBtn: s.right <= tb.left && tb.left - s.right < 30, sameRow: Math.abs((s.top + s.height / 2) - (tb.top + tb.height / 2)) < 4, sameHeight: Math.abs(s.height - tb.height) < 4, comboUnderSwitch: c.top >= m.bottom - 1 && Math.abs(c.left - m.left) < 4, inPanel: s.top >= pn.top && c.bottom <= pn.bottom, accuracy: !!document.querySelector('.hudline'), h: Math.round(c.height) }; });
+  ok(hud0.scoreLeftOfBtn && hud0.sameRow && hud0.sameHeight, 'the total score sits next to the 3D button, as tall as it');
+  ok(hud0.comboUnderSwitch && hud0.inPanel, 'the combo sits at the left, under the demo / score switch');
+  ok(!hud0.accuracy, 'no accuracy during play (it is in the summary)');
+  ok(await page.evaluate(() => ['.hudscorebox', '.hudcombobox'].every((q) => { const c = getComputedStyle(document.querySelector(q)); return c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.boxShadow === 'none'; })), 'no background behind the numbers');
   await page.waitForTimeout(1200);
   ok(await page.evaluate(() => !document.querySelector('.gamesetup').hidden) === false, 'a connected piano: the setup card does not pop up by itself');
   await page.click('.hudchip'); await page.waitForTimeout(200);
@@ -99,8 +100,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     for (let i = 0; i < 10; i++) { await window.__wait(ev[i].sec); window.__key(ev[i].midi); await new Promise((r) => setTimeout(r, 60)); window.__key(ev[i].midi, false); out.push(ev[i].midi); }
     window.__key(23); // a key that belongs to no note
     return out; });
-  const st1 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'); return { score: Number(c.querySelector('.hudscore').innerText), combo: Number(c.querySelector('.hudcombo b').innerText) }; });
-  const hNow = await page.evaluate(() => Math.round(document.querySelector('.hudcompact').getBoundingClientRect().height));
+  const st1 = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), combo: Number(document.querySelector('.hudcombo b').innerText) }; });
+  const hNow = await page.evaluate(() => Math.round(document.querySelector('.hudcombobox').getBoundingClientRect().height));
   ok(hNow === hud0.h, `the score window keeps its size while the combo comes and goes (${hud0.h} -> ${hNow}px)`);
   ok(st1.score > 800 && st1.combo === 0, `ten keys struck on time are scored (${st1.score}); the stray key broke the combo`);
   ok(await page.evaluate(() => window.__bn) >= 1, 'a run of 10 hits sets off the combo banner');
@@ -120,11 +121,11 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.hudchip'); await page.click('.gamesetup .hudlevel .seg >> nth=1'); ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameLevel) === 'normal', 'the level can be changed in the window and is remembered');
   // back to demo: the window is gone
   await page.click('.gamepanel .gmode .seg[data-gmode=demo]'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => document.querySelector('.hudchip').hidden && !document.querySelector('.hudcompact').hidden), 'back to Demo: the piano button is gone, the numbers stay');
+  ok(await page.evaluate(() => document.querySelector('.hudchip').hidden && !document.querySelector('.hudscorebox').hidden), 'back to Demo: the piano button is gone, the numbers stay');
   ok(await page.evaluate(() => window.__pianist.player.practiceMute) === false, 'and the app plays the notes again');
   // phone
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.setViewportSize({ width: 390, height: 780 }); await page.waitForTimeout(600);
-  const ph = await page.evaluate(() => { const r = document.querySelector('.hudcompact').getBoundingClientRect(), c = document.querySelector('.hudchip').getBoundingClientRect(), m = document.querySelector('.gmode').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 391, noScroll: document.documentElement.scrollWidth <= 390, noOverlap: c.left >= m.right - 1 }; });
+  const ph = await page.evaluate(() => { const r = document.querySelector('.hudscorebox').getBoundingClientRect(), c = document.querySelector('.hudchip').getBoundingClientRect(), m = document.querySelector('.gmode').getBoundingClientRect(), tb = document.querySelector('.gtilt').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 391 && r.right <= tb.left, noScroll: document.documentElement.scrollWidth <= 390, noOverlap: c.left >= m.right - 1 }; });
   ok(ph.inside && ph.noScroll && ph.noOverlap, 'phone: the numbers and the piano button stay on the screen and do not overlap the switch');
   await page.screenshot({ path: D + 'game-score-phone.png' });
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);

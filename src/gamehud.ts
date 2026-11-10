@@ -3,12 +3,15 @@ import type { MidiState } from "./midi";
 
 /**
  * The score display of the game mode. It must not hide the music, so it is split in three:
- *  - `compact`: only score, combo and accuracy, transparent, in a corner of the game panel;
+ *  - `scoreBox` (next to the 3D button) and `comboBox` (under the demo / score switch): only the numbers, no background, in the game panel;
  *  - `chip` + `setup`: a small button (with a dot: is a piano connected) that opens a card with the piano connection and the level;
  *  - `result`: the summary (stars, score, accuracy, longest combo, how many of each kind) shown once, when the piece is over.
  */
 export interface Hud {
-  compact: HTMLElement;
+  /** the total score: in the game panel next to the 3D button */
+  scoreBox: HTMLElement;
+  /** the combo: in the game panel under the demo / score switch */
+  comboBox: HTMLElement;
   chip: HTMLElement;
   setup: HTMLElement;
   result: HTMLElement;
@@ -36,12 +39,12 @@ const KINDS: [keyof Stats, string, string][] = [["perfect", "完美", "#ffd60a"]
 
 export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConnect: () => void; onPair: (() => void) | null; onRetry: () => void }): Hud {
   // ---- compact numbers
-  const compact = el("div", "hudcompact");
+  const scoreBox = el("div", "hudscorebox");
   const score = el("div", "hudscore", "0");
-  const comboNum = el("b", "", "0"), accNum = el("b", "", "100%");
+  scoreBox.append(score);
+  const comboNum = el("b", "", "0");
   const combo = el("div", "hudcombo", "", [el("span", "", "连击"), comboNum]);
-  const acc = el("div", "hudline", "", [el("span", "", "准确率"), accNum]);
-  compact.append(score, acc, combo); // the combo is last: it appears and grows, so nothing above it moves
+  const comboBox = el("div", "hudcombobox", "", [combo]);
 
   // ---- the chip and the setup card
   const dot = el("span", "hudleddot");
@@ -78,10 +81,10 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const popCombo = () => { combo.classList.remove("pop"); void combo.offsetWidth; combo.classList.add("pop"); };
 
   return {
-    compact, chip, setup, result,
+    scoreBox, comboBox, chip, setup, result,
     reset() { result.hidden = true; this.update({ score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, early: 0, late: 0, miss: 0, wrong: 0, total: 0 }, 1); },
     update(s, a) {
-      score.textContent = String(s.score); comboNum.textContent = String(s.combo); accNum.textContent = `${Math.round(a * 100)}%`;
+      void a; score.textContent = String(s.score); comboNum.textContent = String(s.combo); // (the accuracy is in the summary at the end)
       combo.classList.toggle("on", s.combo >= 2);
       combo.style.setProperty("--lv", String(Math.min(1, s.combo / 50))); // the glow of the combo grows with the run
     },
@@ -107,7 +110,7 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
     },
     setLevel, openSetup,
     setChip(show) { chip.hidden = !show; if (!show) setup.hidden = true; },
-    setHidden(hidden) { compact.hidden = hidden; if (hidden) { chip.hidden = true; setup.hidden = true; result.hidden = true; } },
-    destroy() { document.removeEventListener("click", closeOutside); compact.remove(); chip.remove(); setup.remove(); result.remove(); },
+    setHidden(hidden) { scoreBox.hidden = hidden; comboBox.hidden = hidden; if (hidden) { chip.hidden = true; setup.hidden = true; result.hidden = true; } },
+    destroy() { document.removeEventListener("click", closeOutside); scoreBox.remove(); comboBox.remove(); chip.remove(); setup.remove(); result.remove(); },
   };
 }

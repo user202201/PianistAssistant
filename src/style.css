@@ -813,21 +813,20 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamepanel .gmode .seg { min-width: 0; min-height: 34px; padding: 0 12px; font-size: .9rem; }
 
 /* score mode, second version: nothing covers the music. Numbers in a corner of the game panel, piano / level in a small card, the summary at the end */
-.hudcompact { position: fixed; right: 16px; top: 128px; z-index: 30; min-width: 120px; text-align: right; pointer-events: none; color: #e8f4ff; }
-.hudcompact[hidden], .gamepanel .hudchip[hidden] { display: none; }
-.hudcompact .hudscore { font: 900 clamp(1.9rem, 6vw, 2.6rem)/1 "Arial Black", Impact, system-ui, sans-serif; color: #fff; letter-spacing: .03em; font-variant-numeric: tabular-nums; paint-order: stroke fill; -webkit-text-stroke: 4px rgba(4, 10, 30, .88); text-shadow: 0 0 10px #19d3ff, 0 0 24px #1980ff; }
-.hudcompact .hudscore.bump { animation: hudbump .28s ease-out; }
+.gamepanel .hudscorebox { position: absolute; right: 62px; top: 8px; z-index: 3; height: 44px; display: flex; align-items: center; pointer-events: none; }
+.gamepanel .hudcombobox { position: absolute; left: 8px; top: 52px; z-index: 3; pointer-events: none; }
+.gamepanel .hudscorebox[hidden], .gamepanel .hudcombobox[hidden], .gamepanel .hudchip[hidden] { display: none; }
+.hudscorebox .hudscore { font: 900 1.7rem/1 "Arial Black", Impact, system-ui, sans-serif; color: #fff; letter-spacing: .03em; font-variant-numeric: tabular-nums; paint-order: stroke fill; -webkit-text-stroke: 4px rgba(4, 10, 30, .88); text-shadow: 0 0 10px #19d3ff, 0 0 24px #1980ff; }
+.hudscorebox .hudscore.bump { animation: hudbump .28s ease-out; transform-origin: right center; }
 @keyframes hudbump { 0% { transform: scale(1.16); filter: brightness(1.7); } 100% { transform: scale(1); filter: none; } }
-.hudcompact .hudcombo { display: flex; visibility: hidden; align-items: baseline; justify-content: flex-end; gap: 8px; margin-top: 4px; font-weight: 800; color: #ffd60a; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(4, 10, 30, .88); text-shadow: 0 0 calc(6px + 26px * var(--lv, 0)) rgba(255, 214, 10, .95); }
-.hudcompact .hudcombo.on { visibility: visible; }
-.hudcompact .hudcombo span { font-size: .8rem; letter-spacing: .14em; opacity: .85; }
-.hudcompact .hudcombo b { min-width: 2ch; text-align: right; font: 900 clamp(1.3rem, 4vw, 1.8rem)/1 "Arial Black", Impact, system-ui, sans-serif; }
-.hudcompact .hudcombo.hit b { animation: hudcombohit .22s ease-out; }
+.hudcombobox .hudcombo { display: flex; visibility: hidden; align-items: baseline; gap: 8px; font-weight: 800; color: #ffd60a; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(4, 10, 30, .88); text-shadow: 0 0 calc(6px + 26px * var(--lv, 0)) rgba(255, 214, 10, .95); transform-origin: left center; }
+.hudcombobox .hudcombo.on { visibility: visible; }
+.hudcombobox .hudcombo span { font-size: .8rem; letter-spacing: .14em; opacity: .9; }
+.hudcombobox .hudcombo b { min-width: 2ch; font: 900 1.5rem/1 "Arial Black", Impact, system-ui, sans-serif; }
+.hudcombobox .hudcombo.hit b { animation: hudcombohit .22s ease-out; }
 @keyframes hudcombohit { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
-.hudcompact .hudcombo.pop b { animation: hudpop .6s ease-out; }
+.hudcombobox .hudcombo.pop b { animation: hudpop .6s ease-out; }
 @keyframes hudpop { 0% { transform: scale(2.2) rotate(-4deg); } 100% { transform: scale(1); } }
-.hudcompact .hudline { font-size: .8rem; display: flex; gap: 6px; justify-content: flex-end; align-items: baseline; color: #dff3ff; font-weight: 700; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(4, 10, 30, .88); }
-.hudcompact .hudline b { font-size: 1rem; color: #7dff6b; }
 .gamepanel .hudchip { min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; background: rgba(6, 12, 30, .72); color: #bfeaff; border: 1px solid rgba(25, 211, 255, .45); border-radius: 12px; }
 .hudchip .hudleddot { width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; box-shadow: 0 0 6px #ff5a5a; }
 .hudchip.connected .hudleddot { background: #7dff6b; box-shadow: 0 0 8px #7dff6b; }
