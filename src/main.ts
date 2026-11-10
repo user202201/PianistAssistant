@@ -2458,15 +2458,17 @@ function buildControls(
     if (gs.finished && (player.playing || ended)) { roundOver = true; hud.showResult(gs.stats, gs.stars(), gs.accuracy(true)); }
   }, 60);
   const syncGame = () => {
-    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); clearInterval(roundTimer); offNote(); offMic(); mic.stop(); offState(); hud.destroy(); gv.destroy(); return; }
+    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); document.documentElement.classList.remove("gamecompact"); clearInterval(roundTimer); offNote(); offMic(); mic.stop(); offState(); hud.destroy(); gv.destroy(); return; }
     gv.el.hidden = !(settings.gameMode && settings.gameView);
     gv.setTilt(settings.gameTilt);
+    document.documentElement.classList.toggle("gamecompact", gameOn() && split); // four hands: the part bars hide behind small floating buttons
     gv.setScoring(settings.gameScoring);
+    gv.refit();
     player.practiceMute = scoringOn();
     hud.setHidden(!gameOn());
     hud.setChip(scoringOn());
     if (scoringOn() && MidiInput.available()) void midi.start(); // (the browser asks for permission now)
-    if (scoringOn() && !setupShown) { setupShown = true; setTimeout(() => { if (scoringOn() && !midi.status().devices.length) hud.openSetup(true); }, 900); } // no piano yet: show how to connect it, once
+    if (scoringOn() && !setupShown && !mic.running) { setupShown = true; setTimeout(() => { if (scoringOn() && !midi.status().devices.length) hud.openSetup(true); }, 900); } // no piano yet: show how to connect it, once
     refreshMore(); // the game view is a small-screen layout: small bar, the score gets the room
   };
   bar.before(gv.el);
@@ -2948,6 +2950,7 @@ async function renderPdf(name: string) {
 
 /** The neon look of the game view: on only while a score is open and the Game switch is on. */
 function applyGameTheme(onScore = /^#\/(score|duet)\//.test(location.hash)) {
+  if (!onScore) document.documentElement.classList.remove("gamecompact");
   if (settings.gameMode) document.documentElement.dataset.gamemode = "1"; else delete document.documentElement.dataset.gamemode; // hidden mode on: the title bar glows (all screens)
   if (settings.gameMode && settings.gameView && onScore) document.documentElement.dataset.game = "1";
   else delete document.documentElement.dataset.game;

@@ -863,3 +863,11 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 
 .gamesetup .hudmeter { height: 6px; border-radius: 3px; background: rgba(25, 211, 255, .15); overflow: hidden; } .gamesetup .hudmeter[hidden] { display: none; } .gamesetup .hudmeter i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #19d3ff, #7dff6b); transition: width .08s linear; }
 .gamesetup .hudstatus[hidden] { display: none; }
+
+/* game view with four hands: the score area is the scarce thing, so the part bars hide behind the same little floating buttons as on a phone held sideways */
+.gamecompact .panehead { display: none; position: absolute; top: 42px; right: 6px; z-index: 25; flex-wrap: wrap; max-width: min(94%, 560px); padding: 8px; gap: 6px; border: 0; border-radius: 16px; background: var(--bar-strong); -webkit-backdrop-filter: saturate(180%) blur(30px); backdrop-filter: saturate(180%) blur(30px); box-shadow: var(--shadow-pop); }
+.gamecompact .panehead.open { display: flex; }
+.gamecompact .panehead.open .pn, .gamecompact .panehead.open .lbl { display: inline; }
+.gamecompact .panehead.open .hand .lbl { display: inline; }
+.gamecompact .panehead.open .hand .sh { display: none; }
+.gamecompact .panemenu { display: inline-flex; position: absolute; top: 4px; right: 6px; z-index: 26; width: 36px; min-width: 36px; height: 36px; padding: 0; border-radius: 50%; background: var(--bar-strong); box-shadow: var(--shadow); }

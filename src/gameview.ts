@@ -11,6 +11,8 @@ import { icon } from "./icons";
 export interface GameView {
   el: HTMLElement;
   setTilt(on: boolean): void;
+  /** the room for the panel changed (bars shown / hidden, window resized) */
+  refit(): void;
   /** score mode: nothing is played or lit by itself, the player\'s own keys light up */
   setScoring(on: boolean): void;
   judge(j: Judgement): void;
@@ -66,7 +68,15 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   el.append(stage, tiltBtn, topLeft, grip);
   // The panel height: default a little more than the keyboard; the user drags the top edge. Never lower than the keyboard plus a strip of the coming notes.
   const MINH = 150;
-  const maxH = () => Math.max(MINH, Math.round(window.innerHeight * 0.6));
+  // The score above must keep at least one line per part: the game panel may only take what is left. (Four hands with the part bars hidden: 200 px per part, a whole grand-staff line.)
+  const maxH = () => {
+    const q = (sel: string) => { const e = document.querySelector<HTMLElement>(sel); return e && e.offsetParent !== null ? e.offsetHeight : 0; };
+    const panes = Math.max(1, document.querySelectorAll(".pane").length);
+    const heads = document.documentElement.classList.contains("gamecompact") ? 0 : panes > 1 ? panes * 56 : 0;
+    const used = q(".top") + q(".handstrip") + Math.max(q(".controls"), q(".barhandle"));
+    const room = window.innerHeight - used - panes * 200 - heads;
+    return Math.max(MINH, Math.min(Math.round(window.innerHeight * 0.6), Math.round(room)));
+  };
   const defH = () => Math.max(MINH, Math.min(250, Math.round(window.innerHeight * 0.3)));
   const setH = (px: number) => { el.style.height = `${Math.max(MINH, Math.min(maxH(), Math.round(px)))}px`; };
   const applyH = () => setH(opts.height() || defH());
@@ -275,6 +285,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   return {
     el,
     setTilt(on) { tilt = on; apply(); },
+    refit() { applyH(); },
     setScoring(on) { scoring = on; syncMode(); if (on) pressed.clear(); },
     judge(j) {
       const k = keyBox(j.midi, geo.ww, 0), cx = k.x + k.w / 2;
