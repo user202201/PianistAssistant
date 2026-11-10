@@ -30,6 +30,7 @@ const STROKE: Record<string, string> = {
   sort: '<path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/>',
   'keys-flat': '<rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M9 13v7M15 13v7M7 4v5M12 4v5M17 4v5"/>',
   'keys-tilt': '<path d="M7 6h10l4 14H3z"/><path d="M9.5 13l-1.5 7M14.5 13l1.5 7M5 13h14"/>',
+  'game-note': '<circle cx="7" cy="17" r="2.6"/><path d="M9.6 17V5l7 1.8v3.4"/><path d="M18.5 12.6l.9 2.2 2.2.9-2.2.9-.9 2.2-.9-2.2-2.2-.9 2.2-.9z"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
   warning: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
 };

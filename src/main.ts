@@ -729,6 +729,14 @@ function popup(title: string, text: string, confirmLabel?: string): Promise<bool
     dlg.showModal();
   });
 }
+/** The note at the top left: with game mode on it becomes a glowing note with a spark, so you can see the hidden mode is on. */
+function updateLogo() {
+  const el = document.querySelector<HTMLElement>(".top .brand .logo");
+  if (!el) return;
+  el.classList.toggle("game", settings.gameMode);
+  el.title = settings.gameMode ? "游戏模式" : "";
+  el.replaceChildren(ic(settings.gameMode ? "game-note" : "note", settings.gameMode ? 24 : 20));
+}
 /** The hidden game mode: tap the note at the top left of the home screen 10 times (taps no more than 2 s apart) to switch it on; one tap asks whether to switch it off. */
 let eggTaps = 0, eggLast = 0;
 function onLogoTap(rerender: () => void) {
@@ -746,7 +754,7 @@ function onLogoTap(rerender: () => void) {
   eggLast = now;
   if (eggTaps >= 10) {
     eggTaps = 0;
-    settings.gameMode = true; saveSettings(settings);
+    settings.gameMode = true; saveSettings(settings); rerender();
     void popup("游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。");
   }
 }
@@ -1045,7 +1053,7 @@ async function renderHome() {
     h(
       "header",
       { class: "top" },
-      h("h1", { class: "brand" }, h("span", { class: "logo", onclick: () => onLogoTap(() => {}) }, ic("note", 20)), "我的琴谱"),
+      h("h1", { class: "brand" }, h("span", { class: "logo" + (settings.gameMode ? " game" : ""), title: settings.gameMode ? "游戏模式" : "", onclick: () => onLogoTap(updateLogo) }, ic(settings.gameMode ? "game-note" : "note", settings.gameMode ? 24 : 20)), "我的琴谱"),
       h("div", { class: "grow" }),
       h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => doRefresh() }, ic("refresh")),
       h("button", { class: "primary upload", title: "上传琴谱", onclick: () => file.click() }, ic("plus", 20), h("span", { class: "lbl" }, "上传琴谱")),

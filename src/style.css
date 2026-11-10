@@ -759,3 +759,9 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .dlg.popup p { font-size: .9rem; line-height: 1.45; margin: 0 0 14px; }
 .dlg.popup .row { gap: 10px; margin-top: 6px; }
 .dlg.popup .row button { min-width: 96px; min-height: 44px; font-size: 1rem; }
+
+/* the hidden game mode is on: the note at the top left turns into a glowing note with a spark */
+.top .brand .logo.game { color: #19d3ff; filter: drop-shadow(0 0 4px rgba(25, 211, 255, .9)) drop-shadow(0 0 10px rgba(25, 140, 255, .55)); }
+.top .brand .logo.game svg { overflow: visible; }
+@media (prefers-reduced-motion: no-preference) { .top .brand .logo.game { animation: gamelogo 2.8s ease-in-out infinite; } }
+@keyframes gamelogo { 0%, 100% { filter: drop-shadow(0 0 3px rgba(25, 211, 255, .8)) drop-shadow(0 0 7px rgba(25, 140, 255, .4)); } 50% { filter: drop-shadow(0 0 6px rgba(25, 211, 255, 1)) drop-shadow(0 0 16px rgba(25, 140, 255, .8)); } }

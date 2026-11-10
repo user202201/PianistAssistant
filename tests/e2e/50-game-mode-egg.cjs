@@ -19,6 +19,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(pb.w <= 330 && pb.btn === '好的' && pb.bh >= 40, `the popup is a compact card (${pb.w}px) with a proper "好的" button (${pb.bh}px)`);
   await page.screenshot({ path: D + 'game-popup.png' });
   await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
+  const lg = await page.evaluate(() => { const l = document.querySelector('.top .brand .logo'); return { game: l.classList.contains('game'), glow: getComputedStyle(l).filter !== 'none', color: getComputedStyle(l).color }; });
+  ok(lg.game && lg.glow, 'game mode on: the note at the top left becomes a glowing note with a spark (' + lg.color + ')');
+  await page.screenshot({ path: D + 'game-logo.png', clip: { x: 0, y: 0, width: 300, height: 64 } });
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'switched on and remembered');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.top .modetoggle', { timeout: 20000 });
   const t = await page.evaluate(() => { const g = document.querySelector('.top .modetoggle'); const h1 = document.querySelector('.top h1').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { texts: [...g.querySelectorAll('.seg')].map((b) => b.innerText.trim()), on: g.querySelector('.on')?.dataset.mode, afterTitle: r.left >= h1.right - 1, inBar: r.top >= 0 && r.bottom <= 80 }; });
@@ -49,6 +52,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.top .logo'); await page.click('dialog.popup button.primary'); await page.waitForTimeout(300);
   p = await popup(); ok(p && p.title === '游戏模式已关闭', 'confirmed: the popup says it is off');
   await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => !document.querySelector('.top .brand .logo').classList.contains('game')), 'and the note at the top left is a plain note again');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
   ok((await page.$('.modetoggle')) === null, 'off: the switch is gone from the scores');
   await page.screenshot({ path: D + 'game-egg.png' });
