@@ -2007,7 +2007,7 @@ function buildControls(
   // game view: READY ... GO! (instead of the metronome count-in): the notes fall in during the lead, the music starts exactly at GO
   async function startGame() {
     player.practiceMute = scoringOn();
-    if (scoringOn() && (!gs || roundOver || player.position() <= 0.05)) beginRound();
+    if (!gs || roundOver || player.position() <= 0.05) beginRound();
     const GO_AT = 1.9; // seconds after the tap: READY ... GO (the screen stands still), then the notes fall in for GAME_PRE seconds, then the music
     await player.play(false, { lead: GO_AT + GAME_PRE });
     if (!player.playing) return;
@@ -2387,27 +2387,52 @@ function buildControls(
   app.append(hud.setup, hud.result);
   hud.midi(midi.status());
   const offState = midi.onState((st) => hud.midi(st));
+  const MILESTONES = [10, 25, 50, 100, 150, 200];
+  const judged = (j: { kind: string; combo: number } & Parameters<typeof gv.judge>[0]) => {
+    gv.judge(j); hud.judged(j);
+    if (j.kind !== "miss" && j.kind !== "wrong" && MILESTONES.includes(j.combo)) gv.milestone(j.combo);
+  };
   const offNote = midi.onNote((n) => {
     if (!scoringOn()) return;
     if (n.type === "off") return void gv.release(n.note);
     if (!gs || !player.playing || roundOver) return void gv.press(n.note, "#ffffff"); // free play: the key just lights
     const t = player.position() - ((performance.now() - n.time) / 1000) * player.speed; // the moment the key was struck
     const j = gs.strike(n.note, t);
-    gv.judge(j); gv.press(n.note, keyColour(j.kind)); hud.judged(j); hud.update(gs.stats, gs.accuracy());
+    judged(j); gv.press(n.note, keyColour(j.kind)); hud.update(gs.stats, gs.accuracy());
   });
   // keys that were let go are never reported twice: clear the lit keys when they have been struck for a while
   const beginRound = () => {
+    simAt = 0; lastPos = player.position();
     gs = new GameScore(score.events, settings.gameLevel, player.speed, (e) => player.isShown(e)); // what counts is asked at every moment: a part switched off / on later changes it
     roundOver = false;
     hud.reset();
     hud.update(gs.stats, 1);
   };
+  // Demo mode scores too, with an imaginary player (so that the score window and its effects can be watched): mostly on time, now and then late, a miss, a wrong key
+  let simAt = 0, simSeed = 7, lastPos = 0;
+  const rnd = () => { simSeed = (simSeed * 1664525 + 1013904223) % 4294967296; return simSeed / 4294967296; };
+  const simulate = (pos: number) => {
+    const shown = score.events.filter((e) => player.isShown(e)).sort((a, b) => a.sec - b.sec);
+    if (simAt < 0) { simAt = shown.findIndex((e) => e.sec >= pos - 0.05); if (simAt < 0) simAt = shown.length; }
+    while (simAt < shown.length && shown[simAt].sec <= pos) {
+      const e = shown[simAt++];
+      const r = rnd(), d = (rnd() - 0.5) * 2; // d: -1 .. 1
+      if (r < 0.62) judged(gs!.strike(e.midi, e.sec + d * 0.04 * player.speed));
+      else if (r < 0.82) judged(gs!.strike(e.midi, e.sec + d * 0.14 * player.speed));
+      else if (r < 0.9) judged(gs!.strike(e.midi, e.sec + (d < 0 ? -0.26 : 0.26) * player.speed));
+      else if (r < 0.95) judged(gs!.strike(e.midi + 1, e.sec)); // a wrong key; the note itself is then missed
+      /* else: not played */
+    }
+  };
   const roundTimer = window.setInterval(() => {
-    if (!scoringOn() || !gs || roundOver) return;
+    if (!gameOn() || !gs || roundOver) return;
     const pos = player.position();
     const ended = !player.playing && pos >= score.duration - 0.05;
+    if (pos < lastPos - 0.3 || pos - lastPos > 1) { gs.skipTo(pos); simAt = -1; } // a jump (seek): what lies before is not judged
+    lastPos = pos;
+    if (!scoringOn() && player.playing) simulate(pos);
     if (player.playing || ended) {
-      for (const j of gs.advance(ended ? Infinity : pos)) { gv.judge(j); hud.judged(j); }
+      for (const j of gs.advance(ended ? Infinity : pos)) judged(j);
       hud.update(gs.stats, gs.accuracy());
     }
     if (gs.finished && (player.playing || ended)) { roundOver = true; hud.showResult(gs.stats, gs.stars(), gs.accuracy(true)); }
@@ -2418,7 +2443,8 @@ function buildControls(
     gv.setTilt(settings.gameTilt);
     gv.setScoring(settings.gameScoring);
     player.practiceMute = scoringOn();
-    hud.setHidden(!scoringOn());
+    hud.setHidden(!gameOn());
+    hud.setChip(scoringOn());
     if (scoringOn() && MidiInput.available()) void midi.start(); // (the browser asks for permission now)
     if (scoringOn() && !setupShown) { setupShown = true; setTimeout(() => { if (scoringOn() && !midi.status().devices.length) hud.openSetup(true); }, 900); } // no piano yet: show how to connect it, once
     refreshMore(); // the game view is a small-screen layout: small bar, the score gets the room

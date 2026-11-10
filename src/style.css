@@ -811,17 +811,23 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamepanel .gtopleft { position: absolute; left: 8px; top: 8px; z-index: 4; display: flex; gap: 8px; align-items: center; }
 .gamepanel .gmode { background: rgba(6, 12, 30, .72); }
 .gamepanel .gmode .seg { min-width: 0; min-height: 34px; padding: 0 12px; font-size: .9rem; }
-@keyframes hudbump { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
-@keyframes hudpop { 0% { transform: scale(1.8); } 100% { transform: scale(1); } }
 
 /* score mode, second version: nothing covers the music. Numbers in a corner of the game panel, piano / level in a small card, the summary at the end */
-.gamepanel .hudcompact { position: absolute; right: 14px; top: 46px; z-index: 3; text-align: right; pointer-events: none; color: #e8f4ff; text-shadow: 0 0 8px rgba(0, 0, 0, .9), 0 0 12px rgba(25, 211, 255, .6); }
+.gamepanel .hudcompact { position: absolute; left: 50%; top: 8%; transform: translateX(-50%); z-index: 3; text-align: center; pointer-events: none; opacity: .82; color: #e8f4ff; }
 .gamepanel .hudcompact[hidden], .gamepanel .hudchip[hidden] { display: none; }
-.hudcompact .hudscore { font: 900 1.7rem/1.05 system-ui, sans-serif; color: #fff; font-variant-numeric: tabular-nums; }
-.hudcompact .hudscore.bump { animation: hudbump .25s ease-out; }
-.hudcompact .hudline { font-size: .78rem; display: flex; gap: 6px; justify-content: flex-end; align-items: baseline; color: rgba(190, 225, 255, .9); }
-.hudcompact .hudline b { font-size: 1rem; color: #ffd60a; } .hudcompact .hudline:last-child b { color: #7dff6b; }
-.hudcompact .hudline.pop b { animation: hudpop .5s ease-out; }
+.hudcompact .hudscore { font: 900 clamp(2.6rem, 9vw, 4.4rem)/1 "Arial Black", Impact, system-ui, sans-serif; color: #fff; letter-spacing: .03em; font-variant-numeric: tabular-nums; text-shadow: 0 0 10px #19d3ff, 0 0 28px #1980ff, 0 2px 0 rgba(0, 0, 0, .45); }
+.hudcompact .hudscore.bump { animation: hudbump .28s ease-out; }
+@keyframes hudbump { 0% { transform: scale(1.16); filter: brightness(1.7); } 100% { transform: scale(1); filter: none; } }
+.hudcompact .hudcombo { display: none; align-items: baseline; justify-content: center; gap: 8px; margin-top: 2px; font-weight: 800; color: #ffd60a; text-shadow: 0 0 calc(6px + 26px * var(--lv, 0)) rgba(255, 214, 10, .95), 0 1px 0 rgba(0, 0, 0, .5); }
+.hudcompact .hudcombo.on { display: flex; }
+.hudcompact .hudcombo span { font-size: .8rem; letter-spacing: .14em; opacity: .85; }
+.hudcompact .hudcombo b { font: 900 clamp(1.5rem, 5vw, 2.3rem)/1 "Arial Black", Impact, system-ui, sans-serif; }
+.hudcompact .hudcombo.hit b { animation: hudcombohit .22s ease-out; }
+@keyframes hudcombohit { 0% { transform: scale(1.4); } 100% { transform: scale(1); } }
+.hudcompact .hudcombo.pop b { animation: hudpop .6s ease-out; }
+@keyframes hudpop { 0% { transform: scale(2.2) rotate(-4deg); } 100% { transform: scale(1); } }
+.hudcompact .hudline { font-size: .8rem; display: flex; gap: 6px; justify-content: center; align-items: baseline; color: rgba(190, 225, 255, .9); text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
+.hudcompact .hudline b { font-size: 1rem; color: #7dff6b; }
 .gamepanel .hudchip { min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; background: rgba(6, 12, 30, .72); color: #bfeaff; border: 1px solid rgba(25, 211, 255, .45); border-radius: 12px; }
 .hudchip .hudleddot { width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; box-shadow: 0 0 6px #ff5a5a; }
 .hudchip.connected .hudleddot { background: #7dff6b; box-shadow: 0 0 8px #7dff6b; }

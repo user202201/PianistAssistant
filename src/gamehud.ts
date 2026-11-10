@@ -20,6 +20,8 @@ export interface Hud {
   setLevel(l: Level): void;
   openSetup(open?: boolean): void;
   setHidden(hidden: boolean): void;
+  /** the piano button is for score mode only */
+  setChip(show: boolean): void;
   destroy(): void;
 }
 
@@ -37,7 +39,7 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const compact = el("div", "hudcompact");
   const score = el("div", "hudscore", "0");
   const comboNum = el("b", "", "0"), accNum = el("b", "", "100%");
-  const combo = el("div", "hudline", "", [el("span", "", "连击"), comboNum]);
+  const combo = el("div", "hudcombo", "", [el("span", "", "连击"), comboNum]);
   const acc = el("div", "hudline", "", [el("span", "", "准确率"), accNum]);
   compact.append(score, combo, acc);
 
@@ -78,8 +80,13 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   return {
     compact, chip, setup, result,
     reset() { result.hidden = true; this.update({ score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, early: 0, late: 0, miss: 0, wrong: 0, total: 0 }, 1); },
-    update(s, a) { score.textContent = String(s.score); comboNum.textContent = String(s.combo); accNum.textContent = `${Math.round(a * 100)}%`; },
+    update(s, a) {
+      score.textContent = String(s.score); comboNum.textContent = String(s.combo); accNum.textContent = `${Math.round(a * 100)}%`;
+      combo.classList.toggle("on", s.combo >= 2);
+      combo.style.setProperty("--lv", String(Math.min(1, s.combo / 50))); // the glow of the combo grows with the run
+    },
     judged(j) {
+      if (j.kind !== "miss" && j.kind !== "wrong") { combo.classList.remove("hit"); void combo.offsetWidth; combo.classList.add("hit"); }
       if (j.kind !== "miss" && j.kind !== "wrong" && j.combo > 0 && j.combo % 10 === 0) popCombo();
       score.classList.remove("bump"); void score.offsetWidth; score.classList.add("bump");
     },
@@ -98,7 +105,8 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
       chip.classList.toggle("connected", s.kind === "ready");
     },
     setLevel, openSetup,
-    setHidden(hidden) { compact.hidden = hidden; chip.hidden = hidden; if (hidden) { setup.hidden = true; result.hidden = true; } },
+    setChip(show) { chip.hidden = !show; if (!show) setup.hidden = true; },
+    setHidden(hidden) { compact.hidden = hidden; if (hidden) { chip.hidden = true; setup.hidden = true; result.hidden = true; } },
     destroy() { document.removeEventListener("click", closeOutside); compact.remove(); chip.remove(); setup.remove(); result.remove(); },
   };
 }

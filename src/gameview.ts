@@ -14,6 +14,8 @@ export interface GameView {
   /** score mode: nothing is played or lit by itself, the player\'s own keys light up */
   setScoring(on: boolean): void;
   judge(j: Judgement): void;
+  /** a long combo: a big banner and rings of light across the lane */
+  milestone(combo: number): void;
   press(midi: number, colour: string): void;
   release(midi: number): void;
   destroy(): void;
@@ -113,7 +115,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   interface Puff { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; col: string }
   const sparks: Puff[] = []; // (the puffs)
   const pressed = new Map<number, string>(); // keys the player holds (score mode)
-  const popups: { x: number; text: string; col: string; t: number }[] = [];
+  const popups: { x: number; text: string; col: string; t: number; life: number }[] = [];
+  const banners: { text: string; col: string; t: number }[] = [];
   let geo = { ww: 20, top: 100 };
   const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
   let prevActive = new Map<number, string>(), last = 0;
@@ -207,7 +210,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     }
     prevActive = active;
     for (let i = flares.length - 1; i >= 0; i--) { // the flare: a ring of light that opens and fades
-      const f = flares[i]; f.t += dt; const u = f.t / 0.38; if (u >= 1) { flares.splice(i, 1); continue; }
+      const f = flares[i]; f.t += dt; const u = f.t / 0.38; if (u >= 1) { flares.splice(i, 1); continue; } if (u < 0) continue;
       const r = f.w * (0.3 + u * 0.9), g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
       g.addColorStop(0, f.col + Math.round((1 - u) * 170).toString(16).padStart(2, "0")); g.addColorStop(1, f.col + "00");
       ctx.fillStyle = g; ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
@@ -220,12 +223,19 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
-    for (let i = popups.length - 1; i >= 0; i--) { // judgement words rise from the key and fade
-      const p = popups[i]; p.t += dt; const u = p.t / 0.9; if (u >= 1) { popups.splice(i, 1); continue; }
-      ctx.save(); ctx.globalAlpha = 1 - u * u; ctx.font = `900 ${Math.round(17 + (1 - u) * 6)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.shadowColor = p.col; ctx.shadowBlur = 14; ctx.fillStyle = p.col;
-      ctx.fillText(p.text, Math.max(40, Math.min(W - 40, p.x)), top - 18 - u * 60); ctx.restore();
+    for (let i = popups.length - 1; i >= 0; i--) { // judgement words rise from the key and fade (a Miss goes quickly)
+      const p = popups[i]; p.t += dt; const u = p.t / p.life; if (u >= 1) { popups.splice(i, 1); continue; }
+      ctx.save(); ctx.globalAlpha = Math.min(1, (1 - u) * 1.6); ctx.font = `900 ${Math.round(17 + (1 - u) * 6)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.shadowColor = p.col; ctx.shadowBlur = 14; ctx.fillStyle = p.col;
+      ctx.fillText(p.text, Math.max(40, Math.min(W - 40, p.x)), top - 18 - u * 50); ctx.restore();
     }
-    el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
+    for (let i = banners.length - 1; i >= 0; i--) { // the big combo banner in the middle of the lane
+      const b = banners[i]; b.t += dt; const u = b.t / 1.3; if (u >= 1) { banners.splice(i, 1); continue; }
+      const grow = u < 0.18 ? 0.5 + (u / 0.18) * 0.7 : 1.2 - (u - 0.18) * 0.25;
+      ctx.save(); ctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3; ctx.translate(W / 2, top * 0.46); ctx.scale(grow, grow);
+      ctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.shadowColor = b.col; ctx.shadowBlur = 30; ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.strokeText(b.text, 0, 0); ctx.fillStyle = b.col; ctx.fillText(b.text, 0, 0); ctx.restore();
+    }
+    el.dataset.banners = String(banners.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
     raf = requestAnimationFrame(draw);
@@ -240,8 +250,13 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const k = keyBox(j.midi, geo.ww, 0), cx = k.x + k.w / 2;
       const look: Record<string, [string, string]> = { perfect: ["PERFECT", "#ffd60a"], good: ["GOOD", "#7dff6b"], early: ["EARLY", "#9ad1ff"], late: ["LATE", "#ffb86b"], miss: ["MISS", "#ff5a5a"], wrong: ["×", "#ff5a5a"] };
       const [text, col] = look[j.kind];
-      popups.push({ x: cx, text, col, t: 0 });
+      popups.push({ x: cx, text, col, t: 0, life: j.kind === "miss" || j.kind === "wrong" ? 0.42 : 0.75 });
       if (j.kind !== "miss" && j.kind !== "wrong") { flares.push({ x: cx, y: geo.top, t: 0, col, w: Math.max(geo.ww * 2.4, 40) }); emit(cx, geo.top, col, j.kind === "perfect" ? 3 : 2); }
+    },
+    milestone(n) {
+      const col = n >= 100 ? "#ff4fd8" : n >= 50 ? "#ffd60a" : n >= 25 ? "#7dff6b" : "#19d3ff";
+      banners.push({ text: `${n} COMBO!`, col, t: 0 });
+      for (let i = 1; i <= 4; i++) flares.push({ x: (W * i) / 5, y: geo.top, t: -0.05 * i, col, w: Math.max(W / 4, 80) }); // rings of light across the lane
     },
     press(m, col) { pressed.set(m, col); },
     release(m) { pressed.delete(m); },

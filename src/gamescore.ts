@@ -84,6 +84,16 @@ export class GameScore {
     return out;
   }
 
+  /** the player jumped to score time `t` (seek): what lies before it is neither judged nor counted */
+  skipTo(t: number) {
+    const ow = this.win[2] * this.speed;
+    for (const n of this.notes) {
+      if (n.e.sec > t - ow) break;
+      if (!n.done) { n.done = true; this.dropped++; }
+    }
+    this.stats.total = this.notes.length - this.dropped;
+  }
+
   /** hit rate 0..1 over the notes judged so far (or over all of them when `all`) */
   accuracy(all = false): number {
     const s = this.stats;
