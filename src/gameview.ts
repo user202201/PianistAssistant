@@ -29,6 +29,14 @@ export const GAME_PRE = 2.2;
 const WINDOW = 3;
 const PULSE = 0.45; // a struck key glows only briefly (a flash that fades): the note's length is shown by the block above, a held key is NOT kept lit // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
+// neon-tube notes: pale lilac at the edges, melting into a bright core
+const EDGE = "#b79cff";
+const CORE: Record<string, string> = { [RIGHT]: "#b8f9ff", [LEFT]: "#d3ffb8" };
+function neon(ctx: CanvasRenderingContext2D, x: number, w: number, col: string, alpha: string): CanvasGradient {
+  const g = ctx.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, EDGE + alpha); g.addColorStop(0.28, col + alpha); g.addColorStop(0.5, (CORE[col] ?? "#ffffff") + alpha); g.addColorStop(0.72, col + alpha); g.addColorStop(1, EDGE + alpha);
+  return g;
+}
 
 export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void }): GameView {
   const canvas = document.createElement("canvas");
@@ -81,7 +89,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   for (let m = lo; m <= hi; m++) if (!isBlack(m)) whites.push(m);
   const whiteIndex = new Map(whites.map((m, i) => [m, i]));
 
-  let tilt = opts.tilt, raf = 0, W = 0, H = 0, dead = false;
+  let tilt = opts.tilt, raf = 0, W = 0, H = 0, Hp = 0, dead = false;
   setTimeout(() => syncMode(), 0);
   const apply = () => {
     el.classList.toggle("tilt", tilt);
@@ -95,7 +103,16 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   const resize = () => {
     const r = stage.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+    W = Math.max(1, Math.round(r.width)); Hp = Math.max(1, Math.round(r.height));
+    // The drawing is several times as tall as the panel: flat, only its lower part shows; leaned back (CSS 3D) the far end of the lane reaches the top
+    // of the panel, so the notes come down from the very top instead of the picture just being folded.
+    const K = Math.max(1, Math.min(3.2, 900 / Hp));
+    H = Math.round(Hp * K);
+    canvas.style.height = `${H}px`;
+    let lo2 = 20, hi2 = 65; // the angle at which the far end projects exactly to the top: K * (2.5 cos t - sin t) = 2.5 (perspective = 2.5 panel heights)
+    for (let i = 0; i < 30; i++) { const m = (lo2 + hi2) / 2, rad = (m * Math.PI) / 180; if (K * (2.5 * Math.cos(rad) - Math.sin(rad)) > 2.5) lo2 = m; else hi2 = m; }
+    el.style.setProperty("--persp", `${Math.round(Hp * 2.5)}px`);
+    el.style.setProperty("--tiltdeg", `${((lo2 + hi2) / 2).toFixed(1)}deg`);
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.getContext("2d")!.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
@@ -132,9 +149,10 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     // before the start (and while stopped at the beginning) the lane is EMPTY: the notes are still above the picture; keys light up only while playing
     const playing = player.playing;
     let t = player.position();
-    if (!playing && t <= 0.001) t = -WINDOW - 1;
-    else if (playing && t < -GAME_PRE * player.speed - 0.02) t = -WINDOW - 1; // READY ... GO: still empty, nothing moves yet
-    const ww = W / whites.length, kh = Math.min(H * 0.56, 112), top = H - kh;
+    const kh0 = Math.min(Hp * 0.56, 112), pxPerSec = Math.max(20, (Hp - kh0) / WINDOW), winT = Math.min((H - kh0) / pxPerSec, 9);
+    if (!playing && t <= 0.001) t = -winT - 1;
+    else if (playing && t < -GAME_PRE * player.speed - 0.02) t = -winT - 1; // READY ... GO: still empty, nothing moves yet
+    const ww = W / whites.length, kh = kh0, top = H - kh;
     // octave guide lines
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(25,211,255,.13)";
     for (const m of whites) if (m % 12 === 0 || m % 12 === 5) { const x = (whiteIndex.get(m) ?? 0) * ww; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, top); ctx.stroke(); }
@@ -144,7 +162,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     const ring = new Map<number, { col: string; u: number }>(); // keys that still RING after the strike (sustain): shown pale, fading out
     const active = new Map<number, string>(); const age = new Map<number, number>(); // age: seconds since the key was struck
     const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now;
-    for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
+    for (let i = a; i < events.length && events[i].sec <= t + winT; i++) {
       const e = events[i];
       if (e.midi < lo || e.midi > hi || !player.isShown(e)) continue;
       const end = e.sec + noteLength(e);
@@ -155,8 +173,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       }
       if (end < t) continue;
       const k = keyBox(e.midi, ww, kh);
-      const y1 = top - ((e.sec - t) / WINDOW) * top; // bottom edge (start of the note)
-      const y0 = Math.max(-20, top - ((end - t) / WINDOW) * top);
+      const y1 = top - (e.sec - t) * pxPerSec; // bottom edge (start of the note)
+      const y0 = Math.max(-20, top - (end - t) * pxPerSec);
       const yb = Math.min(y1, top);
       if (yb - y0 < 1) { if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, colour(e)); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); } continue; }
       const col = colour(e);
@@ -164,9 +182,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const rr = (yy: number, hh: number, r2: number) => { ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(x, yy, w, Math.max(2, hh), r2) : ctx.rect(x, yy, w, Math.max(2, hh)); ctx.fill(); };
       const long = yb - y0 > 30; // a held note: a see-through body shows how long, a bright head at its START shows when to press
       ctx.shadowColor = col; ctx.shadowBlur = long ? 8 : 14;
-      if (long) { const g = ctx.createLinearGradient(0, y0, 0, yb); g.addColorStop(0, col + "22"); g.addColorStop(1, col + "66"); ctx.fillStyle = g; rr(y0, yb - y0, Math.min(8, w / 2)); }
+      if (long) { ctx.fillStyle = neon(ctx, x, w, col, "44"); rr(y0, yb - y0, Math.min(8, w / 2)); }
       const headH = long ? Math.min(22, yb - y0) : yb - y0;
-      ctx.shadowBlur = 16; ctx.fillStyle = col; rr(yb - headH, headH, Math.min(8, w / 2, headH / 2));
+      ctx.shadowBlur = 16; ctx.fillStyle = neon(ctx, x, w, col, ""); rr(yb - headH, headH, Math.min(8, w / 2, headH / 2));
       ctx.shadowBlur = 0;
       if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
     }
@@ -231,7 +249,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     for (let i = banners.length - 1; i >= 0; i--) { // the big combo banner in the middle of the lane
       const b = banners[i]; b.t += dt; const u = b.t / 1.3; if (u >= 1) { banners.splice(i, 1); continue; }
       const grow = u < 0.18 ? 0.5 + (u / 0.18) * 0.7 : 1.2 - (u - 0.18) * 0.25;
-      ctx.save(); ctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3; ctx.translate(W / 2, top * 0.46); ctx.scale(grow, grow);
+      ctx.save(); ctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3; ctx.translate(W / 2, top - (Hp - kh0) * 0.55); ctx.scale(grow, grow);
       ctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.shadowColor = b.col; ctx.shadowBlur = 30; ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.strokeText(b.text, 0, 0); ctx.fillStyle = b.col; ctx.fillText(b.text, 0, 0); ctx.restore();
     }

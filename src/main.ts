@@ -2417,10 +2417,10 @@ function buildControls(
     while (simAt < shown.length && shown[simAt].sec <= pos) {
       const e = shown[simAt++];
       const r = rnd(), d = (rnd() - 0.5) * 2; // d: -1 .. 1
-      if (r < 0.62) judged(gs!.strike(e.midi, e.sec + d * 0.04 * player.speed));
-      else if (r < 0.82) judged(gs!.strike(e.midi, e.sec + d * 0.14 * player.speed));
-      else if (r < 0.9) judged(gs!.strike(e.midi, e.sec + (d < 0 ? -0.26 : 0.26) * player.speed));
-      else if (r < 0.95) judged(gs!.strike(e.midi + 1, e.sec)); // a wrong key; the note itself is then missed
+      if (r < 0.74) judged(gs!.strike(e.midi, e.sec + d * 0.04 * player.speed));
+      else if (r < 0.9) judged(gs!.strike(e.midi, e.sec + d * 0.14 * player.speed));
+      else if (r < 0.95) judged(gs!.strike(e.midi, e.sec + (d < 0 ? -0.26 : 0.26) * player.speed));
+      else if (r < 0.975) judged(gs!.strike(e.midi + 1, e.sec)); // a wrong key; the note itself is then missed
       /* else: not played */
     }
   };

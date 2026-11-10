@@ -42,6 +42,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const flat = await tf(); ok(flat === 'none' || /^matrix\(1, 0, 0, 1/.test(flat) || /matrix3d\(1, 0, 0, 0, 0, 1, 0, 0/.test(flat), 'flat view: no tilt (' + flat.slice(0, 30) + ')');
   await page.click('.gtilt'); await page.waitForTimeout(250); const mid = await tf(); await page.screenshot({ path: D + 'game-tilt-mid.png' }); await page.waitForTimeout(1100); const end = await tf(); await page.screenshot({ path: D + 'game-tilt.png' });
   ok(end !== flat && /^matrix3d/.test(end), '3D view: the canvas leans back (matrix3d)');
+  ok(await page.evaluate(() => { const c = document.querySelector('.gcanvas'), pn = document.querySelector('.gamepanel'); return parseFloat(c.style.height) >= pn.getBoundingClientRect().height * 1.8 && parseFloat(pn.style.getPropertyValue('--tiltdeg')) > 30; }), 'the drawing is much taller than the panel and the angle is chosen so that the far end of the lane reaches the top: notes come down from the very top in 3D');
   ok(mid !== end && mid !== flat, 'and it gets there by an animation, not by a jump');
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameTilt) === true, 'the view is remembered');
   await page.click('.gtilt'); await page.waitForTimeout(1200); ok(/^matrix\(1, 0, 0, 1|none|^matrix3d\(1, 0, 0, 0, 0, 1, 0, 0/.test(await tf()), 'back to the flat view');
