@@ -898,7 +898,8 @@ async function renderHome() {
   // order of the lists: ONE setting for all tabs (button at the right end of the tab bar)
   const SORTS: [typeof settings.sortBy, string, string][] = [["name", "名称（A → Z）", "字母 / 拼音顺序"], ["added", "添加时间", "新添加的在前"], ["opened", "最近打开", "刚打开过的在前，没打开过的在后"]];
   const sortMenu = h("div", { class: "sortmenu", hidden: true, role: "menu" });
-  const sortBtn = h("button", { class: "sortbtn", title: "排序", "aria-haspopup": "true", onclick: (e: Event) => { e.stopPropagation(); if (sortMenu.hidden) buildSortMenu(); sortMenu.hidden = !sortMenu.hidden; } }, ic("sort", 22));
+  const sortBtn = h("button", { class: "sortbtn", title: "排序", "aria-haspopup": "true", onclick: (e: Event) => { e.stopPropagation(); if (sortMenu.hidden) buildSortMenu(); setSortOpen(sortMenu.hidden); } }, ic("sort", 22));
+  const setSortOpen = (open: boolean) => { sortMenu.hidden = !open; sortBtn.classList.toggle("open", open); }; // the button is blue while its menu is open
   function buildSortMenu() {
     sortMenu.replaceChildren(
       ...SORTS.map(([k, label, hint]) => h("button", { class: "sortopt" + (settings.sortBy === k ? " on" : ""), "data-sort": k, role: "menuitemradio", onclick: () => { settings.sortBy = k; saveSettings(settings); buildSortMenu(); renderList(); } },
@@ -906,7 +907,7 @@ async function renderHome() {
       h("label", { class: "inline sortrev" }, "倒序", h("input", { type: "checkbox", checked: settings.sortReverse, onchange: (e: Event) => { settings.sortReverse = (e.target as HTMLInputElement).checked; saveSettings(settings); renderList(); } })),
     );
   }
-  document.addEventListener("click", (e) => { if (!sortMenu.hidden && !(e.target as HTMLElement).closest(".sortmenu, .sortbtn")) sortMenu.hidden = true; });
+  document.addEventListener("click", (e) => { if (!sortMenu.hidden && !(e.target as HTMLElement).closest(".sortmenu, .sortbtn")) setSortOpen(false); });
   const tabsBar = h("div", { class: "tabsbar" }, tabGroup, sortBtn, sortMenu);
   const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   function moveBlob(animate: boolean) {

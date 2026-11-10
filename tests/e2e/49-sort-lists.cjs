@@ -13,10 +13,13 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.sortbtn')).color; const a = (() => { const e = document.createElement('i'); e.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent'); document.body.append(e); const x = getComputedStyle(e).color; e.remove(); return x; })(); return c !== a; }), 'the sort button is grey like the other plain buttons, not accent blue');
   ok(geo.right && geo.sameH, 'the sort button sits at the right end of the tab bar, as tall as the tabs');
   await page.click('.sortbtn');
+  const accent = () => page.evaluate(() => { const e = document.createElement('i'); e.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent'); document.body.append(e); const x = getComputedStyle(e).color; e.remove(); return x; });
+  ok(await page.evaluate(() => getComputedStyle(document.querySelector('.sortbtn')).color) === await accent(), 'while its menu is open the sort button is blue');
   ok((await page.isVisible('.sortmenu')) && (await page.$$('.sortopt')).length === 3 && (await page.isVisible('.sortrev')), 'its menu has 3 criteria and a "reverse" checkbox');
   await page.click('.sortrev input'); await page.waitForTimeout(250);
   ok((await names()).join(',') === 'c-gamma,b-beta,a-alpha', 'reverse: Z → A');
   await page.mouse.click(5, 5); ok(!(await page.isVisible('.sortmenu')), 'a click elsewhere closes the menu');
+  ok(await page.evaluate(() => getComputedStyle(document.querySelector('.sortbtn')).color) !== await accent(), 'and the button is grey again');
   await page.click('.sortbtn'); await page.click('.sortrev input'); await page.mouse.click(5, 5);
   // last opened: open b, then c
   await page.evaluate(() => { location.hash = '#/score/b-beta.musicxml'; }); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
