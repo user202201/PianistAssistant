@@ -731,6 +731,7 @@ function popup(title: string, text: string, confirmLabel?: string): Promise<bool
 }
 /** The note at the top left: with game mode on it becomes a glowing note with a spark, so you can see the hidden mode is on. */
 function updateLogo() {
+  if (settings.gameMode) document.documentElement.dataset.gamemode = "1"; else delete document.documentElement.dataset.gamemode;
   const el = document.querySelector<HTMLElement>(".top .brand .logo");
   if (!el) return;
   el.classList.toggle("game", settings.gameMode);
@@ -2816,6 +2817,7 @@ async function renderPdf(name: string) {
 
 /** The neon look of the game view: on only while a score is open and the Game switch is on. */
 function applyGameTheme(onScore = /^#\/(score|duet)\//.test(location.hash)) {
+  if (settings.gameMode) document.documentElement.dataset.gamemode = "1"; else delete document.documentElement.dataset.gamemode; // hidden mode on: the title bar glows (all screens)
   if (settings.gameMode && settings.gameView && onScore) document.documentElement.dataset.game = "1";
   else delete document.documentElement.dataset.game;
 }

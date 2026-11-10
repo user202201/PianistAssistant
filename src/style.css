@@ -765,3 +765,9 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .top .brand .logo.game svg { overflow: visible; }
 @media (prefers-reduced-motion: no-preference) { .top .brand .logo.game { animation: gamelogo 2.8s ease-in-out infinite; } }
 @keyframes gamelogo { 0%, 100% { filter: drop-shadow(0 0 3px rgba(25, 211, 255, .8)) drop-shadow(0 0 7px rgba(25, 140, 255, .4)); } 50% { filter: drop-shadow(0 0 6px rgba(25, 211, 255, 1)) drop-shadow(0 0 16px rgba(25, 140, 255, .8)); } }
+
+/* hidden game mode on (every screen): the title bar glows downwards */
+:root[data-gamemode="1"] .top { position: relative; border-bottom: 1px solid rgba(25, 211, 255, .55); box-shadow: 0 8px 22px -6px rgba(25, 211, 255, .5), 0 16px 34px -10px rgba(25, 120, 255, .35); }
+:root[data-gamemode="1"] .top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(25, 211, 255, .95), transparent); filter: blur(.4px); }
+@media (prefers-reduced-motion: no-preference) { :root[data-gamemode="1"] .top { animation: gametop 3.4s ease-in-out infinite; } }
+@keyframes gametop { 0%, 100% { box-shadow: 0 8px 20px -6px rgba(25, 211, 255, .38), 0 14px 30px -10px rgba(25, 120, 255, .25); } 50% { box-shadow: 0 10px 26px -6px rgba(25, 211, 255, .65), 0 18px 40px -10px rgba(25, 120, 255, .45); } }
