@@ -386,6 +386,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   });
   const mistakeBox = h("input", { type: "checkbox", checked: settings.gameDemoMistakes });
   mistakeBox.addEventListener("change", () => { settings.gameDemoMistakes = mistakeBox.checked; saveSettings(settings); });
+  const judgeBox = h("input", { type: "checkbox", checked: settings.gameJudgeText });
+  judgeBox.addEventListener("change", () => { settings.gameJudgeText = judgeBox.checked; saveSettings(settings); });
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -432,7 +434,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
-    ...(settings.gameMode ? [h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
+    ...(settings.gameMode ? [h("label", { class: "inline" }, "显示判定文字（Perfect / Miss 等）", judgeBox), h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [
@@ -2373,7 +2375,7 @@ function buildControls(
   app.append(bar);
   // the game panel (falling notes + keyboard) sits between the score and the bottom bar while the Game switch is on
   const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); },
-    scoring: settings.gameScoring, onMode: (sc) => { settings.gameScoring = sc; saveSettings(settings); syncGame(); } });
+    scoring: settings.gameScoring, onMode: (sc) => { settings.gameScoring = sc; saveSettings(settings); syncGame(); }, judgeText: () => settings.gameJudgeText });
   // ---- score mode: you play on a MIDI keyboard, the app judges the timing ----
   let gs: GameScore | null = null, roundOver = false, setupShown = false;
   const scoringOn = () => gameOn() && settings.gameScoring;

@@ -76,6 +76,13 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('button[title^=播放]'); await page.waitForTimeout(12000);
   const st2 = await page.evaluate(() => window.__gs());
   ok(st2.good + st2.early + st2.late + st2.miss + st2.wrong >= 1, `with the setting on it makes mistakes too (${st2.good} good, ${st2.early + st2.late} early/late, ${st2.miss} missed, ${st2.wrong} wrong)`);
+  // the judgement words can be switched off (a complex piece is not covered by them)
+  const wordsAfter = async (on) => { await page.evaluate((on) => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameJudgeText = on; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); }, on);
+    await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1200);
+    await page.click('button[title^=播放]'); await page.evaluate(() => { window.__pmax = 0; setInterval(() => { window.__pmax = Math.max(window.__pmax, Number(document.querySelector('.gamepanel').dataset.popups || 0)); }, 30); }); await page.waitForTimeout(8000); const n = await page.evaluate(() => window.__pmax); await page.evaluate(() => window.__pianist.player.stop()); return n; };
+  const withWords = await wordsAfter(true), withoutWords = await wordsAfter(false);
+  ok(withWords > 0 && withoutWords === 0, `the words PERFECT / MISS ... can be switched off in the settings (${withWords} shown -> ${withoutWords})`);
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameJudgeText = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameDemoMistakes = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1500);
   await page.evaluate(() => window.__pianist.player.stop()); await page.waitForTimeout(300);
@@ -84,6 +91,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     return { scoreLeftOfBtn: s.right <= tb.left && tb.left - s.right < 30, sameRow: Math.abs((s.top + s.height / 2) - (tb.top + tb.height / 2)) < 4, sameHeight: Math.abs(s.height - tb.height) < 4, comboUnderSwitch: c.top >= m.bottom - 1 && Math.abs(c.left - m.left) < 4, inPanel: s.top >= pn.top && c.bottom <= pn.bottom, accuracy: !!document.querySelector('.hudline'), h: Math.round(c.height) }; });
   ok(hud0.scoreLeftOfBtn && hud0.sameRow && hud0.sameHeight, 'the total score sits next to the 3D button, as tall as it');
   ok(hud0.comboUnderSwitch && hud0.inPanel, 'the combo sits at the left, under the demo / score switch');
+  ok(await page.evaluate(() => getComputedStyle(document.querySelector('.hudcombo')).color) === 'rgb(143, 233, 255)', 'the combo is in the blue of the rest (not yellow)');
   ok(!hud0.accuracy, 'no accuracy during play (it is in the summary)');
   ok(await page.evaluate(() => ['.hudscorebox', '.hudcombobox'].every((q) => { const c = getComputedStyle(document.querySelector(q)); return c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.boxShadow === 'none'; })), 'no background behind the numbers');
   await page.waitForTimeout(1200);

@@ -38,7 +38,7 @@ function neon(ctx: CanvasRenderingContext2D, x: number, w: number, col: string, 
   return g;
 }
 
-export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void }): GameView {
+export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void; judgeText: () => boolean }): GameView {
   const canvas = document.createElement("canvas");
   canvas.className = "gcanvas";
   const stage = document.createElement("div");
@@ -253,7 +253,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.shadowColor = b.col; ctx.shadowBlur = 30; ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.strokeText(b.text, 0, 0); ctx.fillStyle = b.col; ctx.fillText(b.text, 0, 0); ctx.restore();
     }
-    el.dataset.banners = String(banners.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
+    el.dataset.banners = String(banners.length); el.dataset.popups = String(popups.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
     raf = requestAnimationFrame(draw);
@@ -268,7 +268,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const k = keyBox(j.midi, geo.ww, 0), cx = k.x + k.w / 2;
       const look: Record<string, [string, string]> = { perfect: ["PERFECT", "#ffd60a"], good: ["GOOD", "#7dff6b"], early: ["EARLY", "#9ad1ff"], late: ["LATE", "#ffb86b"], miss: ["MISS", "#ff5a5a"], wrong: ["×", "#ff5a5a"] };
       const [text, col] = look[j.kind];
-      popups.push({ x: cx, text, col, t: 0, life: j.kind === "miss" || j.kind === "wrong" ? 0.42 : 0.75 });
+      if (opts.judgeText()) popups.push({ x: cx, text, col, t: 0, life: j.kind === "miss" || j.kind === "wrong" ? 0.42 : 0.75 });
       if (j.kind !== "miss" && j.kind !== "wrong") { flares.push({ x: cx, y: geo.top, t: 0, col, w: Math.max(geo.ww * 2.4, 40) }); emit(cx, geo.top, col, j.kind === "perfect" ? 3 : 2); }
     },
     milestone(n) {
