@@ -19,7 +19,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok((await popup()) === null, 'taps more than 2 seconds apart do not add up');
   for (let i = 0; i < 9; i++) await page.click('.top .logo');
   ok(await page.evaluate(() => document.querySelector('.top .logo').classList.contains('flash')), '10th tap: the note flashes (a "whoosh" of light)');
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1750);
   let p = await popup();
   ok(p && p.title === '隐藏模式已解锁', '10 quick taps: the popup "hidden mode unlocked"');
   ok(await page.evaluate(() => !!document.querySelector('dialog.popup canvas.confetti')), 'the first time there is confetti');

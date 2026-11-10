@@ -718,7 +718,7 @@ function showError(title: string, e: unknown) {
 function popup(title: string, text: string, confirmLabel?: string, party = false): Promise<boolean> {
   return new Promise((resolve) => {
     let result = false;
-    const dlg = h("dialog", { class: "dlg popup" },
+    const dlg = h("dialog", { class: "dlg popup game" + (party ? " unlock" : "") },
       h("h2", { tabIndex: -1, autofocus: true }, title),
       text ? h("p", { class: "muted" }, text) : null,
       h("div", { class: "row wrap" }, h("div", { class: "grow" }),
@@ -728,7 +728,7 @@ function popup(title: string, text: string, confirmLabel?: string, party = false
     dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
     document.body.append(dlg);
     dlg.showModal();
-    if (party) confetti(dlg); // (inside the dialog: it lives in the top layer, so the confetti is above everything)
+    if (party) window.setTimeout(() => confetti(dlg), 520); // after the pop-in animation (a transform would trap the full-screen canvas); (inside the dialog: it lives in the top layer, so the confetti is above everything)
   });
 }
 /** The note at the top left: with game mode on it becomes a glowing note with a spark, so you can see the hidden mode is on. */

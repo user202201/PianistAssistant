@@ -778,3 +778,15 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .top .brand .logo.flash { animation: logoflash .8s ease-out; color: #19d3ff; }
 @keyframes logoflash { 0% { transform: scale(1); filter: none; } 30% { transform: scale(1.9); filter: drop-shadow(0 0 8px #19d3ff) drop-shadow(0 0 22px #19d3ff) drop-shadow(0 0 40px #1980ff); } 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(25, 211, 255, .9)); } }
 .confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10; }
+
+/* the messages of the hidden game mode: neon, like the game */
+.dlg.popup.game { color: #e8f4ff; background: radial-gradient(120% 90% at 50% 0%, #0d2a66 0%, #07122c 60%, #050b1e 100%); border: 1px solid rgba(25, 211, 255, .75);
+  box-shadow: 0 0 0 1px rgba(25, 211, 255, .25), 0 0 26px rgba(25, 211, 255, .6), 0 0 80px rgba(25, 120, 255, .45), inset 0 0 36px rgba(25, 211, 255, .16); animation: gamepopin .45s cubic-bezier(.2, 1.4, .4, 1); }
+.dlg.popup.game::backdrop { background: radial-gradient(60% 50% at 50% 45%, rgba(12, 40, 100, .55), rgba(0, 0, 0, .84)); backdrop-filter: blur(3px); }
+.dlg.popup.game h2 { color: #fff; font-size: 1.3rem; letter-spacing: .08em; text-shadow: 0 0 6px #19d3ff, 0 0 18px #19d3ff, 0 0 38px #1980ff; }
+.dlg.popup.game.unlock h2 { font-size: 1.55rem; color: rgba(25, 211, 255, .1); -webkit-text-stroke: 1.5px #9ff5ff; text-shadow: none; filter: drop-shadow(0 0 6px #19d3ff) drop-shadow(0 0 16px #19d3ff) drop-shadow(0 0 30px #1980ff); } /* outlined ("hollow") neon letters */
+.dlg.popup.game p { color: rgba(170, 210, 255, .85); }
+.dlg.popup.game button { background: transparent; color: #bfeaff; border: 1px solid rgba(25, 211, 255, .6); box-shadow: 0 0 10px rgba(25, 211, 255, .3); }
+.dlg.popup.game button.primary { background: linear-gradient(#2fe0ff, #1a8cff); color: #021019; border-color: #8ff0ff; font-weight: 700; box-shadow: 0 0 8px #19d3ff, 0 0 22px rgba(25, 211, 255, .6); }
+@keyframes gamepopin { 0% { transform: scale(.72); opacity: 0; filter: brightness(2.2); } 60% { opacity: 1; } 100% { transform: scale(1); filter: none; } }
+@media (prefers-reduced-motion: reduce) { .dlg.popup.game { animation: none; } }
