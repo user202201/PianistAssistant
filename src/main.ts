@@ -712,6 +712,56 @@ function showError(title: string, e: unknown) {
   dlg.showModal();
 }
 
+/** A small message in the middle of the screen (modal): one button, or two when `confirmLabel` is given. Resolves true when the main button was pressed. */
+function popup(title: string, text: string, confirmLabel?: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    let result = false;
+    const dlg = h("dialog", { class: "dlg popup" },
+      h("h2", { tabIndex: -1, autofocus: true }, title),
+      text ? h("p", { class: "muted" }, text) : null,
+      h("div", { class: "row wrap" }, h("div", { class: "grow" }),
+        ...(confirmLabel ? [h("button", { onclick: () => dlg.close() }, "取消")] : []),
+        h("button", { class: "primary", onclick: () => { result = true; dlg.close(); } }, confirmLabel ?? "好")),
+    ) as HTMLDialogElement;
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
+    document.body.append(dlg);
+    dlg.showModal();
+  });
+}
+/** The hidden game mode: tap the note at the top left of the home screen 10 times (taps no more than 2 s apart) to switch it on; one tap asks whether to switch it off. */
+let eggTaps = 0, eggLast = 0;
+function onLogoTap(rerender: () => void) {
+  if (settings.gameMode) {
+    void popup("要关闭游戏模式吗？", "关闭后，乐谱页面顶部的“练习 / 游戏”开关会消失。", "关闭").then((yes) => {
+      if (!yes) return;
+      settings.gameMode = false; settings.gameView = false; saveSettings(settings);
+      void popup("游戏模式已关闭", "");
+      rerender();
+    });
+    return;
+  }
+  const now = Date.now();
+  eggTaps = now - eggLast > 2000 ? 1 : eggTaps + 1;
+  eggLast = now;
+  if (eggTaps >= 10) {
+    eggTaps = 0;
+    settings.gameMode = true; saveSettings(settings);
+    void popup("游戏模式已开启", "打开任意一份琴谱，顶部会出现“练习 / 游戏”开关。游戏界面还在制作中，目前只有这个开关。再点一下左上角的音符可以关闭。");
+  }
+}
+/** The practice / game switch at the top of a score screen (only when game mode is on). */
+function modeToggle(): HTMLElement | null {
+  if (!settings.gameMode) return null;
+  const mk = (game: boolean, label: string) => h("button", { class: "seg" + (settings.gameView === game ? " on" : ""), "data-mode": game ? "game" : "practice", onclick: (e: Event) => {
+    if (settings.gameView === game) return;
+    settings.gameView = game; saveSettings(settings);
+    const g = (e.currentTarget as HTMLElement).parentElement!;
+    g.querySelectorAll(".seg").forEach((b) => b.classList.toggle("on", (b as HTMLElement).dataset.mode === (game ? "game" : "practice")));
+    if (game) toast("游戏界面还在制作中，现在只有这个开关。");
+  } }, label);
+  return h("div", { class: "group modetoggle" }, mk(false, "练习"), mk(true, "游戏"));
+}
+
 /** Ask for one line of text (rename). */
 function askText(title: string, value: string, okLabel = "好"): Promise<string | null> {
   return new Promise((resolve) => {
@@ -995,7 +1045,7 @@ async function renderHome() {
     h(
       "header",
       { class: "top" },
-      h("h1", { class: "brand" }, h("span", { class: "logo" }, ic("note", 20)), "我的琴谱"),
+      h("h1", { class: "brand" }, h("span", { class: "logo", onclick: () => onLogoTap(() => {}) }, ic("note", 20)), "我的琴谱"),
       h("div", { class: "grow" }),
       h("button", { class: "icon", title: "刷新列表并检查更新", onclick: () => doRefresh() }, ic("refresh")),
       h("button", { class: "primary upload", title: "上传琴谱", onclick: () => file.click() }, ic("plus", 20), h("span", { class: "lbl" }, "上传琴谱")),
@@ -1458,6 +1508,7 @@ async function renderPlayer(name: string) {
       { class: "top compact" },
       h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), h("span", { class: "lbl" }, "返回")),
       h("h1", {}, displayName(name)),
+      modeToggle(),
       h("div", { class: "grow" }),
       status,
       h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderPlayer(name); } } }, ic("refresh")),
@@ -1594,6 +1645,7 @@ async function renderDuet(pair: api.Pair) {
       { class: "top compact" },
       h("button", { class: "back", title: "返回", onclick: () => { if (leaveGuard()) location.hash = "#/"; } }, ic("chevron-left", 22), h("span", { class: "lbl" }, "返回")),
       h("h1", {}, pair.name),
+      modeToggle(),
       h("div", { class: "grow" }),
       status,
       h("button", { class: "icon", title: "重新载入这份乐谱并检查更新", onclick: () => { if (leaveGuard()) { void checkUpdate(true); void renderDuet(pair); } } }, ic("refresh")),

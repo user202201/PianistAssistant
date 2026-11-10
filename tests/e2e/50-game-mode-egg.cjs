@@ -1,0 +1,42 @@
+// Hidden game mode: tap the note at the top left of the home screen 10 times -> a popup in the middle says it is on; then every score has a
+// "Practice / Game" switch at the top. One tap on the note asks whether to switch it off. (Only the switch exists so far.)
+const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
+let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
+(async () => {
+  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'fingered.musicxml')]]);
+  const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
+  await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
+  const popup = () => page.evaluate(() => { const d = document.querySelector('dialog.popup[open]'); if (!d) return null; const r = d.getBoundingClientRect(); return { title: d.querySelector('h2').innerText, btns: [...d.querySelectorAll('button')].map((b) => b.innerText.trim()), cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2) }; });
+  for (let i = 0; i < 9; i++) await page.click('.top .logo');
+  ok((await popup()) === null, '9 taps: nothing happens yet');
+  await page.waitForTimeout(2300); await page.click('.top .logo'); // too slow: counting starts again
+  ok((await popup()) === null, 'taps more than 2 seconds apart do not add up');
+  for (let i = 0; i < 9; i++) await page.click('.top .logo');
+  let p = await popup();
+  ok(p && p.title === '游戏模式已开启', '10 quick taps: the popup "game mode is on"');
+  ok(p && Math.abs(p.cx - 597) < 6 && Math.abs(p.cy - 417) < 60, `it is in the middle of the screen (${p && p.cx},${p && p.cy})`);
+  await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'switched on and remembered');
+  await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.top .modetoggle', { timeout: 20000 });
+  const t = await page.evaluate(() => { const g = document.querySelector('.top .modetoggle'); const h1 = document.querySelector('.top h1').getBoundingClientRect(); const r = g.getBoundingClientRect(); return { texts: [...g.querySelectorAll('.seg')].map((b) => b.innerText.trim()), on: g.querySelector('.on')?.dataset.mode, afterTitle: r.left >= h1.right - 1, inBar: r.top >= 0 && r.bottom <= 80 }; });
+  ok(t.texts.join('|') === '练习|游戏' && t.on === 'practice' && t.afterTitle && t.inBar, `a "Practice / Game" switch in the top bar after the title (${t.texts.join(' ')}; on: ${t.on})`);
+  await page.click('.modetoggle .seg[data-mode=game]'); await page.waitForTimeout(300);
+  ok(await page.evaluate(() => document.querySelector('.modetoggle .on').dataset.mode) === 'game' && await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameView) === true, 'the switch changes to "Game" and is remembered');
+  await page.click('.modetoggle .seg[data-mode=practice]');
+  await page.setViewportSize({ width: 360, height: 700 }); await page.waitForTimeout(600);
+  const ph = await page.evaluate(() => { const r = document.querySelector('.modetoggle').getBoundingClientRect(), t = document.querySelector('.top h1').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 360, below: r.top >= t.bottom - 1, noScroll: document.documentElement.scrollWidth <= 360 }; });
+  ok(ph.inside && ph.below && ph.noScroll, 'phone: the switch gets its own row under the title (the title is not squeezed away)');
+  await page.setViewportSize({ width: 1194, height: 834 }); await page.waitForTimeout(400);
+  await page.click('.back'); await page.waitForSelector('.top .logo'); await page.waitForTimeout(400);
+  await page.click('.top .logo'); p = await popup();
+  ok(p && p.title === '要关闭游戏模式吗？' && p.btns.length === 2, 'one tap on the note asks whether to switch it off (cancel / off)');
+  await page.click('dialog.popup button:not(.primary)'); await page.waitForTimeout(200);
+  ok((await popup()) === null && await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'cancel: it stays on, no "off" message');
+  await page.click('.top .logo'); await page.click('dialog.popup button.primary'); await page.waitForTimeout(300);
+  p = await popup(); ok(p && p.title === '游戏模式已关闭', 'confirmed: the popup says it is off');
+  await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
+  await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
+  ok((await page.$('.modetoggle')) === null, 'off: the switch is gone from the scores');
+  await page.screenshot({ path: D + 'game-egg.png' });
+  await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
+})();
