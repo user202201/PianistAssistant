@@ -2386,6 +2386,7 @@ function buildControls(
     onConnect: () => { void midi.start(); },
     onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
     onRetry: () => { player.stop(); void startGame(); },
+    latency: settings.gameLatency, onLatency: (ms) => { settings.gameLatency = ms; saveSettings(settings); },
   });
   gv.el.append(hud.scoreBox, hud.comboBox); // the score next to the 3D button, the combo under the demo / score switch
   gv.el.querySelector(".gtopleft")!.append(hud.chip); // (numbers + the piano button live in the game panel; the cards float above everything)
@@ -2402,7 +2403,7 @@ function buildControls(
     if (!scoringOn()) return;
     if (n.type === "off") return void gv.release(n.note);
     if (!gs || !player.playing || roundOver) return void gv.press(n.note, "#ffffff"); // free play: the key just lights
-    const t = player.position() - ((performance.now() - n.time) / 1000) * player.speed; // the moment the key was struck
+    const t = player.position() - ((performance.now() - n.time) / 1000) * player.speed - (settings.gameLatency / 1000) * player.speed; // the moment the key was struck (minus the delay of the piano's signal, if the player set one)
     const j = gs.strike(n.note, t);
     judged(j); gv.press(n.note, keyColour(j.kind)); hud.update(gs.stats, gs.accuracy());
   });

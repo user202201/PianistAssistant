@@ -37,7 +37,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = "", 
 };
 const KINDS: [keyof Stats, string, string][] = [["perfect", "完美", "#ffd60a"], ["good", "不错", "#7dff6b"], ["early", "偏早", "#9ad1ff"], ["late", "偏晚", "#ffb86b"], ["miss", "漏掉", "#ff5a5a"], ["wrong", "错键", "#ff5a5a"]];
 
-export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConnect: () => void; onPair: (() => void) | null; onRetry: () => void }): Hud {
+export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConnect: () => void; onPair: (() => void) | null; onRetry: () => void; latency: number; onLatency: (ms: number) => void }): Hud {
   // ---- compact numbers
   const scoreBox = el("div", "hudscorebox");
   const score = el("div", "hudscore", "0");
@@ -60,7 +60,14 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const levelRow = el("div", "hudlevel");
   const levelBtns: Record<Level, HTMLButtonElement> = { easy: el("button", "seg", "轻松"), normal: el("button", "seg", "标准"), hard: el("button", "seg", "挑战") };
   (Object.keys(levelBtns) as Level[]).forEach((l) => { levelBtns[l].onclick = () => { o.onLevel(l); setLevel(l); }; levelRow.append(levelBtns[l]); });
-  setup.append(status, connect, ...(pair ? [pair] : []), levelRow);
+  // "my piano feels late": a few ms earlier / later for every key
+  let lat = o.latency;
+  const latVal = el("b", "", `${lat} ms`);
+  const step = (d: number) => { lat = Math.max(-200, Math.min(200, lat + d)); latVal.textContent = `${lat} ms`; o.onLatency(lat); };
+  const minus = el("button", "hudbtn small", "−"), plus = el("button", "hudbtn small", "+");
+  minus.onclick = () => step(-10); plus.onclick = () => step(10);
+  const latRow = el("div", "hudlat", "", [el("span", "", "延迟补偿"), minus, latVal, plus]);
+  setup.append(status, connect, ...(pair ? [pair] : []), levelRow, latRow);
   const place = () => { const r = chip.getBoundingClientRect(); setup.style.left = `${Math.max(8, r.left)}px`; setup.style.bottom = `${window.innerHeight - r.top + 8}px`; };
   const openSetup = (open?: boolean) => { const want = open ?? setup.hidden; if (want) place(); setup.hidden = !want; };
   chip.onclick = (e) => { e.stopPropagation(); openSetup(); };

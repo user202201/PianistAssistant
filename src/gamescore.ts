@@ -11,10 +11,12 @@ export interface Judgement { kind: JudgeKind; midi: number; /** key time - note 
 export type Level = "easy" | "normal" | "hard";
 
 /** seconds: [perfect, good, still counted] */
+// Wider than a game on a console: between the key and the judgement there is the keyboard's own delay (USB 1-5 ms, Bluetooth MIDI 15-40 ms with jitter),
+// the screen (one or two frames, 16-35 ms) and the player's eyes: rhythm games use about +-50 ms for the best grade, here ~+-100 ms on "normal"
 export const WINDOWS: Record<Level, [number, number, number]> = {
-  easy: [0.12, 0.24, 0.45],
-  normal: [0.075, 0.15, 0.3],
-  hard: [0.045, 0.09, 0.18],
+  easy: [0.15, 0.3, 0.5],
+  normal: [0.1, 0.19, 0.34],
+  hard: [0.065, 0.12, 0.22],
 };
 const POINTS = { perfect: 100, good: 70, early: 40, late: 40, miss: 0, wrong: 0 } as const;
 const WEIGHT = { perfect: 1, good: 0.75, early: 0.45, late: 0.45, miss: 0, wrong: 0 } as const;

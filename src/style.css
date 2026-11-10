@@ -850,3 +850,6 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamesetup .hudlevel { display: flex; gap: 4px; }
 .gamesetup .hudlevel .seg { flex: 1; min-width: 0; min-height: 32px; padding: 0 4px; font-size: .8rem; background: rgba(25, 211, 255, .1); color: #bfeaff; border: 1px solid rgba(25, 211, 255, .3); border-radius: 8px; }
 .gamesetup .hudlevel .seg.on { background: #19d3ff; color: #021019; font-weight: 700; box-shadow: 0 0 10px #19d3ff; }
+
+.gamesetup .hudlat { display: flex; align-items: center; gap: 8px; } .gamesetup .hudlat span { flex: 1; } .gamesetup .hudlat b { min-width: 58px; text-align: center; }
+.gamesetup .hudbtn.small { min-height: 32px; min-width: 36px; padding: 0 8px; }
