@@ -2412,14 +2412,8 @@ function buildControls(
   hud.midi(midi.status());
   const offState = midi.onState((st) => hud.midi(st));
   (window as unknown as { __gs?: () => unknown }).__gs = () => gs?.stats; // (for the tests)
-  let prevCombo = 0;
   const judged = (j: { kind: string; combo: number } & Parameters<typeof gv.judge>[0]) => {
     gv.judge(j); hud.judged(j);
-    if ((j.kind === "miss" || j.kind === "wrong") && prevCombo >= 2) { // the run broke: the number bursts into pieces (at the place of the combo in the panel)
-      const a = hud.comboBox.getBoundingClientRect(), pn = gv.el.getBoundingClientRect();
-      gv.shatter(a.left - pn.left + 40, a.top - pn.top + a.height / 2);
-    }
-    prevCombo = j.combo;
     if (j.kind !== "miss" && j.kind !== "wrong" && isComboMilestone(j.combo)) gv.milestone(j.combo);
   };
   const handleKey = (n: MidiNote) => {
