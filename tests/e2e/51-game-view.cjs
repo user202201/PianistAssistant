@@ -74,8 +74,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await shownParts() === '0,1', 'four hands, both parts on: the game shows both');
   await page.click('.panehead:nth-of-type(1) .pname, .pname >> nth=0'); await page.waitForTimeout(300); // the real button: switch part A off (you play A)
   ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true' && await shownParts() === '0', 'part A switched off with its button (you play A): only A is shown, B is the accompaniment');
-  await page.click('.pname >> nth=0'); await page.click('.pname >> nth=1'); await page.waitForTimeout(300); // A back on, then B off
-  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'true,false' && await shownParts() === '1', 'A back on, then part B off with its button: only B is shown');
+  await page.click('.pname >> nth=1'); await page.waitForTimeout(300); // B is the only one on: one tap swaps (A on, B off)
+  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'true,false' && await shownParts() === '1', 'one tap on B while A is off swaps them (A on, B off): only B is shown');
   await page.evaluate(() => { window.__pianist.player.partOn = [true, true]; });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForTimeout(2000);
   // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...

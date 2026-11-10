@@ -58,7 +58,9 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
   await page.locator('.pane[data-part="0"] .pname').click();
   ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true', 'tapping the name mutes that part (you play it yourself)');
   await page.locator('.pane[data-part="1"] .pname').click();
-  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true', 'the last audible part cannot be muted');
+  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'true,false', 'tapping the only audible part swaps: A sounds again, B is the one you play (one tap, not two)');
+  await page.locator('.pane[data-part="0"] .pname').click();
+  ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true', 'and tapping A swaps back: a part can never be silent together with the other one (one always sounds)');
 
   // ---- play: both screens move, only B is heard
   await page.evaluate(() => window.__pianist.player.seekStep(0));

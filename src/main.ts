@@ -1786,7 +1786,9 @@ function buildControls(
     const multi = score.parts.length > 1;
     const label = multi ? `${partLetter(g)} · ${score.parts[g]}` : score.parts[g];
     const snd = h("button", { class: "seg pname", title: "开/关这个声部的声音：你自己弹的那个声部，把它关掉", onclick: () => {
-      player.partOn[g] = !player.partOn[g];
+      const onlyOne = player.partOn[g] && player.partOn.filter(Boolean).length === 1;
+      if (onlyOne && player.partOn.length > 1) player.partOn = player.partOn.map((_, i) => i !== g); // the other part is off and this one is the only one on: SWAP (one tap instead of two)
+      else player.partOn[g] = !player.partOn[g];
       if (!player.partOn.some(Boolean)) player.partOn[g] = true; // keep at least one part audible
       sync();
     } }, ...(multi ? [h("span", { class: "pl" }, partLetter(g)), h("span", { class: "pn mq few" }, h("span", { class: "mqi" }, ` · ${score.parts[g]}`))] : [label]));
