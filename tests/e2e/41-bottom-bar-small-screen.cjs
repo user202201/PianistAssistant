@@ -15,10 +15,10 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   let s = await st();
   ok(s.bar && s.play && s.speed && s.practice && s.more && !s.lblShown, `phone: the full bar is compact, names are replaced by icons (${s.barH}px tall)`);
   ok(s.overflow <= 1, 'and nothing is pushed off the screen');
-  const rows = await page.evaluate(() => { const r = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; }; return { main: r('.controls .mainrow'), second: r('.controls .row.wrap'), hands: [...document.querySelectorAll('.controls .hand')].map((b) => b.innerText.trim()) }; });
-  ok(s.barH <= 140, `the full bar on a phone is only two slim rows (${s.barH}px, it was 223)`);
-  ok(rows.second <= 60 && rows.main <= 64, `the second row (hands, fingering, practice, zoom) is ONE line (${rows.second}px) and so is the transport row (${rows.main}px)`);
-  ok(rows.hands.join('|') === '双|右|左', `the hand buttons use short names (${rows.hands.join(' ')})`);
+  const rows = await page.evaluate(() => { const r = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().height) : 0; }; return { strip: r('.handstrip'), hands: [...document.querySelectorAll('.handstrip .hand')].map((b) => b.innerText.trim()), zoomInStrip: !!document.querySelector('.handstrip button[title=放大]'), onTop: document.querySelector('.handstrip').getBoundingClientRect().bottom <= document.querySelector('.viewbox').getBoundingClientRect().top + 2 }; });
+  ok(s.barH <= 90, `the bottom bar on a phone is ONE slim row (${s.barH}px; it was 223, then two rows)`);
+  ok(rows.hands.join('|') === '双|右|左' && rows.strip > 0 && rows.strip <= 60 && rows.onTop, `the hands are on a slim strip above the score with short names (${rows.hands.join(' ')}, ${rows.strip}px)`);
+  ok(rows.zoomInStrip, 'on a phone the zoom buttons are on that strip too (room for the bottom row)');
   await page.click('.morebtn'); await page.waitForTimeout(300); s = await st();
   ok(s.play && s.speed && !s.practice && s.hide && s.barH < 110, `"less": only play / pause + speed remain (${s.barH}px tall)`);
   const minH = s.scoreH;
@@ -36,5 +36,10 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // a wide screen: full bar, nothing to fold
   await page.setViewportSize({ width: 1194, height: 834 }); await page.waitForTimeout(700); s = await st();
   ok(s.bar && s.play && s.speed && s.practice && !s.more && !s.hide && !s.handle && s.lblShown, 'a tablet keeps the full bar with names');
+  const wide = await page.evaluate(() => { const bar = document.querySelector('.controls'); const items = [...bar.querySelectorAll('button, input.speed')].filter((e) => e.getBoundingClientRect().width > 0 && !e.closest('.panel, .editbar'));
+    const mids = items.map((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; }); const strip = document.querySelector('.handstrip');
+    return { rows: Math.max(...mids) - Math.min(...mids), n: items.length, hands: [...strip.querySelectorAll('.hand')].map((b) => b.innerText.trim()).join('|'), zoomInBar: !!bar.querySelector('button[title=放大]'), zoomInStrip: !!strip.querySelector('button[title=放大]') }; });
+  ok(wide.rows < 12 && wide.zoomInBar && !wide.zoomInStrip, `tablet: everything of the bottom bar is on ONE row (${wide.n} controls, centres within ${Math.round(wide.rows)}px), zoom at its right end`);
+  ok(wide.hands === '双手|右手|左手', `and the hands are on the strip above the score with their full names (${wide.hands})`);
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

@@ -37,7 +37,7 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
   let v0 = await vis();
   ok(v0.play && v0.more && v0.speed && !v0.practice, `bottom bar is minimal: play/pause + speed + "更多" (${v0.h}px tall)`);
   await page.click('.morebtn');
-  let v1 = await vis(); ok(v1.speed && v1.practice && v1.h > v0.h, `"更多" brings back practice, fingering, ... (${v1.h}px)`);
+  let v1 = await vis(); ok(v1.speed && v1.practice, `"更多" brings back practice, fingering, ... (${v1.h}px)`);
   await page.click('.morebtn'); v0 = await vis(); ok(!v0.practice, 'and it collapses again');
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).barMode) === 'min', 'the choice is remembered');
 
@@ -87,15 +87,15 @@ const IPAD = { viewport: { width: 1194, height: 834 }, deviceScaleFactor: 2, has
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).scrollMode) === 'smooth', 'scroll mode chosen in settings is saved');
   await page.selectOption('dialog select:has(option[value=smooth])', 'page');
   await page.click('dialog label:has-text("四手联弹分屏") input'); await page.waitForSelector('.scorewrap', { timeout: 15000 }); await page.waitForTimeout(900);
-  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 2, 'split off: one screen with A / B controls in the bottom bar');
-  const labels = await page.evaluate(() => [...document.querySelectorAll('.controls .pgroup')].map(g => g.textContent.replace(/\s+/g, ' ').trim()));
+  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 2, 'split off: one screen with A / B controls on the strip above the score');
+  const labels = await page.evaluate(() => [...document.querySelectorAll('.handstrip .pgroup')].map(g => g.textContent.replace(/\s+/g, ' ').trim()));
   ok(labels[0].startsWith('A · Primo') && labels[1].startsWith('B · Secondo') && labels.every(l => l.includes('右手') && l.includes('左手')), `stacked mode also has A/B and per-player hands: ${labels.join(' | ')}`);
   await page.screenshot({ path: D + 'stacked.png' });
 
   // ---- one-part score: no split, no A/B
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.splitView = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.click('button[title=返回]'); await page.waitForSelector('.home'); await open('solo');
-  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 0 && await page.locator('.controls .seg[title="双手"]').count() === 1, 'single-part score: normal screen and the 双手/右手/左手 buttons');
+  ok(await page.locator('.pane').count() === 0 && await page.locator('.pgroup').count() === 0 && await page.locator('.handstrip .seg[title="双手"]').count() === 1, 'single-part score: normal screen and the 双手/右手/左手 buttons');
   await browser.close();
   console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

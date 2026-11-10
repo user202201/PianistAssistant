@@ -2158,6 +2158,10 @@ function buildControls(
     bar.classList.toggle("splitwide", split && !narrow());
     bar.hidden = m === "hidden";
     handle.hidden = m !== "hidden";
+    if (strip) {
+      (narrow() ? strip : wrapRow).append(zoomOut, zoomIn);
+      strip.hidden = !(handContent.length || narrow());
+    }
     moreBtn.hidden = !narrow() || m === "hidden";
     hideBtn.hidden = !narrow() || m !== "min";
     moreBtn.replaceChildren(ic(m === "min" ? "chevron-up" : "chevron-down", 18), h("span", { class: "lbl" }, m === "min" ? "更多" : "收起"));
@@ -2171,6 +2175,8 @@ function buildControls(
   };
   document.addEventListener("click", closeMenus);
   moreBtn.addEventListener("click", () => setBar(barMode() === "min" ? "full" : "min"));
+  // fingering, practice and zoom: on a wide screen at the right end of the bottom bar; on a small screen the zoom buttons go to the strip on top
+  const wrapRow = h("div", { class: "row wrap" }, h("div", { class: "grow" }), fingerBtn, practiceGroup, zoomOut, zoomIn);
   const bar = h(
     "footer",
     { class: "controls" },
@@ -2178,18 +2184,15 @@ function buildControls(
     fpanel,
     editbar,
     h("div", { class: "row mainrow" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos, moreBtn, hideBtn),
-    h(
-      "div",
-      { class: "row wrap" },
-      score.parts.length === 1 && hasHands && h("div", { class: "group" }, h("span", { class: "gl" }, "手"), ...Object.values(handBtns)),
-      ...(score.parts.length > 1 && !split ? score.parts.map((_, g) => partControls(g)) : []),
-      h("div", { class: "grow" }),
-      fingerBtn,
-      practiceGroup,
-      zoomOut,
-      zoomIn,
-    ),
+    wrapRow,
   );
+  // Which hand(s) to play: a slim strip on top of the score (like the bar of every part in four hands), so that the bottom bar is ONE row.
+  const handContent: HTMLElement[] = split ? [] : [
+    ...(score.parts.length === 1 && hasHands ? [h("div", { class: "group" }, h("span", { class: "gl" }, "手"), ...Object.values(handBtns))] : []),
+    ...(score.parts.length > 1 ? score.parts.map((_, g) => partControls(g)) : []),
+  ];
+  const strip = split ? null : h("div", { class: "handstrip" }, ...handContent, h("div", { class: "grow" }));
+  strip?.addEventListener("click", () => { panel.hidden = true; fpanel.hidden = true; });
   if (split) {
     // full screen for one part: the other part keeps sounding, it just is not shown
     let focus: number | null = null;
@@ -2240,6 +2243,7 @@ function buildControls(
     applyCollapse();
     (window as unknown as { __setFocus?: (g: number | null) => void }).__setFocus = setFocus;
   }
+  if (strip) app.querySelector(".top")?.after(strip);
   app.append(bar);
   refreshMore();
   try {

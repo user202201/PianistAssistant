@@ -13,7 +13,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(info.by[0] === 38 && info.by[1] === 64, `note counts per part: Primo ${info.by[0]} (expect 38), Secondo ${info.by[1]} (expect 64)`);
   ok(info.bySt[0][0] === 30 && info.bySt[0][1] === 8 && info.bySt[1][0] === 32 && info.bySt[1][1] === 32, 'right/left hand split inside each part is correct');
   ok(Math.abs(info.dur - 19.2) < 0.05, `duration ${info.dur.toFixed(1)}s (8 bars at 100 bpm = 19.2s)`);
-  ok(await page.locator('.controls .pname').count() === 2 && await page.locator('.controls .pgroup button.hand[title="右手"]').count() === 2, 'part buttons (A · Primo / B · Secondo) and each part\'s own hand buttons are shown');
+  ok(await page.locator('.handstrip .pname').count() === 2 && await page.locator('.handstrip .pgroup button.hand[title="右手"]').count() === 2, 'part buttons (A · Primo / B · Secondo) and each part\'s own hand buttons are shown');
 
   // who is audible: every combination of part x hand
   const combos = await page.evaluate(() => {
@@ -32,7 +32,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 
   // real playback: mute Primo by tapping its button, bass register must be playing and the melody (>= E4 only in Primo) not duplicated
   await page.evaluate(() => { const p = window.__pianist.player; window.__rec = []; const i = p.inst; const o = i.start.bind(i); i.start = e => { window.__rec.push(e.note); return o(e); }; });
-  await page.click('.controls .pname >> text=Primo');
+  await page.click('.handstrip .pname >> text=Primo');
   ok(await page.evaluate(() => window.__pianist.player.partOn.join()) === 'false,true', 'tapping "Primo" mutes Primo (button turns off)');
   await page.click('button[title^=播放]'); await page.waitForTimeout(2300); await page.click('button[title^=播放]');
   const rec = await page.evaluate(() => window.__rec);
