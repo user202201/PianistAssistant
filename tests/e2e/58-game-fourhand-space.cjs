@@ -16,8 +16,17 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   a = await st();
   ok(a.compact && !a.headVisible && a.menu, 'game view: the part bars are hidden, the small floating buttons are there');
   ok(a.panel > 0 && a.panes.every((x) => x >= 190), `the panel (${a.panel} px, although 900 was asked for) leaves every part at least a line (${a.panes.join(' / ')} px)`);
+  const btn = await page.evaluate(() => { const g = (q, i) => { const e = document.querySelectorAll(q)[i]; const r = e.getBoundingClientRect(), c = getComputedStyle(e); return { w: Math.round(r.width), h: Math.round(r.height), round: c.borderRadius, shadow: c.boxShadow, left: Math.round(r.left), right: Math.round(window.innerWidth - r.right), bg: c.backgroundColor }; };
+    return { menu: g('.panemenu', 0), fs: g('.panefs', 0), pane: Math.round(document.querySelector('.pane').getBoundingClientRect().width) }; });
+  ok(btn.menu.w === btn.menu.h && btn.fs.w === btn.fs.h && /50%|19px|9999/.test(btn.menu.round), `the floating buttons are round (${btn.menu.w}x${btn.menu.h} / ${btn.fs.w}x${btn.fs.h})`);
+  ok(btn.menu.shadow === 'none' && btn.fs.shadow === 'none' && /rgba\(25, 120, 240/.test(btn.menu.bg), 'see-through blue glass, no glow behind them');
+  ok(btn.menu.left < 30 && btn.fs.right < 40, `the hands button is on the left, full screen on the right (${btn.menu.left}px from the left, ${btn.fs.right}px from the right)`);
+  await page.click('.panefs >> nth=0'); await page.waitForTimeout(700);
+  ok(await page.evaluate(() => document.getElementById('app').classList.contains('focusing') || !!document.querySelector('.pane.focused, .focused')), 'the right button puts that part on full screen');
+  await page.click('.panefs >> nth=0'); await page.waitForTimeout(500);
   await page.click('.panemenu >> nth=0'); await page.waitForTimeout(300);
-  ok(await page.evaluate(() => [...document.querySelectorAll('.panehead.open')].length) === 1 && await page.evaluate(() => { const o = document.querySelector('.panehead.open'); return !!o && o.getBoundingClientRect().width > 0; }), 'the button opens the hands / full-screen controls of that part as a floating menu');
+  ok(await page.evaluate(() => { const o = document.querySelector('.panehead.open'); return !!o && !o.querySelector('.focusbtn') || (o && getComputedStyle(o.querySelector('.focusbtn')).display === 'none'); }), 'the left button opens the hands of that part (without a second full-screen button)');
+  ok(await page.evaluate(() => { const o = document.querySelector('.panehead.open'); return !!o && o.getBoundingClientRect().width > 0; }), 'it is a floating menu');
   await page.screenshot({ path: D + 'game-fourhand-space.png' });
   // back to practice: the bars return
   await page.mouse.click(5, 300); await page.click('.modetoggle .seg[data-mode=practice]'); await page.waitForTimeout(500);

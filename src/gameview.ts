@@ -114,7 +114,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
 
   const resize = () => {
     const r = stage.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // at least twice the pixels: leaned back (CSS 3D) the browser re-samples the picture, and a picture drawn at 1x then looks soft
+    const dpr = Math.max(2, Math.min(2.5, window.devicePixelRatio || 1));
     W = Math.max(1, Math.round(r.width)); Hp = Math.max(1, Math.round(r.height));
     // The drawing is several times as tall as the panel: flat, only its lower part shows; leaned back (CSS 3D) the far end of the lane reaches the top
     // of the panel, so the notes come down from the very top instead of the picture just being folded.

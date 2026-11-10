@@ -2332,6 +2332,7 @@ function buildControls(
       document.querySelector(".splitwrap")?.classList.toggle("focusing", g !== null);
       document.querySelectorAll(".pane").forEach((pane, i) => pane.classList.toggle("focused", g === i));
       document.querySelectorAll(".focusbtn").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18), h("span", { class: "lbl" }, g === i ? "还原" : "全屏")));
+      document.querySelectorAll(".panefs").forEach((b, i) => b.replaceChildren(ic(g === i ? "restore" : "fullscreen", 18)));
       requestAnimationFrame(() => { relayout(); followView(); });
     };
     const collBtns: HTMLElement[] = [];
@@ -2345,8 +2346,9 @@ function buildControls(
       head.append(fold);
       head.append(h("button", { class: "focusbtn", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18), h("span", { class: "lbl" }, "全屏")));
       // a phone held sideways has no room for the part bars: they are hidden and this little button brings them up as a floating menu
-      const menu = h("button", { class: "panemenu icon", title: "这个声部的控制", onclick: (e: Event) => { e.stopPropagation(); document.querySelectorAll(".panehead.open").forEach((x) => x !== head && x.classList.remove("open")); head.classList.toggle("open"); } }, ic("sliders", 18));
-      head.parentElement?.append(menu);
+      const menu = h("button", { class: "panemenu icon", title: "这个声部的控制", onclick: (e: Event) => { e.stopPropagation(); document.querySelectorAll(".panehead.open").forEach((x) => x !== head && x.classList.remove("open")); head.classList.toggle("open"); } }, ic("hand", 18));
+      const fsBtn = h("button", { class: "panefs icon", title: "只看这个声部（全屏）。另一个声部仍然会发声", onclick: () => setFocus(focus === g ? null : g) }, ic("fullscreen", 18)); // (game view, four hands: the full-screen button of the part, on its own)
+      head.parentElement?.append(menu, fsBtn);
     });
     applyCollapse = () => {
       const on = player.partOn;
