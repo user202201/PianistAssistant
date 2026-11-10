@@ -43,7 +43,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.setViewportSize({ width: 1194, height: 834 }); await page.waitForTimeout(400);
   await page.click('.back'); await page.waitForSelector('.top .logo'); await page.waitForTimeout(400);
   await page.click('.top .logo'); p = await popup();
-  ok(p && p.title === '要关闭游戏模式吗？' && p.btns.length === 2, 'one tap on the note asks whether to switch it off (cancel / off)');
+  ok(p && p.title === '关闭游戏模式？' && p.btns.length === 2, 'one tap on the note asks whether to switch it off (cancel / off)');
   await page.click('dialog.popup button:not(.primary)'); await page.waitForTimeout(200);
   ok((await popup()) === null && await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'cancel: it stays on, no "off" message');
   await page.click('.top .logo'); await page.click('dialog.popup button.primary'); await page.waitForTimeout(300);

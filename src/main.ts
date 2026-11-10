@@ -733,7 +733,7 @@ function popup(title: string, text: string, confirmLabel?: string): Promise<bool
 let eggTaps = 0, eggLast = 0;
 function onLogoTap(rerender: () => void) {
   if (settings.gameMode) {
-    void popup("要关闭游戏模式吗？", "关闭后，乐谱页面顶部的“练习 / 游戏”开关会消失。", "关闭").then((yes) => {
+    void popup("关闭游戏模式？", "", "关闭").then((yes) => {
       if (!yes) return;
       settings.gameMode = false; settings.gameView = false; saveSettings(settings); applyGameTheme(); window.dispatchEvent(new Event("pianist-game"));
       void popup("游戏模式已关闭", "");
@@ -747,7 +747,7 @@ function onLogoTap(rerender: () => void) {
   if (eggTaps >= 10) {
     eggTaps = 0;
     settings.gameMode = true; saveSettings(settings);
-    void popup("游戏模式已开启", "打开任意一份琴谱，顶部会出现“练习 / 游戏”开关；切到游戏后，下方出现钢琴键盘和落下的音符（还在不断完善）。再点一下左上角的音符可以关闭。");
+    void popup("游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。");
   }
 }
 /** The practice / game switch at the top of a score screen (only when game mode is on). */
