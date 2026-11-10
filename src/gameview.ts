@@ -194,7 +194,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const yb = Math.min(y1, top);
       if (yb - y0 < 1) { if (e.sec <= t && t < end && t - e.sec < PULSE) { active.set(e.midi, colour(e)); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); } continue; }
       const col = colour(e);
-      const x = k.x + (k.black ? 1 : 2), w = k.w - (k.black ? 2 : 4);
+      const x = k.x + (k.black ? 1 : 2), w = Math.max(2, k.w - (k.black ? 2 : 4));
       const rr = (yy: number, hh: number, r2: number) => { ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(x, yy, w, Math.max(2, hh), r2) : ctx.rect(x, yy, w, Math.max(2, hh)); ctx.fill(); };
       const long = yb - y0 > 30; // a held note: a see-through body shows how long, a bright head at its START shows when to press
       ctx.shadowColor = col; ctx.shadowBlur = long ? 8 : 14;

@@ -880,3 +880,5 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamecompact .panehead .seg.pname.on { background: #19d3ff; }
 .gamecompact .panefs { position: absolute; top: 6px; right: 22px; z-index: 26; }
 :root[data-game="1"].gamecompact .panehead, :root[data-game="1"].gamecompact .panehead .pgroup { box-shadow: none; background: transparent; border: 0; }
+
+.gamecompact .pane.collapsed { display: none !important; } /* the part that is only the accompaniment is hidden completely: its little buttons would lie on top of the other part's */

@@ -31,6 +31,17 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await page.evaluate(() => document.getElementById('app').classList.contains('focusing') || !!document.querySelector('.pane.focused, .focused')), 'the right button puts that part on full screen');
   await page.click('.panefs >> nth=0'); await page.waitForTimeout(500);
   await page.screenshot({ path: D + 'game-fourhand-space.png' });
+  // the part button walks through the views: both -> this part alone -> the other part alone -> both
+  const view = () => page.evaluate(() => ({ on: window.__pianist.player.partOn.join(), panes: [...document.querySelectorAll('.pane')].filter((p) => p.getBoundingClientRect().height > 20 && getComputedStyle(p).display !== 'none').length, heads: [...document.querySelectorAll('.panehead')].filter((e) => e.getBoundingClientRect().width > 0 && getComputedStyle(e).display !== 'none').length, h: Math.round(document.querySelector('.pane:not(.collapsed)').getBoundingClientRect().height) }));
+  await page.evaluate(() => { window.__pianist.player.partOn = [true, true]; document.querySelectorAll('.pname')[0].click(); document.querySelectorAll('.pname')[0].click(); document.querySelectorAll('.pname')[1].click(); }); await page.waitForTimeout(500); // (reset to "both")
+  let v0 = await view();
+  ok(v0.on === 'true,true' && v0.panes === 2 && v0.heads === 2, `both parts: two panes, two sets of buttons (${v0.panes} / ${v0.heads})`);
+  await page.click('.pane >> nth=0 >> .pname'); await page.waitForTimeout(500); let v1 = await view();
+  ok(v1.on === 'false,true' && v1.panes === 1 && v1.heads === 1 && v1.h > 250, `tap A: A alone (you play A), B is hidden, one set of buttons, A gets the room (${v1.h}px)`);
+  await page.click('.pname >> nth=0'); await page.waitForTimeout(500); let v2 = await view();
+  ok(v2.on === 'true,false' && v2.panes === 1 && v2.heads === 1, 'tap again: B alone (A is the accompaniment, you play B)');
+  await page.click('.pname >> nth=1'); await page.waitForTimeout(500); let v3 = await view();
+  ok(v3.on === 'true,true' && v3.panes === 2 && v3.heads === 2, 'tap again: both parts again');
   // back to practice: the bars return
   await page.mouse.click(5, 300); await page.click('.modetoggle .seg[data-mode=practice]'); await page.waitForTimeout(500);
   a = await st(); ok(!a.compact && a.headVisible, 'practice view again: the part bars are back');

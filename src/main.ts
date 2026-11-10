@@ -1815,10 +1815,19 @@ function buildControls(
   /** Controls of one player (part): name = sound on/off, right hand, left hand. Used under each screen in split view. */
   interface PartUi { g: number; group: HTMLElement; snd: HTMLElement; b: HTMLElement; r: HTMLElement; l: HTMLElement }
   const partUi: PartUi[] = [];
+  let gameFirst = -1; // (game view) the part that was chosen first in the cycle of the part button
   function partControls(g: number): HTMLElement {
     const multi = score.parts.length > 1;
     const label = multi ? `${partLetter(g)} · ${score.parts[g]}` : score.parts[g];
     const snd = h("button", { class: "seg pname", title: "开/关这个声部的声音：你自己弹的那个声部，把它关掉", onclick: () => {
+      if (gameOn() && split && player.partOn.length === 2) {
+        // game view, four hands: ONE button walks through the views: both parts -> this part alone (it is the one you play, the other is only the accompaniment
+        // and hidden) -> the other part alone -> both again
+        const on = player.partOn;
+        if (on[0] && on[1]) { gameFirst = g; player.partOn = on.map((_, i) => i !== g); }
+        else { const alone = on[0] ? 1 : 0; player.partOn = alone === gameFirst ? on.map((_, i) => i === alone) : [true, true]; }
+        return sync();
+      }
       const onlyOne = player.partOn[g] && player.partOn.filter(Boolean).length === 1;
       if (onlyOne && player.partOn.length > 1) player.partOn = player.partOn.map((_, i) => i !== g); // the other part is off and this one is the only one on: SWAP (one tap instead of two)
       else player.partOn[g] = !player.partOn[g];
