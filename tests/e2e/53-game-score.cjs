@@ -127,9 +127,12 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const n = await page.evaluate(async () => { const ev = window.__ev; const out = [];
     for (let i = 0; i < 10; i++) { await window.__wait(ev[i].sec); window.__key(ev[i].midi); await new Promise((r) => setTimeout(r, 60)); window.__key(ev[i].midi, false); out.push(ev[i].midi); }
     window.__key(23); window.__key(23, false); window.__key(23); // two keys that belong to no note, at the same place
-    await new Promise((r) => setTimeout(r, 400)); window.__words = Number(document.querySelector('.gamepanel').dataset.popups);
+    const opac = () => Number(getComputedStyle(document.querySelector('.hudcombo')).opacity);
+    await new Promise((r) => setTimeout(r, 130)); window.__opMid = opac(); window.__comboTxt = document.querySelector('.hudcombo b').innerText;
+    await new Promise((r) => setTimeout(r, 300)); window.__words = Number(document.querySelector('.gamepanel').dataset.popups); await new Promise((r) => setTimeout(r, 450)); window.__opEnd = opac();
     return out; });
-  const st1 = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), combo: Number(document.querySelector('.hudcombo b').innerText) }; });
+  const st1 = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), combo: document.querySelector('.hudcombo').classList.contains('on') ? 1 : 0, mid: window.__opMid, end: window.__opEnd, txt: window.__comboTxt }; });
+  ok(st1.mid > 0.05 && st1.mid < 0.95 && st1.end === 0 && /^\d+$/.test(st1.txt) && Number(st1.txt) >= 9, `when the run breaks the combo fades out (opacity ${Number(st1.mid).toFixed(2)} after 130 ms, ${st1.end} at the end) and keeps its number while it goes (${st1.txt})`);
   const hNow = await page.evaluate(() => Math.round(document.querySelector('.hudcombobox').getBoundingClientRect().height));
   ok(hNow === hud0.h, `the score window keeps its size while the combo comes and goes (${hud0.h} -> ${hNow}px)`);
   ok(st1.score > 800 && st1.combo === 0, `ten keys struck on time are scored (${st1.score}); the stray keys broke the combo`);

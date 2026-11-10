@@ -111,7 +111,7 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
     scoreBox, comboBox, chip, setup, result,
     reset() { result.hidden = true; this.update({ score: 0, combo: 0, maxCombo: 0, perfect: 0, good: 0, early: 0, late: 0, miss: 0, wrong: 0, total: 0 }, 1); },
     update(s, a) {
-      void a; score.textContent = String(s.score); comboNum.textContent = String(s.combo); // (the accuracy is in the summary at the end)
+      void a; score.textContent = String(s.score); if (s.combo >= 2 || !s.score) comboNum.textContent = String(s.combo); // (when the run breaks the old number stays while it fades out) // (the accuracy is in the summary at the end)
       combo.classList.toggle("on", s.combo >= 2);
       combo.style.setProperty("--lv", String(Math.min(1, s.combo / 50))); // the glow of the combo grows with the run
     },

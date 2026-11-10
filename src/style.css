@@ -820,8 +820,9 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .hudscorebox .hudscore { font: 900 1.7rem/1 "Arial Black", Impact, system-ui, sans-serif; color: #fff; letter-spacing: .03em; font-variant-numeric: tabular-nums; paint-order: stroke fill; -webkit-text-stroke: 4px rgba(4, 10, 30, .88); text-shadow: 0 0 10px #19d3ff, 0 0 24px #1980ff; }
 .hudscorebox .hudscore.bump { animation: hudbump .28s ease-out; transform-origin: right center; }
 @keyframes hudbump { 0% { transform: scale(1.1); } 100% { transform: scale(1); } }
-.hudcombobox .hudcombo { display: flex; visibility: hidden; align-items: baseline; gap: 8px; font-weight: 800; color: #8fe9ff; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(4, 10, 30, .88); text-shadow: 0 0 calc(6px + 26px * var(--lv, 0)) rgba(25, 211, 255, .95); transform-origin: left center; }
-.hudcombobox .hudcombo.on { visibility: visible; }
+.hudcombobox .hudcombo { display: flex; visibility: hidden; opacity: 0; filter: blur(7px); transform: translateY(-10px) scale(1.25); transition: opacity .42s ease-out, filter .42s ease-out, transform .42s ease-out, visibility 0s .42s; align-items: baseline; gap: 8px; font-weight: 800; color: #8fe9ff; paint-order: stroke fill; -webkit-text-stroke: 3px rgba(4, 10, 30, .88); text-shadow: 0 0 calc(6px + 26px * var(--lv, 0)) rgba(25, 211, 255, .95); transform-origin: left center; }
+.hudcombobox .hudcombo.on { visibility: visible; opacity: 1; filter: none; transform: none; transition: opacity .12s, filter .12s, transform .12s, visibility 0s; } /* it comes at once and, when the run breaks, melts away like smoke (blurs, grows, rises, fades) */
+@media (prefers-reduced-motion: reduce) { .hudcombobox .hudcombo { transition: opacity .2s; filter: none; transform: none; } }
 .hudcombobox .hudcombo span { font-size: .8rem; letter-spacing: .14em; opacity: .9; }
 .hudcombobox .hudcombo b { min-width: 2ch; font: 900 1.5rem/1 "Arial Black", Impact, system-ui, sans-serif; }
 .hudcombobox .hudcombo.hit b { animation: hudcombohit .22s ease-out; }
