@@ -15,6 +15,7 @@ import { extractScore, mergeScores, toMusicXml } from "./score";
 import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
+import { createGameView } from "./gameview";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -734,7 +735,7 @@ function onLogoTap(rerender: () => void) {
   if (settings.gameMode) {
     void popup("要关闭游戏模式吗？", "关闭后，乐谱页面顶部的“练习 / 游戏”开关会消失。", "关闭").then((yes) => {
       if (!yes) return;
-      settings.gameMode = false; settings.gameView = false; saveSettings(settings); applyGameTheme();
+      settings.gameMode = false; settings.gameView = false; saveSettings(settings); applyGameTheme(); window.dispatchEvent(new Event("pianist-game"));
       void popup("游戏模式已关闭", "");
       rerender();
     });
@@ -746,7 +747,7 @@ function onLogoTap(rerender: () => void) {
   if (eggTaps >= 10) {
     eggTaps = 0;
     settings.gameMode = true; saveSettings(settings);
-    void popup("游戏模式已开启", "打开任意一份琴谱，顶部会出现“练习 / 游戏”开关。游戏界面还在制作中，目前只有这个开关。再点一下左上角的音符可以关闭。");
+    void popup("游戏模式已开启", "打开任意一份琴谱，顶部会出现“练习 / 游戏”开关；切到游戏后，下方出现钢琴键盘和落下的音符（还在不断完善）。再点一下左上角的音符可以关闭。");
   }
 }
 /** The practice / game switch at the top of a score screen (only when game mode is on). */
@@ -754,10 +755,9 @@ function modeToggle(): HTMLElement | null {
   if (!settings.gameMode) return null;
   const mk = (game: boolean, label: string) => h("button", { class: "seg" + (settings.gameView === game ? " on" : ""), "data-mode": game ? "game" : "practice", onclick: (e: Event) => {
     if (settings.gameView === game) return;
-    settings.gameView = game; saveSettings(settings); applyGameTheme();
+    settings.gameView = game; saveSettings(settings); applyGameTheme(); window.dispatchEvent(new Event("pianist-game"));
     const g = (e.currentTarget as HTMLElement).parentElement!;
     g.querySelectorAll(".seg").forEach((b) => b.classList.toggle("on", (b as HTMLElement).dataset.mode === (game ? "game" : "practice")));
-    if (game) toast("游戏界面还在制作中，现在只有这个开关。");
   } }, label);
   return h("div", { class: "group modetoggle" }, mk(false, "练习"), mk(true, "游戏"));
 }
@@ -2317,6 +2317,16 @@ function buildControls(
   }
   if (strip) app.querySelector(".top")?.after(strip);
   app.append(bar);
+  // the game panel (falling notes + keyboard) sits between the score and the bottom bar while the Game switch is on
+  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角") });
+  const syncGame = () => {
+    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); gv.destroy(); return; }
+    gv.el.hidden = !(settings.gameMode && settings.gameView);
+    gv.setTilt(settings.gameTilt);
+  };
+  bar.before(gv.el);
+  window.addEventListener("pianist-game", syncGame);
+  syncGame();
   refreshMore();
   try {
     if (!localStorage.getItem("pianist.tap.hint")) {

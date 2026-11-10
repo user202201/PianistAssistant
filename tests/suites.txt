@@ -52,3 +52,4 @@
 48-settings-one-heading
 49-sort-lists
 50-game-mode-egg
+51-game-view

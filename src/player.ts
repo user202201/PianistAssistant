@@ -80,6 +80,8 @@ export class Player {
     return this.startPos + (this.ctx.currentTime - this.startAudio) * this.speed;
   }
 
+  /** is this note sounding with the current part / hand choice (the game view shows only these) */
+  isAudible(e: NoteEvent): boolean { return this.audible(e); }
   private audible(e: NoteEvent): boolean {
     if (!this.partOn[e.part]) return false;
     if (this.score.staffCounts[e.part] < 2) return true; // hand split only for 2-staff parts

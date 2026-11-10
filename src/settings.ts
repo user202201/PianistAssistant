@@ -36,12 +36,14 @@ export interface Settings {
   gameMode: boolean;
   /** with game mode on: the score screen shows the game view (true) or the practice view (false) */
   gameView: boolean;
+  /** game view: the keyboard leans back into perspective (3D) instead of the flat view */
+  gameTilt: boolean;
 }
 const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false });
 
 export function loadSettings(): Settings {
   try {

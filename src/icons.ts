@@ -28,6 +28,8 @@ const STROKE: Record<string, string> = {
   hand: '<path d="M8 13V6a1.5 1.5 0 0 1 3 0v5m0-6a1.5 1.5 0 0 1 3 0v6m0-4a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-3-5a1.5 1.5 0 0 1 2.5-1.6L8 15"/>',
   qr: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2v2h-2zM18 14h2M14 18h2M18 18v2h2"/>',
   sort: '<path d="M7 4v16M7 20l-3-3M7 20l3-3M17 20V4M17 4l-3 3M17 4l3 3"/>',
+  'keys-flat': '<rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M9 13v7M15 13v7M7 4v5M12 4v5M17 4v5"/>',
+  'keys-tilt': '<path d="M7 6h10l4 14H3z"/><path d="M9.5 13l-1.5 7M14.5 13l1.5 7M5 13h14"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
   warning: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17h.01"/>',
 };
