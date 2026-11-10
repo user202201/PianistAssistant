@@ -734,7 +734,7 @@ function onLogoTap(rerender: () => void) {
   if (settings.gameMode) {
     void popup("要关闭游戏模式吗？", "关闭后，乐谱页面顶部的“练习 / 游戏”开关会消失。", "关闭").then((yes) => {
       if (!yes) return;
-      settings.gameMode = false; settings.gameView = false; saveSettings(settings);
+      settings.gameMode = false; settings.gameView = false; saveSettings(settings); applyGameTheme();
       void popup("游戏模式已关闭", "");
       rerender();
     });
@@ -754,7 +754,7 @@ function modeToggle(): HTMLElement | null {
   if (!settings.gameMode) return null;
   const mk = (game: boolean, label: string) => h("button", { class: "seg" + (settings.gameView === game ? " on" : ""), "data-mode": game ? "game" : "practice", onclick: (e: Event) => {
     if (settings.gameView === game) return;
-    settings.gameView = game; saveSettings(settings);
+    settings.gameView = game; saveSettings(settings); applyGameTheme();
     const g = (e.currentTarget as HTMLElement).parentElement!;
     g.querySelectorAll(".seg").forEach((b) => b.classList.toggle("on", (b as HTMLElement).dataset.mode === (game ? "game" : "practice")));
     if (game) toast("游戏界面还在制作中，现在只有这个开关。");
@@ -2791,7 +2791,13 @@ async function renderPdf(name: string) {
   }
 }
 
+/** The neon look of the game view: on only while a score is open and the Game switch is on. */
+function applyGameTheme(onScore = /^#\/(score|duet)\//.test(location.hash)) {
+  if (settings.gameMode && settings.gameView && onScore) document.documentElement.dataset.game = "1";
+  else delete document.documentElement.dataset.game;
+}
 function route() {
+  applyGameTheme();
   if (location.hash.startsWith("#/link/")) return void signInFromLink(location.hash);
   if (!api.getAuth() && !api.isLocal()) return renderLogin();
   const d = location.hash.match(/^#\/duet\/([^/]+)\/([^/]+)$/);

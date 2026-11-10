@@ -35,4 +35,6 @@ A **练习 / 游戏 (Practice / Game) toggle** in the empty middle of the top ba
 - **Scoring (timing is what matters)**: each expected note has a time window; Perfect ≤ 60 ms, Good ≤ 120 ms, Late/Early ≤ 250 ms, else Miss; wrong key = wrong note. Combo, accuracy %, stars at the end, per-measure result. Chords: all notes of the chord within the window. Hands: choose right / left / both (the existing hand switch decides which notes count).
 - **Input order**: (1) touch keyboard (works on every device, testable in Playwright with fake touches), (2) Web MIDI keyboard (desktop/Android), (3) microphone (item 3, hard, real-device only).
 - **Steps**: A) keyboard component + falling-note canvas, auto-play only (no scoring) → B) touch input + scoring + result screen → C) MIDI → D) microphone. Each step with a test; new texts in 6 languages; layout suites for phone/tablet.
+- **Done so far (step 0/1):** hidden switch-on (10 taps on the note, popups), Practice/Game switch in the score top bar, neon game theme (`:root[data-game="1"]`: fluorescent blue + glow).
+- **Hands**: the hand choice (both / right / left, per pane for four hands) stays in game mode and decides which notes fall / count.
 - Open question: names for the screens ("Practice" / "Game"; the falling-note view "Waterfall").

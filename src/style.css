@@ -712,3 +712,28 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
   .top.compact .modetoggle { order: 10; flex: 1 0 100%; margin: 0 0 4px; display: flex; }
   .top.compact .modetoggle .seg { flex: 1 1 0; min-height: 36px; }
 }
+
+/* GAME THEME: with the Game switch on, the whole screen turns into a dark neon look: fluorescent blue accent with a glow on everything that is active */
+:root[data-game="1"] {
+  color-scheme: dark;
+  --bg: #04060f; --surface: #0a1226; --bar: rgba(6, 12, 30, .86); --bar-strong: rgba(6, 12, 30, .97);
+  --fill: rgba(60, 140, 255, .14); --fill-2: rgba(60, 140, 255, .26); --sep: rgba(60, 170, 255, .28);
+  --text: #e8f4ff; --muted: rgba(160, 200, 255, .66);
+  --accent: #19d3ff; --accent-soft: rgba(25, 211, 255, .16); --on-accent: #021019;
+  --glow: 0 0 6px rgba(25, 211, 255, .85), 0 0 18px rgba(25, 211, 255, .55), 0 0 36px rgba(25, 140, 255, .35);
+  --glow-soft: 0 0 10px rgba(25, 211, 255, .35), inset 0 0 0 1px rgba(25, 211, 255, .45);
+  --shadow: 0 0 0 1px rgba(25, 211, 255, .25), 0 0 22px rgba(25, 140, 255, .22);
+}
+:root[data-game="1"] body { background: radial-gradient(120% 70% at 50% 0%, #0a1f4d 0%, #04060f 62%) fixed; }
+:root[data-game="1"] .top { border-bottom: 1px solid rgba(25, 211, 255, .55); box-shadow: 0 2px 22px rgba(25, 211, 255, .3); }
+:root[data-game="1"] .top h1 { text-shadow: 0 0 10px rgba(25, 211, 255, .7); }
+:root[data-game="1"] button.primary, :root[data-game="1"] .seg.on, :root[data-game="1"] .play { box-shadow: var(--glow); }
+:root[data-game="1"] .seg.on, :root[data-game="1"] .tabblob { color: var(--on-accent); }
+:root[data-game="1"] .group, :root[data-game="1"] .handstrip, :root[data-game="1"] .controls, :root[data-game="1"] .panehead { box-shadow: var(--glow-soft); }
+:root[data-game="1"] button.icon, :root[data-game="1"] .back { box-shadow: var(--glow-soft); color: var(--accent); }
+:root[data-game="1"] input[type=range] { filter: drop-shadow(0 0 5px rgba(25, 211, 255, .8)); }
+:root[data-game="1"] .scorewrap, :root[data-game="1"] .viewbox, :root[data-game="1"] .splitwrap .pane { box-shadow: 0 0 0 1px rgba(25, 211, 255, .45), 0 0 30px rgba(25, 140, 255, .3); }
+:root[data-game="1"] .toast { box-shadow: var(--glow-soft); }
+@media (prefers-reduced-motion: no-preference) { :root[data-game="1"] body, :root[data-game="1"] .top, :root[data-game="1"] .controls { transition: background .4s, box-shadow .4s; } }
+:root[data-game="1"] .flayer { color: #0b0b0f; } /* the sheet stays white: the fingering numbers keep dark ink */
+:root[data-game="1"] .fbadge.xml { color: #0b0b0f; }

@@ -22,6 +22,17 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(t.texts.join('|') === '练习|游戏' && t.on === 'practice' && t.afterTitle && t.inBar, `a "Practice / Game" switch in the top bar after the title (${t.texts.join(' ')}; on: ${t.on})`);
   await page.click('.modetoggle .seg[data-mode=game]'); await page.waitForTimeout(300);
   ok(await page.evaluate(() => document.querySelector('.modetoggle .on').dataset.mode) === 'game' && await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameView) === true, 'the switch changes to "Game" and is remembered');
+  const theme = () => page.evaluate(() => ({ game: document.documentElement.dataset.game, accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(), glow: getComputedStyle(document.querySelector('.modetoggle .on')).boxShadow }));
+  const gt = await theme(); await page.screenshot({ path: D + 'game-theme.png' });
+  ok(gt.game === '1' && gt.accent === '#19d3ff' && /rgba?\(25, 211, 255/.test(gt.glow), 'Game: the whole screen turns fluorescent blue with a glow (' + gt.accent + ')');
+  ok(await page.evaluate(() => { const b = document.querySelector('.fbadge.xml'); return !b || getComputedStyle(b).color === 'rgb(11, 11, 15)'; }), 'the fingering numbers keep dark ink on the white sheet');
+  ok(await page.evaluate(() => [...document.querySelectorAll('.handstrip .hand')].length === 3), 'the hand choice (both / right / left) stays in the game view');
+  await page.click('.modetoggle .seg[data-mode=practice]'); await page.waitForTimeout(200);
+  const pt = await theme(); ok(pt.game === undefined && pt.accent !== '#19d3ff', 'Practice: the normal colours are back');
+  await page.click('.modetoggle .seg[data-mode=game]'); await page.click('.back'); await page.waitForSelector('.top .logo');
+  ok((await theme().catch(() => ({ game: 'x' }))).game === undefined || await page.evaluate(() => document.documentElement.dataset.game === undefined), 'back on the home screen the normal colours are shown even if Game was left on');
+  await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.modetoggle'); await page.waitForTimeout(500);
+  ok(await page.evaluate(() => document.documentElement.dataset.game === '1'), 'opening a score again: still the Game view (remembered)');
   await page.click('.modetoggle .seg[data-mode=practice]');
   await page.setViewportSize({ width: 360, height: 700 }); await page.waitForTimeout(600);
   const ph = await page.evaluate(() => { const r = document.querySelector('.modetoggle').getBoundingClientRect(), t = document.querySelector('.top h1').getBoundingClientRect(); return { inside: r.left >= 0 && r.right <= 360, below: r.top >= t.bottom - 1, noScroll: document.documentElement.scrollWidth <= 360 }; });
