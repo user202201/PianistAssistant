@@ -43,7 +43,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   canvas.className = "gcanvas";
   const stage = document.createElement("div");
   stage.className = "gstage";
-  stage.append(canvas);
+  const fx = document.createElement("canvas"); // words and banners: drawn upright on top, whatever the angle of the lane
+  fx.className = "gfx";
+  stage.append(canvas, fx);
   const tiltBtn = document.createElement("button");
   tiltBtn.className = "icon gtilt";
   const el = document.createElement("section");
@@ -89,7 +91,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   for (let m = lo; m <= hi; m++) if (!isBlack(m)) whites.push(m);
   const whiteIndex = new Map(whites.map((m, i) => [m, i]));
 
-  let tilt = opts.tilt, raf = 0, W = 0, H = 0, Hp = 0, dead = false;
+  let tilt = opts.tilt, raf = 0, W = 0, H = 0, Hp = 0, persp = 600, dead = false;
   setTimeout(() => syncMode(), 0);
   const apply = () => {
     el.classList.toggle("tilt", tilt);
@@ -113,8 +115,11 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     for (let i = 0; i < 30; i++) { const m = (lo2 + hi2) / 2, rad = (m * Math.PI) / 180; if (K * (2.5 * Math.cos(rad) - Math.sin(rad)) > 2.5) lo2 = m; else hi2 = m; }
     el.style.setProperty("--persp", `${Math.round(Hp * 2.5)}px`);
     el.style.setProperty("--tiltdeg", `${((lo2 + hi2) / 2).toFixed(1)}deg`);
+    persp = Hp * 2.5;
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     canvas.getContext("2d")!.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fx.width = Math.round(W * dpr); fx.height = Math.round(Hp * dpr);
+    fx.getContext("2d")!.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
   const ro = new ResizeObserver(resize);
   ro.observe(stage);
@@ -241,17 +246,24 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
     ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
+    // words and banners go on a second canvas that is never tilted: the lane's point is projected to where it appears on the screen
+    const fctx = fx.getContext("2d")!;
+    fctx.clearRect(0, 0, W, Hp);
+    let mtx: DOMMatrix;
+    try { mtx = new DOMMatrix(getComputedStyle(canvas).transform); } catch { mtx = new DOMMatrix(); }
+    const project = (x: number, y: number) => { const q = mtx.transformPoint(new DOMPoint(x - W / 2, y - H, 0, 1)); const sc = persp / (persp - q.z); return { x: W / 2 + q.x * sc, y: Hp + q.y * sc }; };
     for (let i = popups.length - 1; i >= 0; i--) { // judgement words rise from the key and fade (a Miss goes quickly)
       const p = popups[i]; p.t += dt; const u = p.t / p.life; if (u >= 1) { popups.splice(i, 1); continue; }
-      ctx.save(); ctx.globalAlpha = Math.min(1, (1 - u) * 1.6); ctx.font = `900 ${Math.round(17 + (1 - u) * 6)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.shadowColor = p.col; ctx.shadowBlur = 14; ctx.fillStyle = p.col;
-      ctx.fillText(p.text, Math.max(40, Math.min(W - 40, p.x)), top - 18 - u * 50); ctx.restore();
+      const q = project(Math.max(30, Math.min(W - 30, p.x)), top - 14 - u * 40);
+      fctx.save(); fctx.globalAlpha = Math.min(1, (1 - u) * 1.6); fctx.font = `800 ${Math.round(12 + (1 - u) * 3)}px system-ui, sans-serif`; fctx.textAlign = "center"; fctx.shadowColor = p.col; fctx.shadowBlur = 10; fctx.fillStyle = p.col;
+      fctx.fillText(p.text, q.x, q.y); fctx.restore();
     }
-    for (let i = banners.length - 1; i >= 0; i--) { // the big combo banner in the middle of the lane
+    for (let i = banners.length - 1; i >= 0; i--) { // the big combo banner in the middle of the panel
       const b = banners[i]; b.t += dt; const u = b.t / 1.3; if (u >= 1) { banners.splice(i, 1); continue; }
       const grow = u < 0.18 ? 0.5 + (u / 0.18) * 0.7 : 1.2 - (u - 0.18) * 0.25;
-      ctx.save(); ctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3; ctx.translate(W / 2, top - (Hp - kh0) * 0.55); ctx.scale(grow, grow);
-      ctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.shadowColor = b.col; ctx.shadowBlur = 30; ctx.lineWidth = 3; ctx.strokeStyle = "#fff"; ctx.strokeText(b.text, 0, 0); ctx.fillStyle = b.col; ctx.fillText(b.text, 0, 0); ctx.restore();
+      fctx.save(); fctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3; fctx.translate(W / 2, Hp * 0.4); fctx.scale(grow, grow);
+      fctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; fctx.textAlign = "center"; fctx.textBaseline = "middle";
+      fctx.shadowColor = b.col; fctx.shadowBlur = 30; fctx.lineWidth = 3; fctx.strokeStyle = "#fff"; fctx.strokeText(b.text, 0, 0); fctx.fillStyle = b.col; fctx.fillText(b.text, 0, 0); fctx.restore();
     }
     el.dataset.banners = String(banners.length); el.dataset.popups = String(popups.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
