@@ -16,6 +16,8 @@ export interface GameView {
   /** score mode: nothing is played or lit by itself, the player\'s own keys light up */
   setScoring(on: boolean): void;
   judge(j: Judgement): void;
+  /** a run broke: the number bursts into soft light and shards that fly apart (x, y in panel pixels) */
+  shatter(x: number, y: number): void;
   /** a long combo: a big banner and rings of light across the lane */
   milestone(combo: number): void;
   press(midi: number, colour: string): void;
@@ -150,6 +152,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   const pressed = new Map<number, string>(); // keys the player holds (score mode)
   const popups: { x: number; text: string; col: string; t: number; life: number; lift: number; liftTo: number }[] = [];
   const banners: { text: string; col: string; t: number }[] = [];
+  const bits: { x: number; y: number; vx: number; vy: number; t: number; life: number; r: number; col: string; shard: boolean; a: number; va: number }[] = [];
   let geo = { ww: 20, top: 100 };
   const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
   let prevActive = new Map<number, string>(), last = 0;
@@ -269,6 +272,15 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       fctx.save(); fctx.globalAlpha = Math.min(1, (1 - u) * 1.6); fctx.font = `800 ${Math.round(12 + (1 - u) * 3)}px system-ui, sans-serif`; fctx.textAlign = "center"; fctx.shadowColor = p.col; fctx.shadowBlur = 10; fctx.fillStyle = p.col;
       fctx.fillText(p.text, q.x, q.y); fctx.restore();
     }
+    fctx.globalCompositeOperation = "lighter";
+    for (let i = bits.length - 1; i >= 0; i--) { // the broken combo: soft lights and shards that fly apart and fade
+      const b = bits[i]; b.t += dt; if (b.t >= b.life) { bits.splice(i, 1); continue; }
+      b.vx *= 1 - 1.6 * dt; b.vy = b.vy * (1 - 1.6 * dt) + 90 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.va * dt;
+      const u = b.t / b.life;
+      if (b.shard) { fctx.save(); fctx.translate(b.x, b.y); fctx.rotate(b.a); fctx.globalAlpha = 1 - u; fctx.fillStyle = b.col; fctx.shadowColor = b.col; fctx.shadowBlur = 8; fctx.fillRect(-b.r, -1.5, b.r * 2, 3); fctx.restore(); }
+      else { const rr = b.r * (1 + u * 1.4), g = fctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, rr); g.addColorStop(0, b.col + Math.round((1 - u) * 150).toString(16).padStart(2, "0")); g.addColorStop(1, b.col + "00"); fctx.fillStyle = g; fctx.fillRect(b.x - rr, b.y - rr, rr * 2, rr * 2); }
+    }
+    fctx.globalCompositeOperation = "source-over";
     for (let i = banners.length - 1; i >= 0; i--) { // the big combo banner in the middle of the panel
       const b = banners[i]; b.t += dt; const u = b.t / 1.3; if (u >= 1) { banners.splice(i, 1); continue; }
       const grow = u < 0.18 ? 0.5 + (u / 0.18) * 0.7 : 1.2 - (u - 0.18) * 0.25;
@@ -276,7 +288,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       fctx.font = `900 ${Math.round(Math.min(64, Math.max(30, W / 9)))}px "Arial Black", Impact, system-ui, sans-serif`; fctx.textAlign = "center"; fctx.textBaseline = "middle";
       fctx.shadowColor = b.col; fctx.shadowBlur = 30; fctx.lineWidth = 3; fctx.strokeStyle = "#fff"; fctx.strokeText(b.text, 0, 0); fctx.fillStyle = b.col; fctx.fillText(b.text, 0, 0); fctx.restore();
     }
-    el.dataset.banners = String(banners.length); el.dataset.popups = String(popups.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
+    el.dataset.banners = String(banners.length); el.dataset.bits = String(bits.length); el.dataset.popups = String(popups.length); el.dataset.sparks = String(sparks.length); el.dataset.lit = [...active.keys()].join(","); el.dataset.ring = [...ring.keys()].join(",");
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
     raf = requestAnimationFrame(draw);
@@ -300,6 +312,12 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const col = n >= 100 ? "#ff4fd8" : n >= 50 ? "#ffd60a" : n >= 25 ? "#7dff6b" : "#19d3ff";
       banners.push({ text: `${n} COMBO!`, col, t: 0 });
       for (let i = 1; i <= 4; i++) flares.push({ x: (W * i) / 5, y: geo.top, t: -0.05 * i, col, w: Math.max(W / 4, 80) }); // rings of light across the lane
+    },
+    shatter(x, y) {
+      for (let i = 0; i < 34; i++) {
+        const a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 240, shard = i % 3 === 0;
+        bits.push({ x: x + (Math.random() - 0.5) * 26, y: y + (Math.random() - 0.5) * 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, t: 0, life: 0.55 + Math.random() * 0.6, r: shard ? 5 + Math.random() * 7 : 8 + Math.random() * 14, col: i % 4 === 0 ? "#ffffff" : i % 4 === 1 ? "#8fe9ff" : i % 4 === 2 ? "#b79cff" : "#19d3ff", shard, a: Math.random() * 6.28, va: (Math.random() - 0.5) * 14 });
+      }
     },
     press(m, col) { pressed.set(m, col); },
     release(m) { pressed.delete(m); },
