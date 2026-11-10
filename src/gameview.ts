@@ -112,7 +112,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     // find the first event that could still be visible
     let a = 0, b = events.length;
     while (a < b) { const mid = (a + b) >> 1; if (events[mid].sec < t - 6) a = mid + 1; else b = mid; }
-    const active = new Map<number, string>();
+    const active = new Map<number, string>(); const age = new Map<number, number>(); // age: seconds since the key was struck
     const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now;
     for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
       const e = events[i];
@@ -123,16 +123,17 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const y1 = top - ((e.sec - t) / WINDOW) * top; // bottom edge (start of the note)
       const y0 = Math.max(-20, top - ((end - t) / WINDOW) * top);
       const yb = Math.min(y1, top);
-      if (yb - y0 < 1) { if (e.sec <= t && t < end) active.set(e.midi, colour(e)); continue; }
+      if (yb - y0 < 1) { if (e.sec <= t && t < end) { active.set(e.midi, colour(e)); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); } continue; }
       const col = colour(e);
       const x = k.x + (k.black ? 1 : 2), w = k.w - (k.black ? 2 : 4);
-      ctx.shadowColor = col; ctx.shadowBlur = 14;
-      const g = ctx.createLinearGradient(0, y0, 0, yb); g.addColorStop(0, col + "55"); g.addColorStop(1, col);
-      ctx.fillStyle = g;
-      const r = Math.min(8, w / 2, (yb - y0) / 2);
-      ctx.beginPath(); (ctx as CanvasRenderingContext2D & { roundRect?: (...a: number[]) => void }).roundRect ? (ctx as any).roundRect(x, y0, w, Math.max(2, yb - y0), r) : ctx.rect(x, y0, w, Math.max(2, yb - y0)); ctx.fill();
+      const rr = (yy: number, hh: number, r2: number) => { ctx.beginPath(); (ctx as any).roundRect ? (ctx as any).roundRect(x, yy, w, Math.max(2, hh), r2) : ctx.rect(x, yy, w, Math.max(2, hh)); ctx.fill(); };
+      const long = yb - y0 > 30; // a held note: a see-through body shows how long, a bright head at its START shows when to press
+      ctx.shadowColor = col; ctx.shadowBlur = long ? 8 : 14;
+      if (long) { const g = ctx.createLinearGradient(0, y0, 0, yb); g.addColorStop(0, col + "22"); g.addColorStop(1, col + "66"); ctx.fillStyle = g; rr(y0, yb - y0, Math.min(8, w / 2)); }
+      const headH = long ? Math.min(22, yb - y0) : yb - y0;
+      ctx.shadowBlur = 16; ctx.fillStyle = col; rr(yb - headH, headH, Math.min(8, w / 2, headH / 2));
       ctx.shadowBlur = 0;
-      if (e.sec <= t && t < end) active.set(e.midi, col);
+      if (e.sec <= t && t < end) { active.set(e.midi, col); age.set(e.midi, Math.min(age.get(e.midi) ?? 99, t - e.sec)); }
     }
     // the keyboard
     ctx.shadowBlur = 0;
@@ -141,9 +142,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
         if (isBlack(m) !== black) continue;
         const k = keyBox(m, ww, kh); const on = active.get(m);
         const h = black ? kh * 0.62 : kh;
-        if (on) { ctx.shadowColor = on; ctx.shadowBlur = 26; }
+        if (on) { ctx.shadowColor = on; ctx.shadowBlur = (age.get(m) ?? 0) < 0.2 ? 28 : 12; }
         const g = ctx.createLinearGradient(0, top, 0, top + h);
-        if (on) { g.addColorStop(0, on); g.addColorStop(1, on + "99"); }
+        if (on) { const fresh = (age.get(m) ?? 0) < 0.2; g.addColorStop(0, fresh ? on : on + "cc"); g.addColorStop(1, fresh ? on + "99" : on + "55"); }
         else if (black) { g.addColorStop(0, "#1a2340"); g.addColorStop(1, "#05070f"); }
         else { g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#c9d6ee"); }
         ctx.fillStyle = g;

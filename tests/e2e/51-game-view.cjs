@@ -57,6 +57,17 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const pedal = await page.evaluate(async () => { const g = await import('/PianistAssistant/src/gameview.ts'); const ev = window.__pianist.player.score.events;
     const long = ev.filter((e) => e.dur > e.dur0 * 1.5); return { n: long.length, ok: long.every((e) => Math.abs(g.noteLength(e) - Math.max(e.dur0, 0.12)) < 1e-9), maxSound: Math.max(0, ...long.map((e) => e.dur)), maxShown: Math.max(0, ...long.map((e) => g.noteLength(e))) }; });
   ok(pedal.n > 0 && pedal.ok && pedal.maxShown < pedal.maxSound, `pedal: notes are shown as written (${pedal.maxShown.toFixed(2)} s), not as long as they ring (${pedal.maxSound.toFixed(2)} s), ${pedal.n} notes checked`);
+  // held notes: bright head at the start (when to press), see-through body (how long); a struck key is bright first, softer while held
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameView = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
+  await page.reload(); await page.waitForSelector('.gamepanel:not([hidden])', { timeout: 20000 }); await page.waitForTimeout(1800);
+  const lit2 = () => page.evaluate(() => { const c = document.querySelector('.gcanvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 16) if (d[i + 3] > 200 && d[i + 2] > 230 && d[i + 1] > 190 && d[i] < 60) n++; return n; });
+  const sec0 = await page.evaluate(() => { const p = window.__pianist.player; const e = p.score.events.find((x) => x.dur0 >= 1); p.paused = e.sec + 0.05; return e.sec; });
+  await page.waitForTimeout(300); const fresh = await lit2();
+  await page.evaluate((x) => { window.__pianist.player.paused = x + 0.8; }, sec0); await page.waitForTimeout(300); const held = await lit2();
+  ok(fresh > held, `a struck key is fully bright, then softer while it is held (${fresh} -> ${held} bright px)`);
+  await page.evaluate((x) => { window.__pianist.player.paused = x - 1.2; }, sec0); await page.waitForTimeout(400);
+  const pk = await page.evaluate(() => { const p = document.querySelector('.peek'), g = document.querySelector('.gamepanel').getBoundingClientRect(); return !p || getComputedStyle(p).display === 'none' || p.getBoundingClientRect().bottom <= g.top + 1; });
+  ok(pk, 'the "next line" preview never covers the game panel');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForTimeout(2000);
   // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...
   await page.click('.modetoggle .seg[data-mode=practice]'); await page.setViewportSize({ width: 1194, height: 700 }); await page.waitForTimeout(500);

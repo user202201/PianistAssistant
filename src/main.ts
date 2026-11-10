@@ -2067,7 +2067,8 @@ function buildControls(
     // score area it floats over the control bar, which is not needed while playing
     const y = Math.max(0, boxes[i].top + boxes[i].h - vTop + 4);
     const wr = v.wrap.getBoundingClientRect();
-    const room = window.innerHeight - 6 - (wr.top + y); // only ever used alone: it may float over the control bar
+    const gp = document.querySelector(".gamepanel:not([hidden])"); // the game panel is not to be covered
+    const room = (gp ? gp.getBoundingClientRect().top : window.innerHeight) - 6 - (wr.top + y); // only ever used alone: it may float over the control bar
     const S = 0.85; // drawn a little smaller: it only has to be readable, and it covers less
     // what is drawn above the staves (bar numbers, high notes, fingering) lies outside the system box: start higher
     const pad = 6; // the boxes are exact now (they include what is drawn above / below the staves)
