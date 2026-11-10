@@ -16,7 +16,7 @@ export interface GameView {
 const WINDOW = 3; // seconds of score shown above the keyboard
 const RIGHT = "#19d3ff", LEFT = "#7dff6b";
 
-export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string }): GameView {
+export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void }): GameView {
   const canvas = document.createElement("canvas");
   canvas.className = "gcanvas";
   const stage = document.createElement("div");
@@ -26,7 +26,24 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   tiltBtn.className = "icon gtilt";
   const el = document.createElement("section");
   el.className = "gamepanel";
-  el.append(stage, tiltBtn);
+  const grip = document.createElement("div");
+  grip.className = "ggrip"; grip.setAttribute("role", "separator");
+  el.append(stage, tiltBtn, grip);
+  // The panel height: default a little more than the keyboard; the user drags the top edge. Never lower than the keyboard plus a strip of the coming notes.
+  const MINH = 150;
+  const maxH = () => Math.max(MINH, Math.round(window.innerHeight * 0.6));
+  const defH = () => Math.max(MINH, Math.min(250, Math.round(window.innerHeight * 0.3)));
+  const setH = (px: number) => { el.style.height = `${Math.max(MINH, Math.min(maxH(), Math.round(px)))}px`; };
+  const applyH = () => setH(opts.height() || defH());
+  applyH();
+  window.addEventListener("resize", applyH);
+  grip.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); grip.setPointerCapture(e.pointerId);
+    const y0 = e.clientY, h0 = el.getBoundingClientRect().height;
+    const move = (ev: PointerEvent) => setH(h0 + (y0 - ev.clientY));
+    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); opts.onHeight(Math.round(el.getBoundingClientRect().height)); };
+    grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+  });
 
   const events = [...score.events].sort((a, b) => a.sec - b.sec);
   let lo = 60, hi = 72;
@@ -67,14 +84,25 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   }
   const colour = (e: NoteEvent) => (e.staff % 2 === 0 ? RIGHT : LEFT);
 
-  function draw() {
+  // sparks: when a key is struck a flare and a burst of sparks fly up from it; a held key keeps trickling a few; a soft beam stands above a sounding key
+  interface Spark { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; col: string }
+  const sparks: Spark[] = [];
+  const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
+  let prevActive = new Map<number, string>(), last = 0;
+  const emit = (x: number, y: number, col: string, n: number, spread = 1) => {
+    for (let i = 0; i < n && sparks.length < 500; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2 * spread, sp = 50 + Math.random() * 190;
+      sparks.push({ x: x + (Math.random() - 0.5) * 10, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0, max: 0.45 + Math.random() * 0.7, size: 1.2 + Math.random() * 2.6, col });
+    }
+  };
+  function draw(now = 0) {
     if (dead) return;
     if (!el.isConnected) { raf = requestAnimationFrame(draw); return; }
     if (!W || !H) resize();
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, W, H);
     const t = player.position();
-    const ww = W / whites.length, kh = Math.min(H * 0.3, 120), top = H - kh;
+    const ww = W / whites.length, kh = Math.min(H * 0.56, 112), top = H - kh;
     // octave guide lines
     ctx.lineWidth = 1; ctx.strokeStyle = "rgba(25,211,255,.13)";
     for (const m of whites) if (m % 12 === 0 || m % 12 === 5) { const x = (whiteIndex.get(m) ?? 0) * ww; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, top); ctx.stroke(); }
@@ -82,6 +110,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     let a = 0, b = events.length;
     while (a < b) { const mid = (a + b) >> 1; if (events[mid].sec < t - 6) a = mid + 1; else b = mid; }
     const active = new Map<number, string>();
+    const dt = Math.min(0.05, last ? (now - last) / 1000 : 0.016); last = now;
     for (let i = a; i < events.length && events[i].sec <= t + WINDOW; i++) {
       const e = events[i];
       if (e.midi < lo || e.midi > hi || !player.isAudible(e)) continue;
@@ -120,6 +149,33 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       }
     };
     draws(false); draws(true);
+    // effects
+    const playing = player.playing;
+    ctx.globalCompositeOperation = "lighter";
+    for (const [m, col] of active) {
+      const k = keyBox(m, ww, kh), cx = k.x + k.w / 2;
+      const g = ctx.createLinearGradient(0, top - 110, 0, top); g.addColorStop(0, col + "00"); g.addColorStop(1, col + "88"); // the beam above the key
+      ctx.fillStyle = g; ctx.fillRect(k.x + k.w * 0.2, top - 110, k.w * 0.6, 110);
+      if (playing) {
+        if (!prevActive.has(m)) { emit(cx, top, col, 16); flares.push({ x: cx, y: top, t: 0, col, w: Math.max(ww * 2.2, 36) }); }
+        else if (Math.random() < 0.45) emit(cx, top, col, 1, 0.6);
+      }
+    }
+    prevActive = active;
+    for (let i = flares.length - 1; i >= 0; i--) { // the flare: a ring of light that opens and fades
+      const f = flares[i]; f.t += dt; const u = f.t / 0.38; if (u >= 1) { flares.splice(i, 1); continue; }
+      const r = f.w * (0.3 + u * 0.9), g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r);
+      g.addColorStop(0, f.col + Math.round((1 - u) * 170).toString(16).padStart(2, "0")); g.addColorStop(1, f.col + "00");
+      ctx.fillStyle = g; ctx.fillRect(f.x - r, f.y - r, r * 2, r * 2);
+    }
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i]; p.life += dt; if (p.life >= p.max) { sparks.splice(i, 1); continue; }
+      p.vy += 140 * dt; p.vx *= 1 - 0.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      const u = 1 - p.life / p.max; ctx.globalAlpha = u; ctx.fillStyle = p.col; ctx.shadowColor = p.col; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (0.5 + u * 0.5), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0; ctx.globalCompositeOperation = "source-over";
+    el.dataset.sparks = String(sparks.length);
     // glowing hit line
     ctx.fillStyle = "rgba(25,211,255,.9)"; ctx.shadowColor = RIGHT; ctx.shadowBlur = 16; ctx.fillRect(0, top - 2, W, 2); ctx.shadowBlur = 0;
     raf = requestAnimationFrame(draw);
@@ -129,6 +185,6 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   return {
     el,
     setTilt(on) { tilt = on; apply(); },
-    destroy() { dead = true; cancelAnimationFrame(raf); ro.disconnect(); el.remove(); },
+    destroy() { dead = true; cancelAnimationFrame(raf); ro.disconnect(); window.removeEventListener("resize", applyH); el.remove(); },
   };
 }

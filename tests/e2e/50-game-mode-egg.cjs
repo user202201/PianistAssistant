@@ -15,6 +15,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   let p = await popup();
   ok(p && p.title === '游戏模式已开启', '10 quick taps: the popup "game mode is on"');
   ok(p && Math.abs(p.cx - 597) < 6 && Math.abs(p.cy - 417) < 60, `it is in the middle of the screen (${p && p.cx},${p && p.cy})`);
+  const pb = await page.evaluate(() => { const d = document.querySelector('dialog.popup[open]'); const b = d.querySelector('button.primary').getBoundingClientRect(); return { w: Math.round(d.getBoundingClientRect().width), btn: d.querySelector('button.primary').innerText.trim(), bh: Math.round(b.height) }; });
+  ok(pb.w <= 330 && pb.btn === '好的' && pb.bh >= 40, `the popup is a compact card (${pb.w}px) with a proper "好的" button (${pb.bh}px)`);
+  await page.screenshot({ path: D + 'game-popup.png' });
   await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'switched on and remembered');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.top .modetoggle', { timeout: 20000 });

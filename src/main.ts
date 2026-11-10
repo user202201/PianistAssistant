@@ -722,7 +722,7 @@ function popup(title: string, text: string, confirmLabel?: string): Promise<bool
       text ? h("p", { class: "muted" }, text) : null,
       h("div", { class: "row wrap" }, h("div", { class: "grow" }),
         ...(confirmLabel ? [h("button", { onclick: () => dlg.close() }, "取消")] : []),
-        h("button", { class: "primary", onclick: () => { result = true; dlg.close(); } }, confirmLabel ?? "好")),
+        h("button", { class: "primary", onclick: () => { result = true; dlg.close(); } }, confirmLabel ?? "好的")),
     ) as HTMLDialogElement;
     dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
     document.body.append(dlg);
@@ -2215,10 +2215,11 @@ function buildControls(
   const hideBtn = h("button", { class: "icon hidebtn", title: "隐藏工具栏", onclick: () => setBar("hidden") }, ic("chevron-down", 20));
   // on a wide screen everything fits in one row, so there is nothing to fold away
   const narrow = () => window.innerWidth < 820 || window.innerHeight <= 480; // the zoom buttons then live on the strip above the score
-  const canFold = () => window.innerWidth < 1100 || window.innerHeight <= 480; // iPad portrait too: the bar can be made smaller or hidden
-  const barMode = (): "full" | "min" | "hidden" => (!canFold() ? "full" : settings.barMode ?? (split && narrow() ? "min" : "full"));
+  const gameOn = () => settings.gameMode && settings.gameView;
+  const canFold = () => gameOn() || window.innerWidth < 1100 || window.innerHeight <= 480; // iPad portrait too: the bar can be made smaller or hidden
+  const barMode = (): "full" | "min" | "hidden" => (!canFold() ? "full" : (gameOn() ? settings.gameBar ?? "min" : settings.barMode ?? (split && narrow() ? "min" : "full")));
   const setBar = (m: "full" | "min" | "hidden") => {
-    settings.barMode = m;
+    if (gameOn()) settings.gameBar = m; else settings.barMode = m;
     saveSettings(settings);
     panel.hidden = true;
     fpanel.hidden = true;
@@ -2318,11 +2319,12 @@ function buildControls(
   if (strip) app.querySelector(".top")?.after(strip);
   app.append(bar);
   // the game panel (falling notes + keyboard) sits between the score and the bottom bar while the Game switch is on
-  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角") });
+  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); } });
   const syncGame = () => {
     if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); gv.destroy(); return; }
     gv.el.hidden = !(settings.gameMode && settings.gameView);
     gv.setTilt(settings.gameTilt);
+    refreshMore(); // the game view is a small-screen layout: small bar, the score gets the room
   };
   bar.before(gv.el);
   window.addEventListener("pianist-game", syncGame);

@@ -21,7 +21,22 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.handstrip .hand[title=右手]'); await page.waitForTimeout(250); l = await lit(); // wait until the left-hand notes have passed
   await page.waitForTimeout(600); l = await lit();
   ok(l.gr === 0 && l.cy > 0, `right hand only: no green notes any more (${l.gr})`);
+  ok(await page.evaluate(() => Number(document.querySelector('.gamepanel').dataset.sparks) > 3), 'a struck key throws sparks');
   await page.evaluate(() => window.__pianist.player.pause());
+  // size: small by default, the top edge can be dragged, never below keyboard + a strip of coming notes
+  const ph0 = await page.evaluate(() => Math.round(document.querySelector('.gamepanel').getBoundingClientRect().height));
+  ok(ph0 >= 150 && ph0 <= 260, `the panel starts small so the score keeps the room (${ph0}px)`);
+  const grip = await page.evaluate(() => { const r = document.querySelector('.ggrip').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 8 }; });
+  await page.mouse.move(grip.x, grip.y); await page.mouse.down(); await page.mouse.move(grip.x, grip.y - 120, { steps: 6 }); await page.mouse.up();
+  const ph1 = await page.evaluate(() => Math.round(document.querySelector('.gamepanel').getBoundingClientRect().height));
+  ok(ph1 > ph0 + 80, `dragging the top edge up makes it taller (${ph0} -> ${ph1}px)`);
+  const g2 = await page.evaluate(() => { const r = document.querySelector('.ggrip').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 8 }; });
+  await page.mouse.move(g2.x, g2.y); await page.mouse.down(); await page.mouse.move(g2.x, g2.y + 600, { steps: 8 }); await page.mouse.up();
+  const ph2 = await page.evaluate(() => Math.round(document.querySelector('.gamepanel').getBoundingClientRect().height));
+  ok(ph2 >= 150 && ph2 < ph1, `and it cannot get smaller than the keyboard with a strip of notes above it (${ph2}px)`);
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameH) === ph2, 'the size is remembered');
+  const bar = await page.evaluate(() => ({ min: document.querySelector('.controls').classList.contains('min'), h: Math.round(document.querySelector('.controls').getBoundingClientRect().height) }));
+  ok(bar.min && bar.h < 110, `game view: the bottom bar starts small, like on a phone (${bar.h}px)`);
   // 3D: the lean is animated
   const tf = () => page.evaluate(() => getComputedStyle(document.querySelector('.gcanvas')).transform);
   const flat = await tf(); ok(flat === 'none' || /^matrix\(1, 0, 0, 1/.test(flat) || /matrix3d\(1, 0, 0, 0, 0, 1, 0, 0/.test(flat), 'flat view: no tilt (' + flat.slice(0, 30) + ')');

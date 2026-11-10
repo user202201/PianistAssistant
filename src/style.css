@@ -748,3 +748,14 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamepanel .gtilt { position: absolute; top: 8px; right: 8px; z-index: 2; background: rgba(6, 12, 30, .7); }
 @media (max-height: 480px) { .gamepanel { height: 42dvh; } }
 @media (prefers-reduced-motion: reduce) { .gcanvas { transition: none; } }
+
+/* game panel: drag handle on the top edge */
+.ggrip { position: absolute; top: 0; left: 0; right: 0; height: 22px; z-index: 3; cursor: ns-resize; touch-action: none; display: flex; justify-content: center; align-items: flex-start; }
+.ggrip::before { content: ""; margin-top: 6px; width: 46px; height: 4px; border-radius: 2px; background: rgba(25, 211, 255, .65); box-shadow: 0 0 8px rgba(25, 211, 255, .7); }
+.gamepanel { height: auto; }
+/* the small message in the middle */
+.dlg.popup { width: min(320px, 86vw); padding: 24px 22px 18px; border-radius: 22px; text-align: center; }
+.dlg.popup h2 { font-size: 1.15rem; margin: 0 0 8px; }
+.dlg.popup p { font-size: .9rem; line-height: 1.45; margin: 0 0 14px; }
+.dlg.popup .row { gap: 10px; margin-top: 6px; }
+.dlg.popup .row button { min-width: 96px; min-height: 44px; font-size: 1rem; }
