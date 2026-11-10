@@ -651,3 +651,6 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 }
 @media (max-width: 440px) { .controls .speedlabel { display: none; } }
 .controls .speedbox .speed { min-width: 0; width: 100%; flex: 1 1 0; }
+/* the logo in the top bar is only a picture: no filled background (that made it look like a button) */
+.top .brand .logo { width: auto; height: auto; background: transparent; color: var(--accent); }
+.top .brand .logo svg { width: 28px; height: 28px; }

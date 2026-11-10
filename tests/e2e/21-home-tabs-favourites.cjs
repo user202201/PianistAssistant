@@ -9,6 +9,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map(c => c.querySelector('.mq')?.textContent));
   const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.querySelector('.lbl').innerText.trim()));
   ok(tabs.join() === '全部琴谱,四手联弹,PDF 乐谱,收藏', `tabs: ${tabs.join(' | ')}`);
+  // the logo at the top left is just a picture: no filled background, not a button
+  const logo = await page.evaluate(() => { const l = document.querySelector('.top .brand .logo'); const cs = getComputedStyle(l); return { bg: cs.backgroundColor, clickable: !!l.closest('button, a'), cursor: cs.cursor }; });
+  ok(logo.bg === 'rgba(0, 0, 0, 0)' && !logo.clickable, `the logo in the top bar has no background and is not a button (background ${logo.bg})`);
   // the look: the grey and the rounding of the cards, as tall as a card, text a size bigger; only the favourites tab shows its star
   const look = await page.evaluate(() => { const g = document.querySelector('.tabsbar .group'), on = document.querySelector('.tabsbar .seg.on'), card = document.querySelector('.listbox .card'); const px = (e, p) => parseFloat(getComputedStyle(e)[p]);
     return { bg: getComputedStyle(g).backgroundColor, cardBg: getComputedStyle(card).backgroundColor, r: px(g, 'borderTopLeftRadius'), cardR: px(card, 'borderTopLeftRadius'), h: g.getBoundingClientRect().height, cardH: card.getBoundingClientRect().height, tab: px(on, 'fontSize'), body: px(card.querySelector('.mq') || document.body, 'fontSize'),
