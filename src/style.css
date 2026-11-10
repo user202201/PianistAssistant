@@ -771,3 +771,10 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 :root[data-gamemode="1"] .top::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(25, 211, 255, .95), transparent); filter: blur(.4px); }
 @media (prefers-reduced-motion: no-preference) { :root[data-gamemode="1"] .top { animation: gametop 3.4s ease-in-out infinite; } }
 @keyframes gametop { 0%, 100% { box-shadow: 0 8px 20px -6px rgba(25, 211, 255, .38), 0 14px 30px -10px rgba(25, 120, 255, .25); } 50% { box-shadow: 0 10px 26px -6px rgba(25, 211, 255, .65), 0 18px 40px -10px rgba(25, 120, 255, .45); } }
+
+/* hidden mode: the note shakes halfway, flashes when unlocked; confetti the first time */
+.top .brand .logo.shake { animation: logoshake .55s ease-in-out; }
+@keyframes logoshake { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-16deg) scale(1.1); } 35% { transform: rotate(14deg) scale(1.1); } 55% { transform: rotate(-10deg); } 75% { transform: rotate(8deg); } }
+.top .brand .logo.flash { animation: logoflash .8s ease-out; color: #19d3ff; }
+@keyframes logoflash { 0% { transform: scale(1); filter: none; } 30% { transform: scale(1.9); filter: drop-shadow(0 0 8px #19d3ff) drop-shadow(0 0 22px #19d3ff) drop-shadow(0 0 40px #1980ff); } 100% { transform: scale(1); filter: drop-shadow(0 0 4px rgba(25, 211, 255, .9)); } }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10; }

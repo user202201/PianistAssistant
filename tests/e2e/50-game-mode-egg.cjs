@@ -7,13 +7,23 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
   await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
   const popup = () => page.evaluate(() => { const d = document.querySelector('dialog.popup[open]'); if (!d) return null; const r = d.getBoundingClientRect(); return { title: d.querySelector('h2').innerText, btns: [...d.querySelectorAll('button')].map((b) => b.innerText.trim()), cx: Math.round(r.left + r.width / 2), cy: Math.round(r.top + r.height / 2) }; });
-  for (let i = 0; i < 9; i++) await page.click('.top .logo');
+  await page.evaluate(() => { window.__vib = []; navigator.vibrate = (p) => { window.__vib.push(p); return true; }; });
+  for (let i = 0; i < 4; i++) await page.click('.top .logo');
+  ok(!(await page.evaluate(() => document.querySelector('.top .logo').classList.contains('shake'))), '4 taps: the note is still calm');
+  await page.click('.top .logo');
+  ok(await page.evaluate(() => document.querySelector('.top .logo').classList.contains('shake') && getComputedStyle(document.querySelector('.top .logo')).animationName === 'logoshake'), '5th tap: the note shakes a little ("something is happening")');
+  ok(await page.evaluate(() => window.__vib.length) === 1, 'and the phone buzzes briefly (where the device can: not on iPad / desktop)');
+  for (let i = 0; i < 4; i++) await page.click('.top .logo');
   ok((await popup()) === null, '9 taps: nothing happens yet');
   await page.waitForTimeout(2300); await page.click('.top .logo'); // too slow: counting starts again
   ok((await popup()) === null, 'taps more than 2 seconds apart do not add up');
   for (let i = 0; i < 9; i++) await page.click('.top .logo');
+  ok(await page.evaluate(() => document.querySelector('.top .logo').classList.contains('flash')), '10th tap: the note flashes (a "whoosh" of light)');
+  await page.waitForTimeout(1000);
   let p = await popup();
-  ok(p && p.title === '游戏模式已开启', '10 quick taps: the popup "game mode is on"');
+  ok(p && p.title === '隐藏模式已解锁', '10 quick taps: the popup "hidden mode unlocked"');
+  ok(await page.evaluate(() => !!document.querySelector('dialog.popup canvas.confetti')), 'the first time there is confetti');
+  await page.screenshot({ path: D + 'game-unlock.png' });
   ok(p && Math.abs(p.cx - 597) < 6 && Math.abs(p.cy - 417) < 60, `it is in the middle of the screen (${p && p.cx},${p && p.cy})`);
   const pb = await page.evaluate(() => { const d = document.querySelector('dialog.popup[open]'); const b = d.querySelector('button.primary').getBoundingClientRect(); return { w: Math.round(d.getBoundingClientRect().width), btn: d.querySelector('button.primary').innerText.trim(), bh: Math.round(b.height) }; });
   ok(pb.w <= 330 && pb.btn === '好的' && pb.bh >= 40, `the popup is a compact card (${pb.w}px) with a proper "好的" button (${pb.bh}px)`);
@@ -57,6 +67,11 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(await page.evaluate(() => !document.querySelector('.top .brand .logo').classList.contains('game') && getComputedStyle(document.querySelector('.top')).boxShadow.indexOf('25, 211, 255') < 0), 'and the note at the top left is a plain note again, the title bar no longer glows');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
   ok((await page.$('.modetoggle')) === null, 'off: the switch is gone from the scores');
+  // second time: no confetti any more, the plain title, but the flash stays
+  await page.evaluate(() => (location.hash = '#/')); await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
+  for (let i = 0; i < 10; i++) await page.click('.top .logo');
+  await page.waitForTimeout(1000); p = await popup();
+  ok(p && p.title === '游戏模式已开启' && !(await page.evaluate(() => !!document.querySelector('dialog.popup canvas.confetti'))), 'the second time: the plain "game mode is on", no confetti');
   await page.screenshot({ path: D + 'game-egg.png' });
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

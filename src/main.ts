@@ -16,6 +16,7 @@ import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView } from "./gameview";
+import { confetti } from "./confetti";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -714,7 +715,7 @@ function showError(title: string, e: unknown) {
 }
 
 /** A small message in the middle of the screen (modal): one button, or two when `confirmLabel` is given. Resolves true when the main button was pressed. */
-function popup(title: string, text: string, confirmLabel?: string): Promise<boolean> {
+function popup(title: string, text: string, confirmLabel?: string, party = false): Promise<boolean> {
   return new Promise((resolve) => {
     let result = false;
     const dlg = h("dialog", { class: "dlg popup" },
@@ -727,6 +728,7 @@ function popup(title: string, text: string, confirmLabel?: string): Promise<bool
     dlg.addEventListener("close", () => { dlg.remove(); resolve(result); });
     document.body.append(dlg);
     dlg.showModal();
+    if (party) confetti(dlg); // (inside the dialog: it lives in the top layer, so the confetti is above everything)
   });
 }
 /** The note at the top left: with game mode on it becomes a glowing note with a spark, so you can see the hidden mode is on. */
@@ -753,12 +755,20 @@ function onLogoTap(rerender: () => void) {
   const now = Date.now();
   eggTaps = now - eggLast > 2000 ? 1 : eggTaps + 1;
   eggLast = now;
+  const logo = document.querySelector<HTMLElement>(".top .brand .logo");
+  const buzz = (ms: number | number[]) => { try { navigator.vibrate?.(ms); } catch { /* no vibration (iPad / desktop) */ } };
+  const anim = (cls: string, ms: number) => { if (!logo) return; logo.classList.remove(cls); void logo.offsetWidth; logo.classList.add(cls); setTimeout(() => logo.classList.remove(cls), ms); };
+  if (eggTaps === 5) { anim("shake", 600); buzz(25); } // halfway: the note shakes a little, "something is happening"
   if (eggTaps >= 10) {
     eggTaps = 0;
-    settings.gameMode = true; saveSettings(settings); rerender();
-    void popup("游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。");
+    anim("flash", 800); buzz([30, 60, 30, 60, 90]);
+    settings.gameMode = true; saveSettings(settings);
+    let first = true;
+    try { first = !localStorage.getItem(UNLOCKED); localStorage.setItem(UNLOCKED, "1"); } catch { /* ignore */ }
+    window.setTimeout(() => { rerender(); void popup(first ? "隐藏模式已解锁" : "游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。", undefined, first); }, 650); // the flash is seen first
   }
 }
+const UNLOCKED = "pianist.game.unlocked.v1"; // confetti only the first time
 /** The practice / game switch at the top of a score screen (only when game mode is on). */
 function modeToggle(): HTMLElement | null {
   if (!settings.gameMode) return null;
