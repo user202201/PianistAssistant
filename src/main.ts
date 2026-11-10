@@ -745,7 +745,7 @@ function onLogoTap(rerender: () => void) {
     void popup("关闭游戏模式？", "", "关闭").then((yes) => {
       if (!yes) return;
       settings.gameMode = false; settings.gameView = false; saveSettings(settings); applyGameTheme(); window.dispatchEvent(new Event("pianist-game"));
-      void popup("游戏模式已关闭", "");
+      toast("游戏模式已关闭");
       rerender();
     });
     return;

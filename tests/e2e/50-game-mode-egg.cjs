@@ -52,8 +52,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('dialog.popup button:not(.primary)'); await page.waitForTimeout(200);
   ok((await popup()) === null && await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).gameMode) === true, 'cancel: it stays on, no "off" message');
   await page.click('.top .logo'); await page.click('dialog.popup button.primary'); await page.waitForTimeout(300);
-  p = await popup(); ok(p && p.title === '游戏模式已关闭', 'confirmed: the popup says it is off');
-  await page.click('dialog.popup button.primary'); await page.waitForTimeout(200);
+  ok((await popup()) === null, 'confirmed: no second popup (the note and the title bar already show it is off)');
+  ok(await page.evaluate(() => [...document.querySelectorAll('.toast')].some((x) => x.innerText.includes('游戏模式已关闭'))), 'only a short message at the top says so');
   ok(await page.evaluate(() => !document.querySelector('.top .brand .logo').classList.contains('game') && getComputedStyle(document.querySelector('.top')).boxShadow.indexOf('25, 211, 255') < 0), 'and the note at the top left is a plain note again, the title bar no longer glows');
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
   ok((await page.$('.modetoggle')) === null, 'off: the switch is gone from the scores');
