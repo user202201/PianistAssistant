@@ -10,6 +10,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const pick = async (k) => { await page.click('.sortbtn'); await page.click(`.sortopt[data-sort=${k}]`); await page.waitForTimeout(250); await page.mouse.click(5, 5); };
   ok((await names()).join(',') === 'a-alpha,b-beta,c-gamma', 'default: by name A → Z, as before (' + (await names()).join(',') + ')');
   const geo = await page.evaluate(() => { const b = document.querySelector('.sortbtn').getBoundingClientRect(), g = document.querySelector('.tabsbar .group').getBoundingClientRect(); return { right: b.left >= g.right - 1, sameH: Math.abs(b.height - g.height) < 2 }; });
+  ok(await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.sortbtn')).color; const a = (() => { const e = document.createElement('i'); e.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent'); document.body.append(e); const x = getComputedStyle(e).color; e.remove(); return x; })(); return c !== a; }), 'the sort button is grey like the other plain buttons, not accent blue');
   ok(geo.right && geo.sameH, 'the sort button sits at the right end of the tab bar, as tall as the tabs');
   await page.click('.sortbtn');
   ok((await page.isVisible('.sortmenu')) && (await page.$$('.sortopt')).length === 3 && (await page.isVisible('.sortrev')), 'its menu has 3 criteria and a "reverse" checkbox');
