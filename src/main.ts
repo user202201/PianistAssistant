@@ -2382,7 +2382,7 @@ function buildControls(
     onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
     onRetry: () => { player.stop(); void startGame(); },
   });
-  gv.el.append(hud.compact);
+  app.append(hud.compact); // floats at the top right of the screen
   gv.el.querySelector(".gtopleft")!.append(hud.chip); // (numbers + the piano button live in the game panel; the cards float above everything)
   app.append(hud.setup, hud.result);
   hud.midi(midi.status());

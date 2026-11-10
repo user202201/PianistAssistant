@@ -41,7 +41,7 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
   const comboNum = el("b", "", "0"), accNum = el("b", "", "100%");
   const combo = el("div", "hudcombo", "", [el("span", "", "连击"), comboNum]);
   const acc = el("div", "hudline", "", [el("span", "", "准确率"), accNum]);
-  compact.append(score, combo, acc);
+  compact.append(score, acc, combo); // the combo is last: it appears and grows, so nothing above it moves
 
   // ---- the chip and the setup card
   const dot = el("span", "hudleddot");
@@ -86,8 +86,9 @@ export function createHud(o: { level: Level; onLevel: (l: Level) => void; onConn
       combo.style.setProperty("--lv", String(Math.min(1, s.combo / 50))); // the glow of the combo grows with the run
     },
     judged(j) {
-      if (j.kind !== "miss" && j.kind !== "wrong") { combo.classList.remove("hit"); void combo.offsetWidth; combo.classList.add("hit"); }
-      if (j.kind !== "miss" && j.kind !== "wrong" && j.combo > 0 && j.combo % 10 === 0) popCombo();
+      if (j.points <= 0) return; // nothing was scored (a Miss / wrong key): nothing moves
+      combo.classList.remove("hit"); void combo.offsetWidth; combo.classList.add("hit");
+      if (j.combo > 0 && j.combo % 10 === 0) popCombo();
       score.classList.remove("bump"); void score.offsetWidth; score.classList.add("bump");
     },
     showResult(s, n, a) {

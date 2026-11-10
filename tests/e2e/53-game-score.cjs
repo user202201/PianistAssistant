@@ -70,10 +70,11 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.screenshot({ path: D + 'game-demo-score.png' });
   await page.evaluate(() => window.__pianist.player.stop()); await page.waitForTimeout(300);
   await page.click('.gamepanel .gmode .seg[data-gmode=score]'); await page.waitForTimeout(700);
-  const hud0 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'), r = c.getBoundingClientRect(), pn = document.querySelector('.gamepanel').getBoundingClientRect(), sc = document.querySelector('.scorewrap').getBoundingClientRect();
-    return { shown: !c.hidden && r.width > 0, inPanel: r.top >= pn.top - 1 && r.bottom <= pn.bottom + 1 && r.right <= pn.right + 1, overScore: r.top < sc.bottom - 1, bg: getComputedStyle(c).backgroundColor, lines: [...c.querySelectorAll('span')].map((x) => x.innerText).join('|') }; });
-  ok(hud0.shown && hud0.inPanel && !hud0.overScore, 'score mode: score, combo and accuracy sit in the game panel, they do not cover the music');
-  ok(hud0.bg === 'rgba(0, 0, 0, 0)' && hud0.lines === '连击|准确率', `and they are transparent, just these three (${hud0.lines})`);
+  const hud0 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'), r = c.getBoundingClientRect(); const kids = [...c.children].map((x) => x.className.split(' ')[0]);
+    return { shown: !c.hidden && r.width > 0, right: Math.round(window.innerWidth - r.right), top: Math.round(r.top), h: Math.round(r.height), order: kids.join('|'), fixed: getComputedStyle(c).position }; });
+  ok(hud0.shown && hud0.fixed === 'fixed' && hud0.right < 24 && hud0.top < 220, `the score floats at the top right of the screen (${hud0.right}px from the right, ${hud0.top}px from the top)`);
+  ok(await page.evaluate(() => { const c = getComputedStyle(document.querySelector('.hudcompact')); return c.backgroundColor === 'rgba(0, 0, 0, 0)' && c.boxShadow === 'none' && c.borderTopWidth === '0px'; }), 'no background behind the numbers');
+  ok(hud0.order === 'hudscore|hudline|hudcombo', `the combo is the last line, so nothing above it jumps (${hud0.order})`);
   await page.waitForTimeout(1200);
   ok(await page.evaluate(() => !document.querySelector('.gamesetup').hidden) === false, 'a connected piano: the setup card does not pop up by itself');
   await page.click('.hudchip'); await page.waitForTimeout(200);
@@ -99,6 +100,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
     window.__key(23); // a key that belongs to no note
     return out; });
   const st1 = await page.evaluate(() => { const c = document.querySelector('.hudcompact'); return { score: Number(c.querySelector('.hudscore').innerText), combo: Number(c.querySelector('.hudcombo b').innerText) }; });
+  const hNow = await page.evaluate(() => Math.round(document.querySelector('.hudcompact').getBoundingClientRect().height));
+  ok(hNow === hud0.h, `the score window keeps its size while the combo comes and goes (${hud0.h} -> ${hNow}px)`);
   ok(st1.score > 800 && st1.combo === 0, `ten keys struck on time are scored (${st1.score}); the stray key broke the combo`);
   ok(await page.evaluate(() => window.__bn) >= 1, 'a run of 10 hits sets off the combo banner');
   await page.screenshot({ path: D + 'game-score-play.png' });
