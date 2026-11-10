@@ -36,3 +36,29 @@ export function goSound(ctx: AudioContext, t: number, volume: number) {
   g.gain.setValueAtTime(v * 0.9, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
   src.connect(f).connect(g).connect(ctx.destination); src.start(t);
 }
+
+/**
+ * A voice that says the word (English, with the speech voice of the device: nothing is downloaded and nothing leaves the device). Where a device has no
+ * voice, nothing is said and the jingle stays. `lead` = seconds from now at which the word should be heard (speaking has a small delay of its own).
+ */
+export function say(word: string, lead: number, volume: number): number | null {
+  const ss = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+  if (!ss || typeof SpeechSynthesisUtterance === "undefined") return null;
+  return window.setTimeout(() => {
+    try {
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = "en-US";
+      const voices = ss.getVoices();
+      const v = voices.find((x) => /^en[-_]US/i.test(x.lang) && /samantha|google us|zira|aaron|alex/i.test(x.name)) ?? voices.find((x) => /^en[-_]US/i.test(x.lang)) ?? voices.find((x) => /^en/i.test(x.lang));
+      if (v) u.voice = v;
+      u.rate = word === "Go!" ? 1.05 : 0.85;
+      u.pitch = 1.25;
+      u.volume = Math.min(1, 0.55 + volume * 0.5);
+      ss.cancel();
+      ss.speak(u);
+    } catch { /* no voice */ }
+  }, Math.max(0, (lead - 0.18) * 1000));
+}
+export function stopSaying() {
+  try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
+}

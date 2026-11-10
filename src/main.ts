@@ -17,7 +17,7 @@ import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView } from "./gameview";
 import { confetti } from "./confetti";
-import { goSound, readySound } from "./gamesound";
+import { goSound, readySound, say, stopSaying } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -381,6 +381,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     dlg.close();
     onLayout?.();
   });
+  const voiceBox = h("input", { type: "checkbox", checked: settings.gameVoice });
+  voiceBox.addEventListener("change", () => { settings.gameVoice = voiceBox.checked; saveSettings(settings); });
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -427,6 +429,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
+    ...(settings.gameMode ? [h("label", { class: "inline" }, "游戏开始语音（Ready / Go）", voiceBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
     ...(__MOBILE__ ? [] : [
@@ -2010,6 +2013,7 @@ function buildControls(
     const ctx = audioCtx(), go = player.startsAt, ready = go - LEAD + 0.35;
     const vol = settings.volume;
     readySound(ctx, ready, vol); goSound(ctx, go, vol);
+    if (settings.gameVoice) { countTimers.push(say("Ready", ready - ctx.currentTime + 0.1, vol) ?? 0); countTimers.push(say("Go!", go - ctx.currentTime, vol) ?? 0); } // the voice of the device, English
     countEl = h("div", { class: "gostart" }, h("span", { class: "word" }));
     document.body.append(countEl);
     const word = countEl.firstElementChild as HTMLElement;
@@ -2023,6 +2027,7 @@ function buildControls(
   let countTimers: number[] = [];
   let countEl: HTMLElement | null = null;
   function clearCountIn() {
+    stopSaying();
     countTimers.forEach((t) => clearTimeout(t));
     countTimers = [];
     countEl?.remove();
