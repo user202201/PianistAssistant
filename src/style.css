@@ -136,7 +136,7 @@ input[type=checkbox]::after {
   content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff;
   box-shadow: 0 2px 5px rgba(0, 0, 0, .3); transition: transform .2s;
 }
-input[type=checkbox]:checked { background: var(--green); }
+input[type=checkbox]:checked { background: var(--accent); }
 input[type=checkbox]:checked::after { transform: translateX(20px); }
 input[type=checkbox]:disabled { opacity: .4; }
 label.inline { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; color: var(--text); }
@@ -200,7 +200,7 @@ input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 
 .dlg h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
 .dlg h3 { margin: 20px 0 6px; font-size: .8rem; color: var(--muted); font-weight: 600; letter-spacing: .02em; }
 .dlg label { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; color: var(--muted); font-size: .85rem; }
-.dlg label.inline { flex-direction: row; justify-content: space-between; align-items: center; margin: 4px 0; font-size: 1rem; color: var(--text); }
+.dlg label.inline { flex-direction: row; justify-content: space-between; align-items: center; margin: 4px 0; font-size: .85rem; color: var(--muted); }
 .dlg.center { text-align: center; }
 .dlg .stack { justify-content: center; }
 .qr { background: #fff; border-radius: 16px; width: 240px; height: 240px; image-rendering: pixelated; margin: 8px auto; display: block; }

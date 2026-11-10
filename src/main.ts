@@ -415,7 +415,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     // the heading takes the initial focus: on iPad focusing a drop-down opens its list straight away
     // the title bar sticks to the top while the settings scroll, with a second "Done": no need to scroll down to close
     h("div", { class: "dlghead", id: "settings-head" }, h("h2", { tabIndex: -1, autofocus: true }, "设置"), h("div", { class: "grow" }), h("button", { class: "primary small", id: "done-top", onclick: () => dlg.close() }, "完成")),
-    h("h3", {}, "声音"),
     h("label", {}, "钢琴音色", sound),
     h("h3", {}, "外观"),
     h("div", { class: "group wide" }, ...themeBtns),
