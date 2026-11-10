@@ -29,12 +29,15 @@ export interface Settings {
   pdfTurnSeconds: number;
   /** PDF annotations: a finger draws too (normally only the Apple Pencil / mouse does, the finger scrolls) */
   fingerDraw: boolean;
+  /** order of the home lists (all tabs): by name, by the time it was added, by the time it was last opened; reversed on request */
+  sortBy: "name" | "added" | "opened";
+  sortReverse: boolean;
 }
 const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false });
 
 export function loadSettings(): Settings {
   try {
@@ -59,7 +62,22 @@ export function getRecent(): string[] {
     return [];
   }
 }
+// ---------- when was an item opened / first seen on this device (for the sort order of the home lists) ----------
+const OKEY = "pianist.opened.v1", SKEY = "pianist.seen.v1";
+const readMap = (k: string): Record<string, number> => { try { return JSON.parse(localStorage.getItem(k) ?? "{}"); } catch { return {}; } };
+const writeMap = (k: string, m: Record<string, number>) => { try { localStorage.setItem(k, JSON.stringify(m)); } catch { /* ignore */ } };
+export const getOpened = () => readMap(OKEY);
+export function markOpened(key: string) { writeMap(OKEY, { ...readMap(OKEY), [key]: Date.now() }); }
+/** First time this device saw each item. The very first time everything is already there: all of it counts as "old" (0), only what shows up later is new. */
+export function getSeen(keys: string[]): Record<string, number> {
+  const first = localStorage.getItem(SKEY) === null;
+  const m = readMap(SKEY); let changed = first;
+  for (const k of keys) if (!(k in m)) { m[k] = first ? 0 : Date.now(); changed = true; }
+  if (changed) writeMap(SKEY, m);
+  return m;
+}
 export function pushRecent(name: string) {
+  markOpened(name);
   const list = [name, ...getRecent().filter((n) => n !== name)].slice(0, 12);
   try {
     localStorage.setItem(RKEY, JSON.stringify(list));

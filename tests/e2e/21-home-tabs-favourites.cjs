@@ -7,7 +7,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 }, hasTouch: true, isMobile: true } });
   await page.waitForSelector('.card'); await page.waitForTimeout(800);
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map(c => c.querySelector('.mq')?.textContent));
-  const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar button')].map(b => b.querySelector('.lbl').innerText.trim()));
+  const tabs = await page.evaluate(() => [...document.querySelectorAll('.tabsbar .seg')].map(b => b.querySelector('.lbl').innerText.trim()));
   ok(tabs.join() === '全部琴谱,四手联弹,PDF 乐谱,收藏', `tabs: ${tabs.join(' | ')}`);
   // the logo at the top left is just a picture: no filled background, not a button
   const logo = await page.evaluate(() => { const l = document.querySelector('.top .brand .logo'); const cs = getComputedStyle(l); return { bg: cs.backgroundColor, clickable: !!l.closest('button, a'), cursor: cs.cursor }; });

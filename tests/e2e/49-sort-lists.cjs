@@ -1,0 +1,39 @@
+// Home lists: ONE sort setting (button at the right end of the tab bar) for all tabs: name / date added / last opened, plus "reverse"; remembered.
+const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
+let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
+(async () => {
+  const f = fs.readFileSync(D + 'single.musicxml');
+  const store = new Map([['scores/b-beta.musicxml', f], ['scores/a-alpha.musicxml', f], ['scores/c-gamma.musicxml', f], ['pdfs/z-first.pdf', Buffer.from('%PDF')], ['pdfs/y-second.pdf', Buffer.from('%PDF')]]);
+  const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
+  await page.waitForSelector('.listbox .card'); await page.waitForTimeout(600);
+  const names = () => page.evaluate(() => [...document.querySelectorAll('.listbox .card')].map((c) => c.querySelector('.ttl')?.innerText.trim().split('\n')[0].replace(/\.pdf$/, '')));
+  const pick = async (k) => { await page.click('.sortbtn'); await page.click(`.sortopt[data-sort=${k}]`); await page.waitForTimeout(250); await page.mouse.click(5, 5); };
+  ok((await names()).join(',') === 'a-alpha,b-beta,c-gamma', 'default: by name A → Z, as before (' + (await names()).join(',') + ')');
+  const geo = await page.evaluate(() => { const b = document.querySelector('.sortbtn').getBoundingClientRect(), g = document.querySelector('.tabsbar .group').getBoundingClientRect(); return { right: b.left >= g.right - 1, sameH: Math.abs(b.height - g.height) < 2 }; });
+  ok(geo.right && geo.sameH, 'the sort button sits at the right end of the tab bar, as tall as the tabs');
+  await page.click('.sortbtn');
+  ok((await page.isVisible('.sortmenu')) && (await page.$$('.sortopt')).length === 3 && (await page.isVisible('.sortrev')), 'its menu has 3 criteria and a "reverse" checkbox');
+  await page.click('.sortrev input'); await page.waitForTimeout(250);
+  ok((await names()).join(',') === 'c-gamma,b-beta,a-alpha', 'reverse: Z → A');
+  await page.mouse.click(5, 5); ok(!(await page.isVisible('.sortmenu')), 'a click elsewhere closes the menu');
+  await page.click('.sortbtn'); await page.click('.sortrev input'); await page.mouse.click(5, 5);
+  // last opened: open b, then c
+  await page.evaluate(() => { location.hash = '#/score/b-beta.musicxml'; }); await page.waitForSelector('.controls .mainrow', { timeout: 20000 });
+  await page.waitForTimeout(1200); await page.evaluate(() => { location.hash = '#/score/c-gamma.musicxml'; }); await page.waitForTimeout(1500);
+  await page.evaluate(() => { location.hash = ''; }); await page.waitForSelector('.listbox .card'); await page.waitForTimeout(600);
+  await pick('opened');
+  ok((await names()).slice(0, 3).join(',') === 'c-gamma,b-beta,a-alpha', 'last opened: the one opened last is first, never opened ones after (' + (await names()).join(',') + ')');
+  await page.click('.tabsbar .seg[data-k=pdf]'); await page.waitForTimeout(300);
+  ok((await names()).join(',') === 'y-second,z-first', 'the same setting applies to the PDF tab (nothing opened yet: by name) (' + (await names()).join(',') + ')');
+  await page.click('.tabsbar .seg[data-k=all]'); await pick('added');
+  ok((await names()).join(',') === 'a-alpha,b-beta,c-gamma', 'date added: everything that was already there counts as old (by name)');
+  await page.waitForTimeout(1100);
+  store.set('scores/0-new.musicxml', f);
+  await page.reload(); await page.waitForSelector('.listbox .card'); await page.waitForTimeout(1200);
+  ok((await names())[0] === '0-new', 'a newly added score is first (' + (await names()).join(',') + ')');
+  await page.reload(); await page.waitForSelector('.listbox .card'); await page.waitForTimeout(800);
+  const sb = await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).sortBy);
+  ok((await names())[0] === '0-new' && sb === 'added', 'the choice is remembered after a reload');
+  await page.screenshot({ path: D + 'sort-menu.png' }); await page.click('.sortbtn'); await page.screenshot({ path: D + 'sort-menu-open.png' });
+  await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
+})();

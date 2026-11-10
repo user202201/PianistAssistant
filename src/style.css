@@ -680,3 +680,23 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 @media (prefers-reduced-motion: reduce) { .mq.few.glide .mqi { animation: none; transform: translateX(var(--d)); } }
 /* the home lists in ONE column (a tablet held upright, a phone): the whole page scrolls together, no second scroll bar inside */
 @media (max-width: 920px) { .listbox { flex: none; overflow: visible; min-height: 0; } }
+
+/* sort button at the right end of the tab bar + its small menu */
+.tabsbar { position: relative; display: flex; align-items: stretch; gap: 10px; }
+.tabsbar > .group.wide { flex: 1 1 0; width: auto; min-width: 0; }
+.tabsbar .sortbtn { flex: 0 0 auto; width: 52px; padding: 0; background: var(--surface); border: 0; border-radius: var(--r-card); box-shadow: var(--shadow); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
+@media (min-width: 744px) { .tabsbar .sortbtn { width: 72px; } }
+.sortmenu { position: absolute; right: var(--hpad); top: calc(100% - 4px); z-index: 30; min-width: 250px; max-width: calc(100vw - 24px); padding: 8px; background: var(--surface); border-radius: 16px; box-shadow: 0 12px 40px rgba(0, 0, 0, .28); border: 1px solid var(--line, rgba(128, 128, 128, .25)); }
+.sortmenu[hidden] { display: none; }
+.sortmenu .sortopt { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; text-align: left; background: transparent; border: 0; border-radius: 10px; padding: 8px 10px; min-height: 48px; color: var(--text); }
+.sortmenu .sortopt:hover { background: var(--fill); }
+.sortmenu .sortcheck { width: 20px; flex: none; color: var(--accent); display: inline-flex; }
+.sortmenu .sorttxt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sortmenu .sorttxt small { color: var(--muted); font-size: .78rem; white-space: normal; }
+.sortmenu .sortrev { margin: 4px 0 0; padding: 8px 10px 4px; border-top: 1px solid var(--line, rgba(128, 128, 128, .25)); border-radius: 0; font-size: .95rem; color: var(--text); display: flex; flex-direction: row; justify-content: space-between; align-items: center; }
+
+/* settings: the switch rows are evenly spaced (same room above the first row as between rows and before the next heading) */
+.dlg.settings label.inline { min-height: 48px; margin: 0; }
+.dlg.settings select + label.inline, .dlg.settings label:not(.inline) + label.inline { margin-top: 8px; }
+.dlg.settings label.inline + h3 { margin-top: 16px; }
+@media (max-width: 743px) { .tabsbar { gap: 4px; } .tabsbar .sortbtn { width: 36px; border-radius: 14px; } }

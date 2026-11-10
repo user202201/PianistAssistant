@@ -15,7 +15,7 @@ import { extractScore, mergeScores, toMusicXml } from "./score";
 import { unzipSync, zipSync } from "fflate";
 import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
-import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, queuedAt, renameRecent, saveSettings } from "./settings";
+import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
 const settings = loadSettings();
@@ -813,7 +813,19 @@ async function renderHome() {
   // arrives, so it never looks as if several tabs were chosen at once. (With the "reduce motion" setting of the system it just jumps.)
   const tabBlob = h("span", { class: "tabblob" });
   const tabGroup = h("div", { class: "group wide" }, tabBlob, ...tabBtns);
-  const tabsBar = h("div", { class: "tabsbar" }, tabGroup);
+  // order of the lists: ONE setting for all tabs (button at the right end of the tab bar)
+  const SORTS: [typeof settings.sortBy, string, string][] = [["name", "名称（A → Z）", "字母 / 拼音顺序"], ["added", "添加时间", "新添加的在前"], ["opened", "最近打开", "刚打开过的在前，没打开过的在后"]];
+  const sortMenu = h("div", { class: "sortmenu", hidden: true, role: "menu" });
+  const sortBtn = h("button", { class: "sortbtn", title: "排序", "aria-haspopup": "true", onclick: (e: Event) => { e.stopPropagation(); if (sortMenu.hidden) buildSortMenu(); sortMenu.hidden = !sortMenu.hidden; } }, ic("sort", 22));
+  function buildSortMenu() {
+    sortMenu.replaceChildren(
+      ...SORTS.map(([k, label, hint]) => h("button", { class: "sortopt" + (settings.sortBy === k ? " on" : ""), "data-sort": k, role: "menuitemradio", onclick: () => { settings.sortBy = k; saveSettings(settings); buildSortMenu(); renderList(); } },
+        h("span", { class: "sortcheck" }, settings.sortBy === k ? ic("check", 18) : ""), h("span", { class: "sorttxt" }, h("b", {}, label), h("small", {}, hint)))),
+      h("label", { class: "inline sortrev" }, "倒序", h("input", { type: "checkbox", checked: settings.sortReverse, onchange: (e: Event) => { settings.sortReverse = (e.target as HTMLInputElement).checked; saveSettings(settings); renderList(); } })),
+    );
+  }
+  document.addEventListener("click", (e) => { if (!sortMenu.hidden && !(e.target as HTMLElement).closest(".sortmenu, .sortbtn")) sortMenu.hidden = true; });
+  const tabsBar = h("div", { class: "tabsbar" }, tabGroup, sortBtn, sortMenu);
   const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   function moveBlob(animate: boolean) {
     const on = tabBtns.find((b) => b.classList.contains("on"));
@@ -1044,7 +1056,7 @@ async function renderHome() {
     h(
       "div",
       { class: "card pdf" },
-      h("button", { class: "open", onclick: () => (location.hash = `#/pdf/${encodeURIComponent(name)}`) }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
+      h("button", { class: "open", onclick: () => { markOpened(`pdf:${name}`); location.hash = `#/pdf/${encodeURIComponent(name)}`; } }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
       starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
         ...(api.isLocal() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
@@ -1188,10 +1200,16 @@ async function renderHome() {
   }
   function renderList() {
     updateTabCounts();
-    const scoreItems = lastScores.map((x) => ({ key: displayName(x.name), k: favKey.score(x.name), el: () => card(x.name, true) }));
-    const pairItems = pairs.map((p) => ({ key: `${p.name}\u0000`, k: favKey.pair(p), el: () => pairCard(p) }));
-    const pdfItems = lastPdfs.map((x) => ({ key: x.name, k: favKey.pdf(x.name), el: () => pdfCard(x.name) }));
-    const items = (tab === "all" ? [...pairItems, ...scoreItems] : tab === "duet" ? pairItems : tab === "pdf" ? pdfItems : [...pairItems, ...scoreItems, ...pdfItems].filter((i) => favs.has(i.k))).sort((a, b) => a.key.localeCompare(b.key, "zh"));
+    const scoreItems = lastScores.map((x) => ({ id: x.name, key: displayName(x.name), k: favKey.score(x.name), el: () => card(x.name, true) }));
+    const pairItems = pairs.map((p) => ({ id: pairKey(p), key: `${p.name}\u0000`, k: favKey.pair(p), el: () => pairCard(p) }));
+    const pdfItems = lastPdfs.map((x) => ({ id: `pdf:${x.name}`, key: x.name, k: favKey.pdf(x.name), el: () => pdfCard(x.name) }));
+    const allItems = [...pairItems, ...scoreItems, ...pdfItems];
+    const items = (tab === "all" ? [...pairItems, ...scoreItems] : tab === "duet" ? pairItems : tab === "pdf" ? pdfItems : [...pairItems, ...scoreItems, ...pdfItems].filter((i) => favs.has(i.k)));
+    const seen = getSeen(allItems.map((i) => i.id)); const opened = getOpened();
+    // name: A → Z; added / opened: the newest first, what has no time (old, never opened) after it, by name; "reverse" turns the whole list round
+    const byName = (a: { key: string }, b: { key: string }) => a.key.localeCompare(b.key, "zh");
+    items.sort(settings.sortBy === "name" ? byName : (a, b) => ((settings.sortBy === "added" ? seen : opened)[b.id] ?? 0) - ((settings.sortBy === "added" ? seen : opened)[a.id] ?? 0) || byName(a, b));
+    if (settings.sortReverse) items.reverse();
     list.replaceChildren(...items.map((i) => i.el()));
     status.replaceChildren(
       ...(items.length
