@@ -156,7 +156,8 @@ export class Player {
   }
 
   // ---- transport ----
-  async play(withCountIn = true) {
+  /** @param opts.lead  game mode: this many seconds of silence before the music (no metronome clicks); the clock runs from -lead, so the game view can let the notes fall in */
+  async play(withCountIn = true, opts?: { lead?: number }) {
     if (this.playing) return;
     await this.ctx.resume();
     const range = this.loopRange();
@@ -179,7 +180,7 @@ export class Player {
       const n = this.score.timeSig.num;
       for (let i = 0; i < n; i++) clickSound(this.ctx, now + i * beatSec, i === 0, this.volume * this.clickLevel);
       lead = n * beatSec;
-    }
+    } else if (opts?.lead) lead = opts.lead;
     this.startAudio = now + lead;
     this.startPos = pos;
     this.evPtr = this.events.findIndex((e) => e.sec >= pos - 1e-6);
@@ -190,6 +191,9 @@ export class Player {
     this.timer = window.setInterval(() => this.tick(), TICK_MS);
     this.onChange();
   }
+
+  /** audio-clock time at which the music (score time 0 of this run) starts */
+  get startsAt(): number { return this.startAudio; }
 
   /** what the count-in will be (for showing the beats), or null when it is off */
   countInBeats(): { n: number; beatSec: number } | null {

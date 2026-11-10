@@ -17,6 +17,7 @@ import { LANGS, getLang, setLang } from "./i18n";
 import { startFitting } from "./fit";
 import { createGameView } from "./gameview";
 import { confetti } from "./confetti";
+import { goSound, readySound } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
 
 const app = document.getElementById("app")!;
@@ -1990,12 +1991,31 @@ function buildControls(
   playBtn.addEventListener("click", () => {
     unlockIOSAudio();
     if (player.playing) player.pause();
+    else if (gameOn()) void startGame();
     else {
       const ci = player.countInBeats();
       void player.play();
       if (ci) showCountIn(ci.n, ci.beatSec);
     }
   });
+  // game view: READY ... GO! (instead of the metronome count-in): the notes fall in during the lead, the music starts exactly at GO
+  async function startGame() {
+    const LEAD = 3.2;
+    await player.play(false, { lead: LEAD });
+    if (!player.playing) return;
+    clearCountIn();
+    const ctx = audioCtx(), go = player.startsAt, ready = go - LEAD + 0.35;
+    const vol = settings.volume;
+    readySound(ctx, ready, vol); goSound(ctx, go, vol);
+    countEl = h("div", { class: "gostart" }, h("span", { class: "word" }));
+    document.body.append(countEl);
+    const word = countEl.firstElementChild as HTMLElement;
+    const at = (t: number, fn: () => void) => countTimers.push(window.setTimeout(() => { if (player.playing && countEl) fn(); }, Math.max(0, (t - ctx.currentTime) * 1000)));
+    const show = (txt: string, cls: string) => { word.textContent = txt; word.className = "word " + cls; void word.offsetWidth; word.classList.add("in"); };
+    at(ready, () => show("READY", "ready"));
+    at(go - 0.04, () => show("GO!", "go"));
+    countTimers.push(window.setTimeout(clearCountIn, Math.max(0, (go - ctx.currentTime) * 1000) + 1100));
+  }
   // the count-in is also shown as big numbers (1 2 3 4), so you know when the music starts
   let countTimers: number[] = [];
   let countEl: HTMLElement | null = null;
