@@ -3,7 +3,7 @@
 const h = require('./harness.cjs'); const fs = require('fs'); const D = process.env.D;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 (async () => {
-  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'fingered.musicxml')]]);
+  const store = new Map([['scores/fingered.musicxml', fs.readFileSync(D + 'long.musicxml')]]);
   const { browser, page } = await h.start(store, { context: { viewport: { width: 1194, height: 834 } } });
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}'); s.gameMode = true; s.gameView = false; s.gameTilt = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.reload(); await page.waitForSelector('.top .modetoggle', { timeout: 20000 }); await page.waitForTimeout(1500);
@@ -37,5 +37,13 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const ph = await page.evaluate(() => { const g = document.querySelector('.gamepanel').getBoundingClientRect(), s = document.querySelector('.scorewrap').getBoundingClientRect(); return { fits: g.right <= 391 && g.left >= -1, scoreH: Math.round(s.height), noScroll: document.documentElement.scrollWidth <= 390 }; });
   ok(ph.fits && ph.noScroll && ph.scoreH >= 120, `phone: panel fits the screen, the score keeps room (${ph.scoreH}px)`);
   await page.screenshot({ path: D + 'game-phone.png' });
+  // the game feature must not disturb anything else: following the cursor still scrolls the score, with game mode on (switch on Practice) ...
+  await page.click('.modetoggle .seg[data-mode=practice]'); await page.setViewportSize({ width: 1194, height: 700 }); await page.waitForTimeout(500);
+  const follow = () => page.evaluate(async () => { const w = document.querySelector('.scorewrap'); w.scrollTop = 0; await new Promise((r) => setTimeout(r, 200)); window.__pianist.player.seekMeasure(20); await new Promise((r) => setTimeout(r, 800)); const c = document.querySelector('[id^=cursorImg]').getBoundingClientRect(), r = w.getBoundingClientRect(); return { top: w.scrollTop, inView: c.top >= r.top - 2 && c.bottom <= r.bottom + 2 }; });
+  const fo = await follow(); ok(fo.top > 0 && fo.inView, `game mode on, Practice view: the score still scrolls to the current line (scrollTop ${fo.top})`);
+  // ... and with game mode off
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.gameMode = false; s.gameView = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
+  await page.reload(); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1500);
+  const f2 = await follow(); ok(f2.top > 0 && f2.inView, `game mode off: the score scrolls to the current line (scrollTop ${f2.top})`);
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();
