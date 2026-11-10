@@ -69,9 +69,15 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok((await page.$('.modetoggle')) === null, 'off: the switch is gone from the scores');
   // second time: no confetti any more, the plain title, but the flash stays
   await page.evaluate(() => (location.hash = '#/')); await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
-  for (let i = 0; i < 10; i++) await page.click('.top .logo');
+  await page.evaluate(() => { for (let i = 0; i < 14; i++) document.querySelector('.top .logo').click(); }); // a fast finger overshoots: 4 taps too many
   await page.waitForTimeout(1000); p = await popup();
   ok(p && p.title === '游戏模式已开启' && !(await page.evaluate(() => !!document.querySelector('dialog.popup canvas.confetti'))), 'the second time: the plain "game mode is on", no confetti');
+  ok(p && p.title === '游戏模式已开启', 'extra taps right after the 10th do not ask "switch off?" (still the unlock message)');
+  await page.click('dialog.popup button.primary'); await page.waitForTimeout(300);
+  await page.click('.top .logo'); await page.waitForTimeout(300);
+  ok((await popup()) === null, 'and for a moment after closing the message a tap does nothing (cool-down)');
+  await page.waitForTimeout(1500); await page.click('.top .logo'); await page.waitForTimeout(300);
+  p = await popup(); ok(p && p.title === '关闭游戏模式？', 'later, one tap asks whether to switch it off');
   await page.screenshot({ path: D + 'game-egg.png' });
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

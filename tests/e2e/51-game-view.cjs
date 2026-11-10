@@ -15,7 +15,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const lit = () => page.evaluate(() => { const c = document.querySelector('.gcanvas'); const x = c.getContext('2d'); const d = x.getImageData(0, 0, c.width, c.height).data; let cy = 0, gr = 0, white = 0; for (let i = 0; i < d.length; i += 16) { const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3]; if (a < 200) continue; if (r > 215 && g > 215 && b > 215) white++; else if (b > 200 && g > 170 && r < 90) cy++; else if (g > 220 && r > 90 && r < 170 && b < 130) gr++; } return { cy, gr, white }; });
   let l = await lit(); ok(l.white > 400, `the keyboard is drawn (${l.white} white-key pixels)`);
   ok(l.cy + l.gr === 0 || true, 'before play nothing is falling yet or the first notes are coming');
-  await page.evaluate(() => window.__pianist.player.seekStep(0)); await page.click('button[title^=播放]'); await page.waitForTimeout(1400);
+  await page.evaluate(() => window.__pianist.player.seekStep(0)); await page.click('button[title^=播放]'); await page.waitForTimeout(4700); // READY ... GO first (3.2 s)
   l = await lit(); ok(l.cy > 60, `playing: notes / keys glow blue (${l.cy} px)`);
   ok(l.gr > 20, `and the left hand is green (${l.gr} px)`);
   await page.click('.handstrip .hand[title=右手]'); await page.waitForTimeout(250); l = await lit(); // wait until the left-hand notes have passed

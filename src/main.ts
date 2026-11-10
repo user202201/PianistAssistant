@@ -742,8 +742,10 @@ function updateLogo() {
   el.replaceChildren(ic(settings.gameMode ? "game-note" : "note", settings.gameMode ? 24 : 20));
 }
 /** The hidden game mode: tap the note at the top left of the home screen 10 times (taps no more than 2 s apart) to switch it on; one tap asks whether to switch it off. */
-let eggTaps = 0, eggLast = 0;
+let eggTaps = 0, eggLast = 0, eggBusy = false, eggCool = 0;
 function onLogoTap(rerender: () => void) {
+  // fast tapping overshoots: right after switching on, more taps must not ask "switch off?" (not while the unlock message is up or coming, not for a moment after it)
+  if (eggBusy || Date.now() < eggCool || document.querySelector("dialog.popup[open]")) return;
   if (settings.gameMode) {
     void popup("关闭游戏模式？", "", "关闭").then((yes) => {
       if (!yes) return;
@@ -766,7 +768,8 @@ function onLogoTap(rerender: () => void) {
     settings.gameMode = true; saveSettings(settings);
     let first = true;
     try { first = !localStorage.getItem(UNLOCKED); localStorage.setItem(UNLOCKED, "1"); } catch { /* ignore */ }
-    window.setTimeout(() => { rerender(); void popup(first ? "隐藏模式已解锁" : "游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。", undefined, first); }, 650); // the flash is seen first
+    eggBusy = true;
+    window.setTimeout(() => { rerender(); void popup(first ? "隐藏模式已解锁" : "游戏模式已开启", "打开乐谱，点顶部的“游戏”即可。", undefined, first).then(() => { eggBusy = false; eggCool = Date.now() + 1500; }); }, 650); // the flash is seen first
   }
 }
 const UNLOCKED = "pianist.game.unlocked.v1"; // confetti only the first time
