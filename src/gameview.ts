@@ -137,7 +137,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   interface Puff { x: number; y: number; vx: number; vy: number; life: number; max: number; r: number; col: string }
   const sparks: Puff[] = []; // (the puffs)
   const pressed = new Map<number, string>(); // keys the player holds (score mode)
-  const popups: { x: number; text: string; col: string; t: number; life: number }[] = [];
+  const popups: { x: number; text: string; col: string; t: number; life: number; lift: number; liftTo: number }[] = [];
   const banners: { text: string; col: string; t: number }[] = [];
   let geo = { ww: 20, top: 100 };
   const flares: { x: number; y: number; t: number; col: string; w: number }[] = [];
@@ -254,7 +254,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     const project = (x: number, y: number) => { const q = mtx.transformPoint(new DOMPoint(x - W / 2, y - H, 0, 1)); const sc = persp / (persp - q.z); return { x: W / 2 + q.x * sc, y: Hp + q.y * sc }; };
     for (let i = popups.length - 1; i >= 0; i--) { // judgement words rise from the key and fade (a Miss goes quickly)
       const p = popups[i]; p.t += dt; const u = p.t / p.life; if (u >= 1) { popups.splice(i, 1); continue; }
-      const q = project(Math.max(30, Math.min(W - 30, p.x)), top - 14 - u * 40);
+      const q = project(Math.max(30, Math.min(W - 30, p.x)), top - 14 - u * 40 + Math.max(0, 1 - p.t / 0.12) * 8);
       fctx.save(); fctx.globalAlpha = Math.min(1, (1 - u) * 1.6); fctx.font = `800 ${Math.round(12 + (1 - u) * 3)}px system-ui, sans-serif`; fctx.textAlign = "center"; fctx.shadowColor = p.col; fctx.shadowBlur = 10; fctx.fillStyle = p.col;
       fctx.fillText(p.text, q.x, q.y); fctx.restore();
     }
@@ -280,7 +280,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
       const k = keyBox(j.midi, geo.ww, 0), cx = k.x + k.w / 2;
       const look: Record<string, [string, string]> = { perfect: ["PERFECT", "#ffd60a"], good: ["GOOD", "#7dff6b"], early: ["EARLY", "#9ad1ff"], late: ["LATE", "#ffb86b"], miss: ["MISS", "#ff5a5a"], wrong: ["×", "#ff5a5a"] };
       const [text, col] = look[j.kind];
-      if (opts.judgeText()) popups.push({ x: cx, text, col, t: 0, life: j.kind === "miss" || j.kind === "wrong" ? 0.42 : 0.75 });
+      if (opts.judgeText()) for (const q of popups) q.t = Math.max(q.t, q.life * 0.85); // a new word: the older ones fade out at once (one word at a time, never on top of each other)
+      if (opts.judgeText()) popups.push({ x: cx, text, col, t: 0, lift: 0, liftTo: 0, life: j.kind === "miss" || j.kind === "wrong" ? 0.5 : 0.9 });
       if (j.kind !== "miss" && j.kind !== "wrong") { flares.push({ x: cx, y: geo.top, t: 0, col, w: Math.max(geo.ww * 2.4, 40) }); emit(cx, geo.top, col, j.kind === "perfect" ? 3 : 2); }
     },
     milestone(n) {

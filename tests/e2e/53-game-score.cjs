@@ -116,12 +116,14 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.evaluate(() => { window.__bn = 0; new MutationObserver(() => {}); const p = document.querySelector('.gamepanel'); const t = setInterval(() => { window.__bn = Math.max(window.__bn, Number(p.dataset.banners || 0)); }, 30); window.__bt = t; });
   const n = await page.evaluate(async () => { const ev = window.__ev; const out = [];
     for (let i = 0; i < 10; i++) { await window.__wait(ev[i].sec); window.__key(ev[i].midi); await new Promise((r) => setTimeout(r, 60)); window.__key(ev[i].midi, false); out.push(ev[i].midi); }
-    window.__key(23); // a key that belongs to no note
+    window.__key(23); window.__key(23, false); window.__key(23); // two keys that belong to no note, at the same place
+    await new Promise((r) => setTimeout(r, 400)); window.__words = Number(document.querySelector('.gamepanel').dataset.popups);
     return out; });
   const st1 = await page.evaluate(() => { return { score: Number(document.querySelector('.hudscore').innerText), combo: Number(document.querySelector('.hudcombo b').innerText) }; });
   const hNow = await page.evaluate(() => Math.round(document.querySelector('.hudcombobox').getBoundingClientRect().height));
   ok(hNow === hud0.h, `the score window keeps its size while the combo comes and goes (${hud0.h} -> ${hNow}px)`);
-  ok(st1.score > 800 && st1.combo === 0, `ten keys struck on time are scored (${st1.score}); the stray key broke the combo`);
+  ok(st1.score > 800 && st1.combo === 0, `ten keys struck on time are scored (${st1.score}); the stray keys broke the combo`);
+  ok(await page.evaluate(() => window.__words) <= 1, 'a new word makes the older one fade out at once: one word at a time, never two on top of each other');
   ok(await page.evaluate(() => window.__bn) >= 1, 'a run of 10 hits sets off the combo banner');
   await page.screenshot({ path: D + 'game-score-play.png' });
   ok(await page.evaluate(() => window.__started) === 0, 'the app does not play the notes you have to play (you play them on your piano)');
@@ -132,7 +134,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.waitForTimeout(500);
   const rs = await page.evaluate(() => { const c = document.querySelector('.gameresult'); const n = (l) => Number([...c.querySelectorAll('.hudcount')].find((x) => x.querySelector('span').innerText === l).querySelector('b').innerText); const r = c.getBoundingClientRect();
     return { open: !c.hidden, stars: c.querySelector('.hudstars').innerText, perfect: n('完美'), wrong: n('错键'), miss: n('漏掉'), centred: Math.abs(r.left + r.width / 2 - window.innerWidth / 2) < 3 }; });
-  ok(rs.open && rs.perfect >= 9 && rs.wrong === 1 && rs.miss >= 1 && rs.centred, `at the end the summary shows: stars ${rs.stars}, ${rs.perfect} perfect, ${rs.wrong} wrong key, ${rs.miss} missed`);
+  ok(rs.open && rs.perfect >= 9 && rs.wrong === 2 && rs.miss >= 1 && rs.centred, `at the end the summary shows: stars ${rs.stars}, ${rs.perfect} perfect, ${rs.wrong} wrong key, ${rs.miss} missed`);
   await page.screenshot({ path: D + 'game-score-result.png' });
   await page.click('.gameresult .hudbtn:not(.primary)'); ok(await page.evaluate(() => document.querySelector('.gameresult').hidden), 'the summary can be closed');
   // level buttons
