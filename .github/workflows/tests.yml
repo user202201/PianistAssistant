@@ -34,3 +34,31 @@ jobs:
             tests/out/work/layout-*.png
             tests/out/work/matrix-*.png
             tests/out/*.log
+
+  # The same tests on the Safari engine (WebKit): what an iPad runs. Informational: a failure here does not stop the packaging, but it shows what only Safari gets wrong
+  # (the report of this job: artifact "webkit-report").
+  webkit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - name: Tests on WebKit
+        run: BROWSER=webkit bash tests/run-all.sh 08-ipad-ui 12-split-view 21-home-tabs-favourites 37-layout-en 37-layout-de 40-tabs-fit 41-bottom-bar-small-screen 43-fourhand-small-screen 49-sort-lists 50-game-mode-egg 51-game-view 52-game-start 53-game-score 54-demo-baseline 58-game-fourhand-space
+      - name: Report
+        if: always()
+        run: |
+          node tests/make-report.cjs
+          cat tests/out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webkit-report
+          path: |
+            tests/out/report.html
+            tests/out/report.md
+            tests/out/*.log

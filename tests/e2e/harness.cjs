@@ -1,8 +1,10 @@
 // Shared test harness: mocks the GitHub contents API (dir -> name -> Buffer), logs in, returns page.
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
+// BROWSER=webkit runs the same test on the Safari engine (what an iPad uses). Default: Chromium.
+const engine = process.env.BROWSER === 'webkit' ? webkit : chromium;
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {}) {
-  const browser = await chromium.launch(opts.launchArgs ? { args: opts.launchArgs } : {});
+  const browser = await engine.launch(opts.launchArgs && engine === chromium ? { args: opts.launchArgs } : {});
   const ctx = await browser.newContext({ locale: opts.locale || 'zh-CN', ...(opts.permissions ? { permissions: opts.permissions } : {}), ...(opts.context || { viewport: opts.viewport || { width: 1200, height: 800 } }) });
   const page = await ctx.newPage();
   // the count-in before playback is on by default now; the older suites measure scheduling, so they switch it off (opts.countIn keeps it)

@@ -91,7 +91,7 @@ jobs:
       - name: Keep the test report with the builds (not the hundreds of screenshots)
         run: |
           [ -f out/e2e-report/report.html ] && cp out/e2e-report/report.html out/test-report.html || true
-          find out -mindepth 1 -maxdepth 1 -name 'e2e-*' -exec rm -rf {} +
+          find out -mindepth 1 -maxdepth 1 \( -name 'e2e-*' -o -name 'webkit-*' \) -exec rm -rf {} +
       - name: Bundle for the scores repository (makes PDF conversion independent of this repository)
         run: bash scripts/make-scores-repo-bundle.sh out/scores-repo-bundle.zip
       - name: Publish to the release "app-builds"
