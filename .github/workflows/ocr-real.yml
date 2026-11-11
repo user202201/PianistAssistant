@@ -1,0 +1,44 @@
+name: ocr-real
+# Real PDFs (samples/ocr-real/): Audiveris, homr and oemer side by side, checked by structure (scripts/ocr-validate.py). Starts by itself when a PDF or one of the
+# converter scripts changes, every night, and by hand. Result: the table in the run summary + the MusicXML files (artifact "ocr-real-results").
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+  push:
+    branches: [claude/epic-dirac-38xck6]
+    paths: ["samples/ocr-real/**", "scripts/ocr-real.sh", "scripts/ocr-validate.py", "scores-repo-template/convert-*.sh", "scores-repo-template/merge-pages.py", ".github/workflows/ocr-real.yml"]
+permissions:
+  contents: read
+jobs:
+  real:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.10" }
+      - name: Install the engines
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils libgl1 imagemagick tesseract-ocr tesseract-ocr-eng jq unzip
+          python -m pip install --upgrade pip
+          pip install img2pdf
+          (pip install homr 2>&1 | tail -n 2) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 2)
+          pip install oemer 2>&1 | tail -n 2
+          which homr oemer
+          url=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
+            jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
+          curl -fsSL -o /tmp/audiveris.deb "$url"
+          mkdir -p /tmp/audiveris-root && dpkg-deb -x /tmp/audiveris.deb /tmp/audiveris-root
+          AUD=$(find /tmp/audiveris-root -type f -name Audiveris | head -1); chmod +x "$AUD"; echo "AUD=$AUD" >> "$GITHUB_ENV"
+          mkdir -p /tmp/tessdata-full && curl -fsSL -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
+          echo "TESSDATA_PREFIX=/tmp/tessdata-full" >> "$GITHUB_ENV"
+          echo "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true" >> "$GITHUB_ENV"
+      - name: Run
+        run: bash scripts/ocr-real.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: ocr-real-results, path: /tmp/real-out/* }
