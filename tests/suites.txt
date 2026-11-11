@@ -65,3 +65,4 @@
 62-merge-timing
 63-align-bars
 64-ocr-validate
+65-dismiss-outside

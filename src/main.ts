@@ -375,7 +375,7 @@ function alignRules(o: OpenSheetMusicDisplay) {
 }
 
 function openSettings(onSound?: () => void, onLayout?: () => void) {
-  const dlg = h("dialog", { class: "dlg settings" });
+  const dlg = h("dialog", { class: "dlg settings dismiss" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
   sound.addEventListener("change", () => {
     settings.sound = sound.value;
@@ -843,11 +843,23 @@ function askText(title: string, value: string, okLabel = "好"): Promise<string 
   });
 }
 
+/** Option pickers (class "dismiss": settings, card menu) close when you tap the dark area around them. Dialogs that must be answered (confirmations, messages,
+ *  trial over, file name taken ...) never do. A press that starts inside the dialog (a slider dragged out of it) is not a tap outside. */
+let downOnBackdrop = false;
+document.addEventListener("pointerdown", (e) => { downOnBackdrop = e.target instanceof HTMLDialogElement && e.target.classList.contains("dismiss"); }, true);
+document.addEventListener("click", (e) => {
+  const d = e.target;
+  if (!downOnBackdrop || !(d instanceof HTMLDialogElement) || !d.open || !d.classList.contains("dismiss")) return;
+  const r = d.getBoundingClientRect();
+  if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return; // the padding of the dialog itself
+  d.close();
+});
+
 /** Small action sheet of a card. */
 function openCardMenu(title: string, actions: { label: string; icon: string; danger?: boolean; run: () => void }[]) {
   const dlg = h(
     "dialog",
-    { class: "dlg" },
+    { class: "dlg dismiss" },
     h("h2", { tabIndex: -1, autofocus: true }, title),
     ...actions.map((a) => h("button", { class: "rowbtn" + (a.danger ? " danger" : ""), onclick: () => { dlg.close(); a.run(); } }, ic(a.icon, 20), a.label)),
     h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "关闭")),
@@ -2342,6 +2354,7 @@ function buildControls(
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("resize", onResizeBar);
     document.removeEventListener("click", closeMenus);
+    document.removeEventListener("click", closePanels);
     handle.remove();
     window.removeEventListener("resize", relayout);
     clearTimeout(relayoutTimer);
@@ -2386,6 +2399,14 @@ function buildControls(
     if (!(e.target as HTMLElement | null)?.closest(".panehead, .panemenu")) document.querySelectorAll(".panehead.open").forEach((x) => x.classList.remove("open"));
   };
   document.addEventListener("click", closeMenus);
+  // the small panels of the bottom bar (practice, fingering, align bars) close when you tap anywhere else; not while fingers are being edited
+  const closePanels = (e: Event) => {
+    const el = e.target as HTMLElement | null;
+    if (!el || !el.isConnected || el.closest(".controls .panel, .controls .toggle, .controls .narrow, dialog, .editbar, .toast")) return;
+    if (!editbar.hidden) return;
+    panel.hidden = true; fpanel.hidden = true; apanel.hidden = true;
+  };
+  document.addEventListener("click", closePanels);
   moreBtn.addEventListener("click", () => setBar(barMode() === "min" ? "full" : "min"));
   // fingering, practice and zoom: on a wide screen at the right end of the bottom bar; on a small screen the zoom buttons go to the strip on top
   const wrapRow = h("div", { class: "row wrap" }, h("div", { class: "grow" }), ...(split ? [alignBtn] : []), fingerBtn, practiceGroup, zoomOut, zoomIn);
