@@ -18,7 +18,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: npx playwright install --with-deps webkit
+      - name: Install WebKit
+        timeout-minutes: 10
+        env: { DEBIAN_FRONTEND: noninteractive }
+        run: |
+          sudo apt-get update -y
+          npx playwright install --with-deps webkit
       - name: Tests on WebKit
         env:
           SUITES: ${{ inputs.suites }}
