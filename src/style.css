@@ -894,8 +894,10 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .welcome ol { margin: 0 0 14px; padding-left: 1.3em; color: var(--muted); line-height: 1.5; } .welcome li { margin: 3px 0; }
 
 /* conversion help dialog: a long text, scrolls on a phone */
-.dlg.convhelp { max-width: min(560px, 94vw); max-height: 88vh; overflow-y: auto; }
-.dlg.convhelp h3 { margin: 14px 0 4px; font-size: 1rem; }
+.dlg.convhelp { max-width: min(560px, 94vw); max-height: 88vh; }
+.dlg.convhelp[open] { display: flex; flex-direction: column; }
+.dlg.convhelp .convbody { overflow-y: auto; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+.dlg.convhelp h3 { margin: 14px 0 4px; font-size: 1rem; color: var(--text); text-transform: none; letter-spacing: 0; }
 .dlg.convhelp p { margin: 4px 0; }
 .dlg.convhelp .links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
 .dlg.convhelp .links a { color: var(--accent); }
