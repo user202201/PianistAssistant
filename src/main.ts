@@ -367,6 +367,13 @@ async function importBackup(file: File) {
   }
 }
 
+/** four hands: a fixed number of bars per line in every part (setting), and no line breaks of the file's own (they would differ between A and B) */
+function alignRules(o: OpenSheetMusicDisplay) {
+  const r = o.EngravingRules;
+  r.RenderXMeasuresPerLineAkaSystem = settings.alignBars;
+  if (settings.alignBars > 0) { r.NewSystemAtXMLNewSystemAttribute = false; r.NewPageAtXMLNewPageAttribute = false; }
+}
+
 function openSettings(onSound?: () => void, onLayout?: () => void) {
   const dlg = h("dialog", { class: "dlg settings" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
@@ -1765,6 +1772,7 @@ async function renderDuet(pair: api.Pair) {
       if (stale()) return bail();
       o.zoom = settings.zoom;
       o.EngravingRules.RenderFingerings = false; // our own overlay draws the numbers
+      alignRules(o); // same bars per line in both parts -> the bar lines of A and B stand above each other
       o.render();
       o.cursor.show();
       const ps = extractScore(o, displayName(files[g]));
@@ -1959,6 +1967,7 @@ function buildControls(
       if (v.holder.clientWidth === 0) { drawnWidth.set(v, -1); continue; } // folded away / hidden: draw it when it is shown again
       v.osmd.EngravingRules.RenderFingerings = false; // every number is drawn by our own overlay so it can follow the hand selection
       v.osmd.zoom = settings.zoom;
+      alignRules(v.osmd);
       v.osmd.render();
       drawnWidth.set(v, v.holder.clientWidth);
 
@@ -2001,8 +2010,19 @@ function buildControls(
     editBtn,
   );
   const fingerToggle = h("button", { class: "toggle", title: "显示 / 隐藏指法", disabled: !tools.supported, onclick: () => setFingers(!tools.visible) }, ic("hand", 20), h("span", { class: "lbl" }, "指法"));
-  const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; } }, ic("chevron-down", 18));
+  const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; apanel.hidden = true; } }, ic("chevron-down", 18));
   const fingerBtn = h("div", { class: "group pair" }, fingerToggle, fingerOpts);
+  // four hands: the same number of bars per line in A and B, so the bar lines stand above each other (one icon in the bar, a small panel for the number)
+  const alignBtns = [0, 2, 3, 4, 6].map((n) => h("button", { class: "seg" + (settings.alignBars === n ? " on" : ""), onclick: () => {
+    settings.alignBars = n;
+    saveSettings(settings);
+    alignBtns.forEach((b, i) => b.classList.toggle("on", [0, 2, 3, 4, 6][i] === n));
+    alignToggle.classList.toggle("on", n > 0);
+    rerender();
+  } }, n === 0 ? "关闭" : String(n)));
+  const apanel = h("div", { class: "panel", hidden: true }, h("p", { class: "muted small" }, "让 A、B 两个声部每行显示相同数量的小节，小节线上下对齐。"), h("div", { class: "group" }, h("span", { class: "gl" }, "每行小节数"), ...alignBtns));
+  const alignToggle = h("button", { class: "toggle" + (settings.alignBars > 0 ? " on" : ""), title: "对齐小节", onclick: () => { apanel.hidden = !apanel.hidden; panel.hidden = true; fpanel.hidden = true; } }, ic("align-bars", 20), h("span", { class: "lbl" }, "对齐"));
+  const alignBtn = h("div", { class: "group" }, alignToggle);
   function setFingers(on: boolean) {
     tools.visible = on;
     settings.fingers = on;
@@ -2011,7 +2031,7 @@ function buildControls(
     tools.refresh(); // the numbers are our own overlay: no need to redraw the score (which would also restart playback)
   }
   fingerToggle.classList.toggle("on", tools.visible);
-  practiceBtn.addEventListener("click", () => (fpanel.hidden = true));
+  practiceBtn.addEventListener("click", () => { fpanel.hidden = true; apanel.hidden = true; });
 
   const fbtns = [1, 2, 3, 4, 5].map((n) => h("button", { class: "fnum", onclick: () => tools.apply(n) }, String(n)));
   const fclear = h("button", { class: "fnum", title: "清除该音符的指法", onclick: () => tools.apply(null) }, ic("x", 22));
@@ -2341,6 +2361,7 @@ function buildControls(
     saveSettings(settings);
     panel.hidden = true;
     fpanel.hidden = true;
+    apanel.hidden = true;
     refreshMore();
   };
   const refreshMore = () => {
@@ -2367,12 +2388,13 @@ function buildControls(
   document.addEventListener("click", closeMenus);
   moreBtn.addEventListener("click", () => setBar(barMode() === "min" ? "full" : "min"));
   // fingering, practice and zoom: on a wide screen at the right end of the bottom bar; on a small screen the zoom buttons go to the strip on top
-  const wrapRow = h("div", { class: "row wrap" }, h("div", { class: "grow" }), fingerBtn, practiceGroup, zoomOut, zoomIn);
+  const wrapRow = h("div", { class: "row wrap" }, h("div", { class: "grow" }), ...(split ? [alignBtn] : []), fingerBtn, practiceGroup, zoomOut, zoomIn);
   const bar = h(
     "footer",
     { class: "controls" },
     panel,
     fpanel,
+    apanel,
     editbar,
     h("div", { class: "row mainrow" }, stopBtn, playBtn, h("div", { class: "speedbox" }, speed, speedLabel), pos, moreBtn, hideBtn),
     wrapRow,
@@ -2383,7 +2405,7 @@ function buildControls(
     ...(score.parts.length > 1 ? score.parts.map((_, g) => partControls(g)) : []),
   ];
   const strip = split ? null : h("div", { class: "handstrip" }, ...handContent, h("div", { class: "grow" }));
-  strip?.addEventListener("click", () => { panel.hidden = true; fpanel.hidden = true; });
+  strip?.addEventListener("click", () => { panel.hidden = true; fpanel.hidden = true; apanel.hidden = true; });
   if (split) {
     // full screen for one part: the other part keeps sounding, it just is not shown
     let focus: number | null = null;

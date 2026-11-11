@@ -12,6 +12,7 @@ const STROKE: Record<string, string> = {
   duet: '<circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/>',
   timer: '<circle cx="12" cy="13" r="7"/><path d="M12 9v4l2.5 2M9.5 3h5"/>',
   "chevron-up": '<path d="M6 15l6-6 6 6"/>',
+  'align-bars': '<path d="M3 8h18M3 16h18M3 4v16M12 4v16M21 4v16"/>',
   sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
   refresh: '<path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>',
