@@ -27,7 +27,8 @@ def validate(path):
             full = beats * div * 4 // bt; tot = {}; pitched = False
             for n in m.findall("note"):
                 s = n.findtext("staff") or "1"; used.add(s)
-                if n.find("chord") is None: tot[s] = tot.get(s, 0) + int(n.findtext("duration") or 0)
+                vs = (s, n.findtext("voice") or "1")  # several voices on one staff each add up on their own (Audiveris writes voices 1, 2 ... with <backup>)
+                if n.find("chord") is None: tot[vs] = tot.get(vs, 0) + int(n.findtext("duration") or 0)
                 p = n.find("pitch")
                 if p is not None:
                     pitched = True; out["notes"] += 1
@@ -35,7 +36,7 @@ def validate(path):
                     if c is not None and abs(int(p.findtext("octave")) * 7 + STEP[p.findtext("step")] - c) > 14: out["farNotes"] += 1  # more than ~5 ledger lines away
             if not pitched: out["empty"] += 1
             bad = False
-            for s, d in tot.items():
+            for vs, d in tot.items():
                 out["staffMeasures"] += 1
                 if d != full: out["badStaffMeasures"] += 1; bad = True
             if bad: out["badMeasures"].append(int(m.get("number") or 0))

@@ -21,7 +21,7 @@ for pdf in samples/ocr-real/*.pdf; do
       echo "| $src ($pages p.) | $engine | $row | $secs s |" >> "$ROWS"
       echo "  -- structure of $src / $engine:"; python3 scripts/xml-structure.py "$res" 2>&1 | cut -c1-300
     else
-      echo "| $src ($pages p.) | $engine | NO RESULT | | | | | | $secs s |" >> "$ROWS"; tail -n 3 "$log" | cut -c1-200
+      echo "| $src ($pages p.) | $engine | NO RESULT | | | | | | $secs s |" >> "$ROWS"; tail -n 14 "$log" | cut -c1-240
     fi
   done
 done
