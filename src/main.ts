@@ -768,6 +768,7 @@ function updateLogo() {
 }
 /** The hidden game mode: tap the note at the top left of the home screen 10 times (taps no more than 2 s apart) to switch it on; one tap asks whether to switch it off. */
 let eggTaps = 0, eggLast = 0, eggBusy = false, eggCool = 0;
+const noteName = (m: number) => ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][m % 12] + (Math.floor(m / 12) - 1);
 function onLogoTap(rerender: () => void) {
   // fast tapping overshoots: right after switching on, more taps must not ask "switch off?" (not while the unlock message is up or coming, not for a moment after it)
   if (eggBusy || Date.now() < eggCool || document.querySelector("dialog.popup[open]")) return;
@@ -2416,8 +2417,10 @@ function buildControls(
     onPair: midi.isNative ? () => void midi.pairBluetooth() : null,
     onRetry: () => { player.stop(); void startGame(); },
     latency: settings.gameLatency, onLatency: (ms) => { settings.gameLatency = ms; saveSettings(settings); },
+    micSens: settings.micSensitivity, onMicSens: (n) => { settings.micSensitivity = n; saveSettings(settings); mic.sensitivity = n; },
     onMic: async () => {
       if (mic.running) { mic.stop(); hud.micState("off"); return; }
+      mic.sensitivity = settings.micSensitivity;
       const r = await mic.start(() => { const pos = player.position(), w = (WINDOWS[settings.gameLevel][2] - 0.16) * player.speed; return score.events.filter((e) => player.isShown(e) && Math.abs(e.sec - pos) < w).map((e) => e.midi); }); // only the notes that are due are listened for
       hud.micState(r === "ok" ? "on" : r);
     },
@@ -2470,7 +2473,7 @@ function buildControls(
     }
   };
   const roundTimer = window.setInterval(() => {
-    if (mic.running) hud.micLevel(mic.level);
+    if (mic.running) { hud.micLevel(mic.level); const hd = mic.heard; hud.micHeard(hd && performance.now() - hd.t < 1800 ? noteName(hd.note) : null); }
     if (!gameOn() || !gs || roundOver) return;
     const pos = player.position();
     const ended = !player.playing && pos >= score.duration - 0.05;

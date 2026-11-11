@@ -48,5 +48,12 @@ function wav(path) {
     await mic.start(() => [61, 66, 70]); await new Promise((s) => setTimeout(s, 7000)); mic.stop(); return ev;
   });
   ok(r2.length === 0, `pitches that are not played (C#, F#, A#) are not reported (${r2.length} false reports)`);
+  // when nothing is due (not playing) the clearest tone in the room is shown, so that one can see the microphone works
+  const r3 = await page.evaluate(async () => { const { mic } = await import('/PianistAssistant/src/mic.ts'); const seen = new Set(); await mic.start(() => []); for (let i = 0; i < 130; i++) { await new Promise((s) => setTimeout(s, 60)); if (mic.heard && performance.now() - mic.heard.t < 300) seen.add(mic.heard.note); } mic.stop(); return [...seen].sort(); });
+  ok([60, 64, 67].every((n) => r3.includes(n)), `nothing due: the tone that is played is shown anyway (${r3.join(' ')}), to show that the microphone works`);
+  // the sensitivity: each level hears the notes; the highest does not make up notes that are not there
+  const r4 = await page.evaluate(async () => { const { mic } = await import('/PianistAssistant/src/mic.ts'); const out = {}; for (const sens of [0, 1, 2]) { mic.sensitivity = sens; const real = [], fake = []; const off = mic.onNote((n) => (n.note >= 60 && n.note <= 67 && [60, 64, 67].includes(n.note) ? real : fake).push(n.note));
+      await mic.start(() => [60, 64, 67, 61, 66, 70]); await new Promise((s) => setTimeout(s, 6500)); mic.stop(); off(); out[sens] = [real.length, fake.length]; } mic.sensitivity = 1; return out; });
+  ok([0, 1, 2].every((k) => r4[k][0] >= 5 && r4[k][1] === 0), `all three sensitivities hear the notes and make up none (low ${r4[0].join('/')}, normal ${r4[1].join('/')}, high ${r4[2].join('/')}: heard / invented)`);
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

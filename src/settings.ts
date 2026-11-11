@@ -52,12 +52,14 @@ export interface Settings {
   gameJudgeText: boolean;
   /** score mode: milliseconds the player's keys are treated as EARLIER (a keyboard / Bluetooth that delays its signals); -200 .. 200 */
   gameLatency: number;
+  /** microphone: 0 low / 1 normal / 2 high sensitivity */
+  micSensitivity: number;
 }
 const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0 });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0, micSensitivity: 1 });
 
 export function loadSettings(): Settings {
   try {

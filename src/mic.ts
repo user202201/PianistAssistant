@@ -8,6 +8,8 @@ import type { MidiNote } from "./midi";
  * TV or the app's own accompaniment can confuse it.
  * Nothing is recorded or sent anywhere: the sound is analysed on the fly and thrown away.
  */
+/** sensitivity: 0 = low (quiet room, fewer false hits), 1 = normal, 2 = high (a quiet piano / a far microphone). [clearness in dB, sudden rise in dB] */
+export const MIC_THRESHOLDS: [number, number][] = [[15, 9], [11, 6], [8, 4.5]];
 export type MicResult = "ok" | "denied" | "unsupported";
 
 const FFT = 8192;
@@ -20,6 +22,10 @@ export class MicInput {
   dbg: ((m: number, sal: number, rise: number) => void) | null = null;
   /** 0..1, how loud it is in the room (for the level bar) */
   level = 0;
+  /** 0 / 1 / 2, see MIC_THRESHOLDS */
+  sensitivity = 1;
+  /** what was heard last (a note that was due and struck, or - when nothing is due - the clearest tone in the room): for showing that the microphone works */
+  heard: { note: number; t: number } | null = null;
   private ctx: AudioContext | null = null;
   private stream: MediaStream | null = null;
   private an: AnalyserNode | null = null;
@@ -92,6 +98,17 @@ export class MicInput {
     return own - floor / n;
   }
 
+  /** nothing is due (not playing): only to show that the room's tone is heard - the clearest pitch of the piano range, if it is clear enough */
+  private monitor(sr: number, now: number) {
+    const sals: [number, number][] = [];
+    let best = -Infinity;
+    for (let m = 36; m <= 96; m++) { const sal = this.salience(440 * 2 ** ((m - 69) / 12), sr); sals.push([m, sal]); if (sal > best) best = sal; }
+    if (best <= (MIC_THRESHOLDS[this.sensitivity] ?? MIC_THRESHOLDS[1])[0] + 6) return;
+    // the overtones of a note are clear tones too, and higher than it: of all clear pitches the LOWEST is the note
+    const low = sals.find(([, sal]) => sal >= best - 12);
+    if (low) this.heard = { note: low[0], t: now };
+  }
+
   private frame(cands: number[]) {
     const an = this.an, ctx = this.ctx;
     if (!an || !ctx) return;
@@ -101,12 +118,14 @@ export class MicInput {
     this.level = Math.min(1, Math.sqrt(s / this.wave.length) * 6);
     an.getFloatFrequencyData(this.spec);
     const sr = ctx.sampleRate, now = performance.now();
+    if (!cands.length) this.monitor(sr, now);
     const want = new Set(cands);
     for (const m of [...this.hist.keys()]) if (!want.has(m)) this.hist.delete(m); // a pitch that is not due has no history: when it becomes due, a tone that is already ringing is not a new key
     for (const m of want) {
       const f0 = 440 * 2 ** ((m - 69) / 12);
       if (f0 < 55 || f0 * 2 > sr / 2) continue;
-      const sal = this.salience(f0, sr); // (only the fundamental decides: the overtones of one note are the fundamentals of others)
+      // the fundamental decides; for deep notes (a small speaker / a far microphone hardly carries them) the first overtone may stand in for it
+      const s1 = this.salience(f0, sr), sal = f0 < 262 ? Math.max(s1, this.salience(f0 * 2, sr) - 3) : s1;
       const h = this.hist.get(m) ?? [];
       const low = h.length ? Math.min(...h) : sal;
       h.push(sal); if (h.length > 6) h.shift();
@@ -115,9 +134,11 @@ export class MicInput {
       const st = this.armed.get(m) ?? { on: true, peak: 0 };
       if (!st.on) { st.peak = Math.max(st.peak, sal); if (sal < st.peak - 10 || now - (this.last.get(m) ?? 0) > 900) st.on = true; }
       this.armed.set(m, st);
-      if (st.on && h.length >= 5 && sal > 18 && sal - low > 10) {
+      const [thr, rise] = MIC_THRESHOLDS[this.sensitivity] ?? MIC_THRESHOLDS[1];
+      if (st.on && h.length >= 5 && now - (this.last.get(m) ?? -1e9) > 350 && sal > thr && sal - low > rise) {
         this.last.set(m, now); st.on = false; st.peak = sal; this.dbg?.(m, sal, sal - low);
         const ev: MidiNote = { type: "on", note: m, velocity: 80, time: now - WINDOW_DELAY_MS };
+        this.heard = { note: m, t: now };
         this.handlers.forEach((fn) => fn(ev));
         this.single?.(ev);
       }
