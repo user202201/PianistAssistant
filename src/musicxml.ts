@@ -40,6 +40,10 @@ export function walkNotes(doc: Document): XNote[] {
   kids(root, "part").forEach((part, pi) => {
     let divisions = 1;
     const clef = new Map<number, string>();
+    // a part with two staves (piano): the upper staff is the right hand, the lower one the left hand, whatever the clefs say. Converted PDFs often have the same
+    // clef on both staves (or the left hand written in a treble clef, like in some fugues); judging by the clef would put both staves in ONE hand, and notes sounding together on the two
+    // staves would then be fingered as one chord (5 on every upper note, 1 on every lower one)
+    const staffCount = Math.max(parseInt(part.getElementsByTagName("staves")[0]?.textContent ?? "") || 1, ...Array.from(part.getElementsByTagName("staff")).map((s) => parseInt(s.textContent ?? "") || 1));
     kids(part, "measure").forEach((meas, mi) => {
       let pos = 0; // whole notes
       let lastOnset = 0;
@@ -74,7 +78,7 @@ export function walkNotes(doc: Document): XNote[] {
               staff: staffNo - 1,
               onset,
               midi,
-              hand: clef.get(staffNo) === "F" ? "L" : "R",
+              hand: staffCount >= 2 ? (staffNo === 1 ? "R" : "L") : clef.get(staffNo) === "F" ? "L" : "R",
               tieStop: ties.includes("stop"),
               grace,
               fingering: f >= 1 && f <= 5 ? f : null,
