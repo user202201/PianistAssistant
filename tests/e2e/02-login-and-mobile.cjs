@@ -73,7 +73,7 @@ async function mock(ctx) {
   ok(true, 'session-only login is gone in a fresh tab');
 
   // 6. sign out
-  await d.click('button[title=设置]'); await d.click('text=退出本设备'); await d.waitForSelector('.login');
+  await d.click('button[title=设置]'); await d.click('text=退出登录（本设备）'); await d.waitForSelector('.login');
   ok(await d.evaluate(() => !sessionStorage.getItem('pianist.auth.v1') && !localStorage.getItem('pianist.auth.v1')), 'sign out clears credentials');
   await a.click('button[title=设置]'); await a.screenshot({ path: process.env.D + 'settings.png' });
   await browser.close();

@@ -9,6 +9,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   let { browser, page } = await h.start(new Map([['scores/single.musicxml', fs.readFileSync(D + 'single.musicxml')]]), { actionsRuns: runs, context: { viewport: { width: 1194, height: 1000 } } });
   await page.waitForSelector('.listbox .card'); await open(page);
   ok(await page.isVisible('#usage-btn') && await page.isVisible('#setup-help-btn'), 'GitHub mode: settings have "this month\'s usage" and the setup guide');
+  const order = await page.evaluate(() => { const ids = ['#usage-btn', '#setup-help-btn', '#qr-btn', '#change-token-btn', '#logout-btn']; const d = document.querySelector('dialog.settings'); const heads = [...d.querySelectorAll('h3')].map((x) => x.innerText); const pos = ids.map((i) => { const e = d.querySelector(i); return e ? e.getBoundingClientRect().top : -1; }); const pdfHead = [...d.querySelectorAll('h3')].find((x) => x.innerText === 'PDF 转换'); return { heads, pos, pdfTop: pdfHead ? pdfHead.getBoundingClientRect().top : -1 }; });
+  ok(order.pos.every((x) => x > 0) && order.pos.every((x, i) => i === 0 || x > order.pos[i - 1]) && order.pdfTop > 0 && order.pdfTop < order.pos[0], 'one "PDF 转换" section holds usage, guide, QR login, change token, sign out - in this order (' + order.heads.join(' | ') + ')');
+  ok(!order.heads.includes('登录与设备'), 'there is no separate "sign-in & devices" section any more');
   await page.click('#usage-btn'); await page.waitForTimeout(500);
   let t = await toasts(page);
   ok(t.some((x) => x.includes('约 14 分钟（3 次）')), 'the usage: 3 runs rounded up to whole minutes = about 14 minutes (' + t.join(' | ') + ')');

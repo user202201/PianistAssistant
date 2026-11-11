@@ -181,7 +181,7 @@ function renderLogin(message = "") {
           "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
         ),
         h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
-        h("li", {}, "已有一台登录好的设备？在它的“设置 → 登录与设备”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
+        h("li", {}, "已有一台登录好的设备？在它的“设置 → PDF 转换”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
       ),
     ),
   ];
@@ -495,7 +495,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
       h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
     ]),
-    ...(api.isLocal() ? [] : [h("h3", {}, "登录与设备")]),
     h(
       "p",
       { class: "muted", hidden: api.isLocal() },
@@ -515,7 +514,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("a", { href: "https://github.com/settings/personal-access-tokens", target: "_blank", rel: "noopener" }, "GitHub 令牌管理"),
       " 删除令牌，所有设备会立即失效，再生成新令牌重新登录即可。",
     )]),
-    ...(api.isLocal() ? [] : [h("div", { class: "row" }, h("button", { class: "danger", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出本设备"))]),
+    ...(api.isLocal() ? [] : [h("button", { class: "rowbtn", id: "change-token-btn", onclick: () => { dlg.close(); renderLogin(); } }, ic("refresh", 20), "更换令牌…")]),
+    ...(api.isLocal() ? [] : [h("div", { class: "row" }, h("button", { class: "danger", id: "logout-btn", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出登录（本设备）"))]),
   );
   // the title bar (with "Done") stays where it is; only the part below it scrolls (so pulling down on a tablet does not drag the title bar along)
   const head = dlg.querySelector("#settings-head")!;
