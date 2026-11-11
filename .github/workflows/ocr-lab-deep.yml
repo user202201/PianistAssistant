@@ -25,6 +25,8 @@ jobs:
           pip install img2pdf
           (pip install homr 2>&1 | tail -n 2) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 2)
           pip install oemer 2>&1 | tail -n 2
+          # oemer pulls onnxruntime-gpu, which replaces the CPU build and makes homr crash ("CUDA Provider not available"): put the CPU build back
+          pip uninstall -y onnxruntime-gpu 2>&1 | tail -n 1; pip install --force-reinstall --no-deps onnxruntime 2>&1 | tail -n 1
           which homr oemer
           url=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
             jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')

@@ -8,7 +8,7 @@ OUT=/tmp/real-out; mkdir -p "$OUT"; ROWS=/tmp/real-rows.md; : > "$ROWS"
 for pdf in samples/ocr-real/*.pdf; do
   [ -e "$pdf" ] || { echo "no PDFs in samples/ocr-real"; exit 0; }
   src=$(basename "$pdf" .pdf); pages=$(pdfinfo "$pdf" 2>/dev/null | awk '/^Pages:/{print $2}')
-  for engine in audiveris homr oemer; do
+  for engine in ${ENGINES:-audiveris homr}; do # oemer crashes on these scans (IndexError in find_lines) and takes 15 minutes to do so: only with ENGINES="audiveris homr oemer"
     res="$OUT/$src.$engine.musicxml"; log="$OUT/$src.$engine.log"; t0=$(date +%s)
     case "$engine" in
       audiveris) AUD="${AUD:-}" bash scores-repo-template/convert-one.sh "$pdf" "$res" > "$log" 2>&1 ;;

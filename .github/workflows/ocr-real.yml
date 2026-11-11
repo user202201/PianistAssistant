@@ -3,6 +3,11 @@ name: ocr-real
 # converter scripts changes, every night, and by hand. Result: the table in the run summary + the MusicXML files (artifact "ocr-real-results").
 on:
   workflow_dispatch:
+    inputs:
+      engines:
+        description: "Engines (space separated: audiveris homr oemer)"
+        required: false
+        default: "audiveris homr"
   schedule:
     - cron: "17 3 * * *"
   push:
@@ -28,6 +33,8 @@ jobs:
           pip install img2pdf
           (pip install homr 2>&1 | tail -n 2) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 2)
           pip install oemer 2>&1 | tail -n 2
+          # oemer pulls onnxruntime-gpu, which replaces the CPU build and makes homr crash ("CUDA Provider not available"): put the CPU build back
+          pip uninstall -y onnxruntime-gpu 2>&1 | tail -n 1; pip install --force-reinstall --no-deps onnxruntime 2>&1 | tail -n 1
           which homr oemer
           url=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
             jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
@@ -38,6 +45,8 @@ jobs:
           echo "TESSDATA_PREFIX=/tmp/tessdata-full" >> "$GITHUB_ENV"
           echo "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true" >> "$GITHUB_ENV"
       - name: Run
+        env:
+          ENGINES: ${{ inputs.engines }}
         run: bash scripts/ocr-real.sh
       - uses: actions/upload-artifact@v4
         if: always()
