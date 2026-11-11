@@ -20,6 +20,7 @@ import { GameScore, WINDOWS, isComboMilestone } from "./gamescore";
 import { createHud } from "./gamehud";
 import { midi, MidiInput, type MidiNote } from "./midi";
 import { mic, MicInput } from "./mic";
+import { addJianpu } from "./jianpu";
 import { record as logError, getLog, clearLog, formatLog, startErrorLog } from "./errlog";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
@@ -411,6 +412,8 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   mistakeBox.addEventListener("change", () => { settings.gameDemoMistakes = mistakeBox.checked; saveSettings(settings); });
   const judgeBox = h("input", { type: "checkbox", checked: settings.gameJudgeText });
   judgeBox.addEventListener("change", () => { settings.gameJudgeText = judgeBox.checked; saveSettings(settings); });
+  const jianpuBox = h("input", { type: "checkbox", checked: settings.jianpu });
+  jianpuBox.addEventListener("change", () => { settings.jianpu = jianpuBox.checked; saveSettings(settings); dlg.close(); onLayout?.(); });
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -457,6 +460,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
+    ...(onLayout ? [h("label", { class: "inline", id: "jianpu-opt" }, "显示简谱（每行谱下面一行数字）", jianpuBox)] : []),
     ...(settings.gameMode ? [h("label", { class: "inline" }, "显示判定文字和连击横幅（Perfect / Miss / COMBO）", judgeBox), h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
@@ -1637,7 +1641,7 @@ async function renderPlayer(name: string) {
       cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
     });
     const xml = toMusicXml(buf);
-    await osmd.load(xml);
+    await osmd.load(settings.jianpu ? addJianpu(xml) : xml);
     if (stale()) return;
     undo.push(() => osmd.clear());
     // four hands: one screen per part. The full score then only acts as the (hidden) playback model.
@@ -1692,7 +1696,7 @@ async function renderPlayer(name: string) {
           followCursor: false,
           cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
         });
-        await o.load(xml);
+        await o.load(settings.jianpu ? addJianpu(xml) : xml);
         undo.push(() => o.clear());
         if (stale()) return bail();
         o.Sheet.Instruments.forEach((inst, i) => { inst.Visible = i === g; });
@@ -1779,7 +1783,7 @@ async function renderDuet(pair: api.Pair) {
         followCursor: false,
         cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
       });
-      await o.load(xmls[g]);
+      await o.load(settings.jianpu ? addJianpu(xmls[g]) : xmls[g]);
       undo.push(() => o.clear());
       if (stale()) return bail();
       o.zoom = settings.zoom;
@@ -2074,7 +2078,7 @@ function buildControls(
         if (!sets[i].dirty) continue;
         const file = files[i] ?? name;
         const xml = await sets[i].save((x) => api.saveScoreText(file, x, `Fingering: ${displayName(file)}`));
-        await views[i]?.osmd.load(xml);
+        await views[i]?.osmd.load(settings.jianpu ? addJianpu(xml) : xml);
       }
       rerender();
       toast("指法已保存到乐谱");

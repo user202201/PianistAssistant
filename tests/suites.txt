@@ -67,3 +67,4 @@
 64-ocr-validate
 65-dismiss-outside
 66-fingering-same-clef
+67-jianpu
