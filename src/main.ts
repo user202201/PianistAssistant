@@ -2029,16 +2029,27 @@ function buildControls(
   const fingerOpts = h("button", { class: "narrow", title: "指法选项", disabled: !tools.supported, onclick: () => { fpanel.hidden = !fpanel.hidden; panel.hidden = true; apanel.hidden = true; } }, ic("chevron-down", 18));
   const fingerBtn = h("div", { class: "group pair" }, fingerToggle, fingerOpts);
   // four hands: the same number of bars per line in A and B, so the bar lines stand above each other (one icon in the bar, a small panel for the number)
-  const alignBtns = [0, 2, 3, 4, 6].map((n) => h("button", { class: "seg" + (settings.alignBars === n ? " on" : ""), onclick: () => {
+  const setAlign = (n: number) => {
     settings.alignBars = n;
+    if (n > 0) settings.alignPref = n;
     saveSettings(settings);
-    alignBtns.forEach((b, i) => b.classList.toggle("on", [0, 2, 3, 4, 6][i] === n));
+    alignBtns.forEach((b, i) => b.classList.toggle("on", [2, 3, 4, 6][i] === settings.alignPref));
     alignToggle.classList.toggle("on", n > 0);
     rerender();
-  } }, n === 0 ? "关闭" : String(n)));
+  };
+  const alignBtns = [2, 3, 4, 6].map((n) => h("button", { class: "seg" + (settings.alignPref === n ? " on" : ""), onclick: () => { setAlign(n); toast(`已对齐小节：每行 ${n} 小节`); } }, String(n)));
   const apanel = h("div", { class: "panel", hidden: true }, h("p", { class: "muted small" }, "让 A、B 两个声部每行显示相同数量的小节，小节线上下对齐。"), h("div", { class: "group" }, h("span", { class: "gl" }, "每行小节数"), ...alignBtns));
-  const alignToggle = h("button", { class: "toggle" + (settings.alignBars > 0 ? " on" : ""), title: "对齐小节", onclick: () => { apanel.hidden = !apanel.hidden; panel.hidden = true; fpanel.hidden = true; } }, ic("align-bars", 20), h("span", { class: "lbl" }, "对齐"));
-  const alignBtn = h("div", { class: "group" }, alignToggle);
+  // one tap switches it on / off (with the number of bars chosen last), the small arrow next to it opens the choice, like the fingering button
+  const alignToggle = h("button", { class: "toggle" + (settings.alignBars > 0 ? " on" : ""), title: "对齐小节", onclick: () => {
+    apanel.hidden = true;
+    if (settings.alignBars > 0) { setAlign(0); toast("已取消对齐小节"); return; }
+    setAlign(settings.alignPref || 4);
+    let first = false;
+    try { first = !localStorage.getItem("pianist.alignhint.v1"); localStorage.setItem("pianist.alignhint.v1", "1"); } catch { /* private mode: no hint memory */ }
+    toast(first ? "已对齐小节。点旁边的小箭头，可以改每行的小节数。" : `已对齐小节：每行 ${settings.alignBars} 小节`, first ? 6000 : 3500);
+  } }, ic("align-bars", 20), h("span", { class: "lbl" }, "对齐"));
+  const alignOpts = h("button", { class: "narrow", title: "对齐选项", onclick: () => { apanel.hidden = !apanel.hidden; panel.hidden = true; fpanel.hidden = true; } }, ic("chevron-down", 18));
+  const alignBtn = h("div", { class: "group pair" }, alignToggle, alignOpts);
   function setFingers(on: boolean) {
     tools.visible = on;
     settings.fingers = on;

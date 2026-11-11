@@ -56,6 +56,8 @@ export interface Settings {
   jianpu: boolean;
   /** four hands: bars per line, the same in both parts so the bar lines of A and B stand above each other (0 = each part is laid out on its own) */
   alignBars: number;
+  /** the number of bars per line the align button uses when it is switched on (changed with the small arrow next to it) */
+  alignPref: number;
   /** microphone: 0 low / 1 normal / 2 high sensitivity */
   micSensitivity: number;
 }
@@ -63,7 +65,7 @@ const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0, micSensitivity: 1, alignBars: 0, jianpu: false });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0, micSensitivity: 1, alignBars: 0, alignPref: 4, jianpu: false });
 
 export function loadSettings(): Settings {
   try {
