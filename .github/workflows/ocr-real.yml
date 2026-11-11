@@ -50,4 +50,4 @@ jobs:
         run: bash scripts/ocr-real.sh
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: ocr-real-results, path: /tmp/real-out/* }
+        with: { name: ocr-real-results, path: /tmp/real-out/*, retention-days: 2 }

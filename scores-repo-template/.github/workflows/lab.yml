@@ -1,0 +1,82 @@
+name: lab
+# PRIVATE comparison of the PDF recognition engines on PDFs of unknown copyright (lives in the PRIVATE scores repo, next to convert.yml).
+# Put PDFs into lab/ (browser upload on github.com is enough): this workflow converts each with the engines, prints a table (bars that add up, notes, ...)
+# into the summary of the run (private: only you see it) and then DELETES the PDFs again. A daily clean-up also deletes anything in lab/ older than 2 days.
+# The music is never copied anywhere else; only the table (numbers) is worth showing to somebody.
+on:
+  workflow_dispatch:
+    inputs:
+      engines:
+        description: "Engines (space separated: audiveris homr oemer)"
+        required: false
+        default: "audiveris homr"
+  push:
+    branches: [main]
+    paths: ["lab/**"]
+  schedule:
+    - cron: "23 3 * * *"
+permissions:
+  contents: write
+concurrency:
+  group: lab
+  cancel-in-progress: false
+jobs:
+  lab:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      # 1. clean-up first: anything in lab/ older than 2 days goes (also when an earlier run failed before it could delete)
+      - name: Delete old files
+        run: |
+          now=$(date +%s); changed=0
+          for f in lab/*.pdf lab/*.png lab/*.jpg lab/*.jpeg; do
+            [ -e "$f" ] || continue
+            t=$(git log -1 --format=%ct -- "$f"); [ -n "$t" ] || t=$now
+            if [ $(( now - t )) -gt 172800 ]; then git rm -q -f "$f"; changed=1; fi
+          done
+          if [ "$changed" = 1 ]; then git config user.name lab; git config user.email lab@users.noreply.github.com; git commit -qm "lab: delete files older than 2 days"; git push; fi
+      - name: Anything to compare?
+        id: todo
+        run: |
+          n=$(ls lab/*.pdf 2>/dev/null | wc -l); echo "n=$n" >> "$GITHUB_OUTPUT"
+      - name: Get the lab scripts
+        if: steps.todo.outputs.n != '0'
+        run: git clone --depth 1 https://github.com/user202201/PianistAssistant .tools
+      - uses: actions/setup-python@v5
+        if: steps.todo.outputs.n != '0'
+        with: { python-version: "3.10" }
+      - name: Install the engines
+        if: steps.todo.outputs.n != '0'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils libgl1 imagemagick tesseract-ocr tesseract-ocr-eng jq unzip
+          python -m pip install --upgrade pip
+          (pip install homr 2>&1 | tail -n 2) || (pip install "git+https://github.com/liebharc/homr.git" 2>&1 | tail -n 2)
+          pip install oemer 2>&1 | tail -n 2
+          pip uninstall -y onnxruntime-gpu 2>&1 | tail -n 1; pip install --force-reinstall --no-deps onnxruntime 2>&1 | tail -n 1
+          url=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
+            jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
+          curl -fsSL -o /tmp/audiveris.deb "$url"
+          mkdir -p /tmp/audiveris-root && dpkg-deb -x /tmp/audiveris.deb /tmp/audiveris-root
+          AUD=$(find /tmp/audiveris-root -type f -name Audiveris | head -1); chmod +x "$AUD"; echo "AUD=$AUD" >> "$GITHUB_ENV"
+          mkdir -p /tmp/tessdata-full && curl -fsSL -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
+          echo "TESSDATA_PREFIX=/tmp/tessdata-full" >> "$GITHUB_ENV"
+          echo "JAVA_TOOL_OPTIONS=-Djava.awt.headless=true" >> "$GITHUB_ENV"
+      - name: Compare
+        if: steps.todo.outputs.n != '0'
+        env:
+          ENGINES: ${{ inputs.engines }}
+          LAB_DIR: ${{ github.workspace }}/lab
+        run: bash .tools/scripts/ocr-real.sh
+      # 2. the PDFs are deleted right after the comparison, whatever it said (nothing is uploaded as an artifact)
+      - name: Delete the PDFs
+        if: always() && steps.todo.outputs.n != '0'
+        run: |
+          git pull -q --rebase || true
+          git rm -q -f lab/*.pdf lab/*.png lab/*.jpg lab/*.jpeg 2>/dev/null || true
+          git config user.name lab; git config user.email lab@users.noreply.github.com
+          git diff --cached --quiet || { git commit -qm "lab: PDFs deleted after the comparison"; git push; }
