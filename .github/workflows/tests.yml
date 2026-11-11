@@ -50,7 +50,10 @@ jobs:
         timeout-minutes: 10
         env: { DEBIAN_FRONTEND: noninteractive }
         run: |
-          sudo apt-get update -y
+          # the Azure Ubuntu mirror does not resolve at times: use the main archive, short timeouts, no retries
+          echo 'Acquire::http::Timeout "10"; Acquire::Retries "1";' | sudo tee /etc/apt/apt.conf.d/99fast >/dev/null
+          echo 'http://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          sudo apt-get update -y || true
           npx playwright install --with-deps webkit
       - name: Tests on WebKit
         run: BROWSER=webkit bash tests/run-all.sh 08-ipad-ui 12-split-view 21-home-tabs-favourites 37-layout-en 37-layout-de 40-tabs-fit 41-bottom-bar-small-screen 43-fourhand-small-screen 49-sort-lists 50-game-mode-egg 51-game-view 52-game-start 53-game-score 54-demo-baseline 58-game-fourhand-space
