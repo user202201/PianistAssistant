@@ -8,6 +8,7 @@ Today the Pencil only *taps* (a note, then a number button), like a finger. Idea
 recognise it (small stroke-based recogniser for 5 digits, no library). Needs a real iPad + Pencil to tune; ask before building.
 
 ## 2. Offline PDF → score on the device (store app)
+**Licence check (2026-11-11, read from the projects' own README / LICENSE_FAQ, not legal advice):** homr is AGPL-3.0 (same as Audiveris), its weights are AGPL too "but the AGPL can't grant more rights than the training data allows"; the training data include Camera-PrIMuS (CC BY-NC on the Hugging Face copy = non-commercial) and the maintainers say whether that carries over to the weights is an open legal question; no commercial licence is offered. oemer: licence NOT confirmed (the "MIT" in the older note below is unverified), no licence stated for its checkpoints or its datasets (CvcMuscima-Distortions, DeepScores-extended). => homr has NO licence advantage over Audiveris; neither is clean to ship inside a store app. Today they only run in the user's own repository (cloud), nothing of them is distributed by the app. Do not embed any engine before a proper legal review.
 Cloud conversion (Audiveris / homr / oemer) needs the internet. For the store app a licence-clean engine (oemer, MIT) would have to run on the device
 (ONNX models ~100 MB + post-processing). Go / no-go after the measured accuracy of oemer (workflow `ocr-lab-deep`) and the model-weight licence check.
 
