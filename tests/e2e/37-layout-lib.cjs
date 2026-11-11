@@ -78,6 +78,12 @@ exports.run = async (loc, tname) => {
       await page.evaluate(() => (location.hash = '#/pdf/Long3.pdf')); await page.waitForFunction(() => document.querySelectorAll('.pdfsheet').length === 3, null, { timeout: 30000 }); await page.waitForTimeout(800);
       await check('pdf'); await page.click('.zone.left button'); await check('pdf-annotate');
       await page.click('button.secs'); await page.waitForSelector('#turn-settings'); await check('pdf-seconds'); await page.keyboard.press('Escape');
+      // device mode: the settings with "PDF conversion" and the connect dialog
+      await page.evaluate(() => { localStorage.setItem('pianist.storage', 'local'); location.hash = '#/'; }); await page.reload(); await page.waitForSelector('.top'); await page.waitForTimeout(600);
+      await page.evaluate(() => document.querySelector('.top button:last-child')?.click()); await page.waitForSelector('dialog.settings[open]'); await check('settings-local');
+      await page.evaluate(() => document.querySelector('#connect-conv-btn')?.click()); await page.waitForSelector('#connect-conv[open]'); await check('connect-conv');
+      await page.evaluate(() => document.querySelectorAll('dialog').forEach((d) => d.close()));
+      await page.evaluate(() => { localStorage.removeItem('pianist.storage'); location.hash = '#/'; }); await page.reload(); await page.waitForSelector('.card'); await page.waitForTimeout(400);
       // the trial is over: the unlock dialog
       await page.evaluate(() => { window.__store.firstInstall = Date.now() - 15 * 86400000; location.hash = '#/'; }); await page.waitForTimeout(400);
       await page.evaluate(() => (location.hash = '#/score/long.musicxml')); await page.waitForSelector('dialog#paywall', { timeout: 10000 }); await check('unlock');

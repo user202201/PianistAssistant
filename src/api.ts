@@ -190,6 +190,110 @@ async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Respons
   return res;
 }
 
+// ---------- PDF conversion through the user's OWN private GitHub repository, library on this device ----------
+// In device mode the scores never leave the device. When the user connects a GitHub account / repository for conversion (their own, private), a PDF they
+// choose to convert is put into that repository's inbox/ under a name of its own, the converter there turns it into MusicXML, the result is downloaded
+// to the device and everything this transfer left in the repository is deleted again (the files stay in the git history of the user's private repository).
+const CONV_KEY = "pianist.conv.v1";
+export function getConvAuth(): Auth | null {
+  try {
+    const a = JSON.parse(localStorage.getItem(CONV_KEY) ?? "null");
+    return a?.token && a?.repo ? a : null;
+  } catch {
+    return null;
+  }
+}
+export function clearConvAuth() {
+  try { localStorage.removeItem(CONV_KEY); } catch { /* ignore */ }
+}
+/** Connect the repository that converts PDFs in device mode (checked: private, writable). */
+export async function connectConversion(token: string, repo: string): Promise<Auth> {
+  const a = await checkRepo(token, repo);
+  localStorage.setItem(CONV_KEY, JSON.stringify(a));
+  return a;
+}
+/** The account the conversion runs with: the signed-in one (GitHub mode) or the one connected only for conversion (device mode). */
+function convAuth(): Auth {
+  const a = isLocal() ? getConvAuth() : getAuth();
+  if (!a) throw new AuthExpired("请先连接 GitHub");
+  return a;
+}
+/** The converter reported an error: its text is the message. */
+export class ConvertFailed extends Error {}
+export interface Converted { name: string; xml: ArrayBuffer; cleaned: boolean; temp: string }
+
+async function relayGet(a: Auth, dir: string, name: string): Promise<ArrayBuffer | null> {
+  const r = await gh(a, url(a, dir, name) + ref(a), { headers: headers(a, "application/vnd.github.raw+json"), cache: "no-store" });
+  if (r.status === 404) return null;
+  if (!r.ok) throw await apiError(r, "读取失败");
+  return r.arrayBuffer();
+}
+async function relayPut(a: Auth, dir: string, name: string, data: ArrayBuffer, message: string) {
+  const r = await gh(a, url(a, dir, name), { method: "PUT", headers: headers(a), body: JSON.stringify({ message, content: toBase64(data), branch: a.branch }) });
+  if (!r.ok) throw await apiError(r, "上传失败");
+}
+/** true when the file is gone (or was not there) */
+async function relayDelete(a: Auth, dir: string, name: string, message: string): Promise<boolean> {
+  try {
+    const s = await sha(a, dir, name);
+    if (!s) return true;
+    const r = await gh(a, url(a, dir, name), { method: "DELETE", headers: headers(a), body: JSON.stringify({ message, sha: s, branch: a.branch }) });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+export const RELAY_WAIT = { every: 8000, limit: 25 * 60_000 };
+
+/**
+ * Convert one PDF / image with the user's own repository and bring the MusicXML back. The repository is only a relay: what was put there is deleted
+ * again. Needs the app to stay open while it waits (usually 3-10 minutes).
+ */
+export async function convertViaRepo(name: string, data: ArrayBuffer, engine: OcrEngine = "audiveris", wait = RELAY_WAIT): Promise<Converted> {
+  const a = convAuth();
+  const base = cleanName(name, "inbox");
+  if (!base) throw new Error(`文件名不可用：${name}`);
+  if (data.byteLength > MAX_INBOX_BYTES) throw new Error("PDF / 图片超过 20 MB");
+  if (engine === "both" || engine === "all") engine = "audiveris"; // one result per file when it is brought back to the device
+  // a name of its own: never the same as one of the user's files in that repository
+  const uniq = `relay${Date.now().toString(36)}-${base}`;
+  const result = stemOf(uniq) + ".musicxml";
+  if (engine !== "audiveris") await relayPut(a, INBOX, uniq + ".engine.txt", new TextEncoder().encode(engine).buffer as ArrayBuffer, `Conversion engine: ${engine}`);
+  await relayPut(a, INBOX, uniq, data, `Queue for conversion: ${uniq}`);
+  const cleanup = async () => {
+    const r = await Promise.all([
+      relayDelete(a, SCORES, result, `Clean up: ${result}`),
+      relayDelete(a, INBOX, uniq, `Clean up: ${uniq}`),
+      relayDelete(a, INBOX, uniq + ".failed.txt", `Clean up: ${uniq}`),
+      relayDelete(a, INBOX, uniq + ".engine.txt", `Clean up: ${uniq}`),
+    ]);
+    return r.every(Boolean);
+  };
+  const deadline = Date.now() + wait.limit;
+  for (;;) {
+    const xml = await relayGet(a, SCORES, result);
+    if (xml) {
+      const cleaned = await cleanup();
+      return { name: stemOf(base) + ".musicxml", xml, cleaned, temp: uniq };
+    }
+    const failed = await relayGet(a, INBOX, uniq + ".failed.txt");
+    if (failed) {
+      await cleanup();
+      throw new ConvertFailed(new TextDecoder().decode(failed).trim() || "转换失败");
+    }
+    if (Date.now() > deadline) throw new Error(`等了 ${Math.round(wait.limit / 60000)} 分钟还没有结果。文件还留在你的仓库的 inbox/ 里，可以到 GitHub 的 Actions 页面看看转换有没有在运行。`);
+    await sleep(wait.every);
+  }
+}
+/** the bytes of a PDF kept on this device / in the repository (to convert it) */
+export const readStoredPdf = (name: string) => getBytes(PDFS, name);
+/** Store a converted result as a score on this device (never overwrites a score that is already there). */
+export async function saveConverted(c: Converted): Promise<string> {
+  const name = await freeName(c.name, (x) => exists(SCORES, x));
+  await put(SCORES, name, c.xml, `Converted: ${name}`);
+  return name;
+}
+
 /** The token may not read the workflow runs (needs "Actions: Read-only" next to "Contents: Read and write"). */
 export class NoActionsPermission extends Error {}
 export interface ConvUsage { minutes: number; runs: number }
@@ -198,7 +302,7 @@ export interface ConvUsage { minutes: number; runs: number }
  * from its start to its end, rounded up to whole minutes (GitHub bills by the minute). An estimate: the exact figure is in the GitHub account's billing page.
  */
 export async function conversionUsage(): Promise<ConvUsage> {
-  const a = need();
+  const a = convAuth();
   const d = new Date();
   const first = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
   let minutes = 0;
@@ -220,8 +324,8 @@ export async function conversionUsage(): Promise<ConvUsage> {
   return { minutes, runs };
 }
 
-/** Validate token + repo, then remember them on this device. */
-export async function login(token: string, repo: string, remember = true): Promise<Auth> {
+/** Validate token + repo (private, writable). Nothing is stored here. */
+async function checkRepo(token: string, repo: string): Promise<Auth> {
   const link = parseLink(token);
   if (link) ({ token, repo } = link);
   repo = repo.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "");
@@ -241,6 +345,12 @@ export async function login(token: string, repo: string, remember = true): Promi
   a.branch = info.default_branch;
   const u = await fetch("https://api.github.com/user", { headers: headers(a) });
   if (u.ok) a.user = ((await u.json()) as { login: string }).login;
+  return a;
+}
+
+/** Validate token + repo, then remember them on this device. */
+export async function login(token: string, repo: string, remember = true): Promise<Auth> {
+  const a = await checkRepo(token, repo);
   logout();
   (remember ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify(a));
   return a;

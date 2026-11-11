@@ -476,12 +476,17 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-      ...(__LOCAL_ONLY__ ? [] : [
-        h("h3", {}, "PDF 转换"),
-        h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库：文件只存在你自己的仓库里。"),
-        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
-        h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "连接 GitHub 同步…"),
+      h("h3", {}, "PDF 转换"),
+      h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
+      ...(api.getConvAuth() ? [
+        h("p", { class: "muted" }, `已连接：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}`),
+        h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+        h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
+      ] : [
+        h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
       ]),
+      h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+      ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…")]),
     ] : []),
     ...(api.isLocal() ? [] : [
       h("h3", {}, "备份"),
@@ -587,6 +592,56 @@ function engineRow(): HTMLElement {
   );
   sel.addEventListener("change", () => { settings.ocrEngine = sel.value as typeof settings.ocrEngine; saveSettings(settings); });
   return h("label", { class: "engine" }, "转换引擎", sel);
+}
+
+/** Device mode: convert one PDF with the user's own repository as a relay and keep the score on this device. */
+async function relayConvert(name: string, data: ArrayBuffer) {
+  const done = toast(`正在转换：${name}（通常 3–10 分钟，请先不要关闭 App）`, 40 * 60_000, true);
+  try {
+    const c = await api.convertViaRepo(name, data, settings.ocrEngine);
+    const saved = await api.saveConverted(c);
+    done();
+    toast(c.cleaned ? `已转换：${saved}（你的仓库里的临时文件已删除）` : `已转换：${saved}。仓库里的临时文件没有删掉，请到 GitHub 手动删除 inbox/ 和 scores/ 里名字含 ${c.temp} 的文件。`, 9000);
+  } catch (e) {
+    done();
+    if (e instanceof api.AuthExpired) toast("GitHub 令牌已失效，请在设置里重新连接", 8000);
+    else showError(`转换失败：${name}`, e);
+  }
+}
+
+/** Device mode: connect the user's own private repository, only for converting PDFs (the scores stay on this device). */
+function openConnectConversion(onDone: () => void) {
+  const token = h("input", { type: "password", placeholder: "GitHub 令牌", autocomplete: "off", id: "conv-token" }) as HTMLInputElement;
+  const repo = h("input", { type: "text", placeholder: "你的用户名/PianistScores", autocomplete: "off", id: "conv-repo" }) as HTMLInputElement;
+  const dlg = h(
+    "dialog",
+    { class: "dlg", id: "connect-conv" },
+    h("h2", { tabIndex: -1, autofocus: true }, "连接 GitHub 用于 PDF 转换"),
+    h("p", { class: "muted small" }, "乐谱仍然只保存在这台设备上。只有你选择转换的 PDF，会临时放进你自己的私有仓库，转换完结果回到设备，仓库里的临时文件随后删除。"),
+    h("label", {}, "令牌", token),
+    h("label", {}, "仓库", repo),
+    h("p", { class: "muted small" }, h("a", { href: "#", onclick: (e: Event) => { e.preventDefault(); openGithubSetup(); } }, "怎么注册、建仓库、生成令牌？")),
+    h("div", { class: "row wrap", style: "margin-top:14px" },
+      h("button", { onclick: () => dlg.close() }, "取消"),
+      h("div", { class: "grow" }),
+      h("button", { class: "primary", id: "conv-connect", onclick: async () => {
+        const done = toast("正在检查令牌和仓库…", 60000, true);
+        try {
+          const a = await api.connectConversion(token.value, repo.value);
+          done();
+          dlg.close();
+          toast(`已连接：${a.user ?? "GitHub"} · ${a.repo}`);
+          onDone();
+        } catch (e) {
+          done();
+          toast((e as Error).message || "连接失败", 7000);
+        }
+      } }, "连接"),
+    ),
+  ) as HTMLDialogElement;
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
 }
 
 /** This month's conversion minutes of the user's repository (estimate from the workflow runs; needs the token to have "Actions: Read-only"). */
@@ -1180,9 +1235,9 @@ async function renderHome() {
       try {
         let mode: "convert" | "keep" | "both" = "convert";
         if (/\.pdf$/i.test(f.name)) {
-          if (api.isLocal()) {
-            mode = "keep"; // conversion needs the GitHub service
-            toast("本机模式：PDF 只能保存和查看。想要可播放的乐谱，见 PDF 卡片菜单里的“怎么转成可播放乐谱？”", 7000);
+          if (api.isLocal() && !api.getConvAuth()) {
+            mode = "keep"; // conversion needs the user's own GitHub repository (Settings -> PDF conversion)
+            toast("本机模式：PDF 只能保存和查看。想要可播放的乐谱：在设置里连接 GitHub 转换，或见 PDF 卡片菜单里的“怎么转成可播放乐谱？”", 8000);
           } else {
             const a = await askPdfMode(f.name);
             if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
@@ -1194,6 +1249,14 @@ async function renderHome() {
           const kept = await api.storePdf(f, askConflict);
           toast(kept ? `已保存 PDF：${kept}（在下面的“PDF 乐谱”里）` : `已跳过：${f.name}`);
           if (mode === "keep") continue;
+        }
+        if (api.isLocal()) {
+          // device mode with a repository connected for conversion only: the repository is a relay, the score comes back to this device
+          closeUp();
+          let bytes: ArrayBuffer;
+          try { bytes = await f.arrayBuffer(); } catch { throw new Error(`读不到「${f.name}」的内容。如果它在 iCloud 云盘里，请先让它下载到本机再选。`); }
+          await relayConvert(f.name, bytes);
+          continue;
         }
         const up = await api.uploadScore(f, askConflict, settings.ocrEngine);
         if (!up) toast(`已跳过：${f.name}`);
@@ -1304,8 +1367,9 @@ async function renderHome() {
       starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
         { label: "怎么转成可播放乐谱？", icon: "note", run: () => openConvertHelp() },
-        ...(api.isLocal() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
+        ...(api.isLocal() && !api.getConvAuth() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
+            if (api.isLocal()) { await relayConvert(name, await api.readStoredPdf(name)); void load(); return; }
             const n = await api.convertStoredPdf(name, settings.ocrEngine);
             optimistic.set(n, Date.now());
             markQueued(n);
