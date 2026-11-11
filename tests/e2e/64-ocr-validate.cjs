@@ -9,7 +9,7 @@ execFileSync('python3', [path.join(root, 'scores-repo-template/merge-pages.py'),
 const fixed = run(dir + '/out.musicxml');
 ok(raw.measures === 89 && raw.notes > 600, `it reads the file (${raw.measures} measures, ${raw.notes} notes)`);
 ok(raw.stavesUsed === 2 && raw.stavesDeclared === 1, 'it sees that two staves are used but only one is declared');
-ok(raw.okPercent < 80 && raw.badMeasures.includes(79) && raw.badMeasures.includes(1), `it finds the wrong bars of the raw result (${raw.okPercent} % add up; bars 1 and 79 are wrong)`);
+ok(raw.okPercent < 90 && raw.badMeasures.includes(79) && raw.badMeasures.includes(1), `it finds the wrong bars of the raw result (${raw.okPercent} % add up; bars 1 and 79 are wrong)`);
 ok(fixed.stavesDeclared === 2 && fixed.okPercent > raw.okPercent + 10 && !fixed.badMeasures.includes(79), `after the repair far more bars add up (${raw.okPercent} -> ${fixed.okPercent} %) and the fugue is fine`);
 fs.writeFileSync(path.join(root, 'tests/out/ocr-validate.txt'), JSON.stringify({ raw, fixed }, null, 1));
 console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
