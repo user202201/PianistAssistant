@@ -22,8 +22,8 @@
 10. **Every action answers.** Each user action that takes time or changes data shows a message through `toast()` in `src/main.ts`: `working=true` (spinner)
     while it runs, closed when done, then a result message (or the error). Messages are always in the top band (a popover above dialogs), never elsewhere.
     Cancelling a confirmation must not produce a "done" message. Add the English / French texts.
-11. **Store builds keep the library on the device.** `mobile/scripts/build-*.sh` build with `LOCAL_ONLY=1` (no account, no GitHub *storage*). The only thing that can leave the device is a PDF
-    the user chooses to convert, through the user's OWN private GitHub repository that they connect in Settings → PDF conversion (a relay: the converted score comes back to the device and
-    the temporary files in the repository are deleted; nothing is sent without that choice). The privacy policy (`public/privacy/index.html`) and the store questionnaires must say exactly this;
-    the feedback mail address comes from the repository variable `FEEDBACK_EMAIL`.
+11. **Store builds are local-only.** `mobile/scripts/build-*.sh` build with `LOCAL_ONLY=1` (no account, no GitHub, nothing leaves the device; `getConvAuth()` returns null and the
+    "PDF conversion" settings are not built in). The web build (and `LOCAL_ONLY=0`) may connect the user's OWN private GitHub repository: for the library, or only as a relay for PDF
+    conversion in device mode (the score comes back to the device, the temporary files are deleted). The privacy policy (`public/privacy/index.html`) says this; the feedback mail address comes
+    from the repository variable `FEEDBACK_EMAIL`.
 12. **Fingering logic is documented.** `docs/fingering-logic.md` explains how `src/fingering.ts` produces its suggestions (for teachers / professionals who ask). Change both together.

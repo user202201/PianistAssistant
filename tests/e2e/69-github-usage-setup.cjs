@@ -47,7 +47,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // device mode: none of it
   ({ browser, page } = await h.start(new Map(), { local: true, context: { viewport: { width: 1194, height: 1000 } } }));
   await page.waitForSelector('.top'); await open(page);
-  ok(!(await page.isVisible('#usage-btn')) && await page.isVisible('#setup-help-btn') && await page.isVisible('#to-github'), 'device mode (web): no usage yet, but the guide and "connect GitHub" are under "PDF conversion", with the note that the files stay in your own repository');
-  ok((await page.textContent('dialog.settings')).includes('文件只存在你自己的仓库里'), 'and the note says so');
+  ok(!(await page.isVisible('#usage-btn')) && await page.isVisible('#setup-help-btn') && await page.isVisible('#connect-conv-btn'), 'device mode (web): no usage yet, but the guide and "connect GitHub" are under "PDF conversion", with the note that the files stay in your own repository');
+  ok((await page.textContent('dialog.settings')).includes('仓库只是临时中转'), 'and the note says the repository is only a relay');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

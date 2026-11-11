@@ -476,17 +476,20 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-      h("h3", {}, "PDF 转换"),
-      h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
-      ...(api.getConvAuth() ? [
-        h("p", { class: "muted" }, `已连接：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}`),
-        h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
-        h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
-      ] : [
-        h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
+      // store builds are local-only: no GitHub at all (conversion goes through the help page)
+      ...(__LOCAL_ONLY__ ? [] : [
+        h("h3", {}, "PDF 转换"),
+        h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
+        ...(api.getConvAuth() ? [
+          h("p", { class: "muted" }, `已连接：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}`),
+          h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+          h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
+        ] : [
+          h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
+        ]),
+        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+        ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…")]),
       ]),
-      h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
-      ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…")]),
     ] : []),
     ...(api.isLocal() ? [] : [
       h("h3", {}, "备份"),
@@ -1250,7 +1253,7 @@ async function renderHome() {
           toast(kept ? `已保存 PDF：${kept}（在下面的“PDF 乐谱”里）` : `已跳过：${f.name}`);
           if (mode === "keep") continue;
         }
-        if (api.isLocal()) {
+        if (api.isLocal() && api.getConvAuth() && /\.(pdf|png|jpe?g|tiff?|bmp)$/i.test(f.name)) {
           // device mode with a repository connected for conversion only: the repository is a relay, the score comes back to this device
           closeUp();
           let bytes: ArrayBuffer;

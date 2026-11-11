@@ -196,6 +196,7 @@ async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Respons
 // to the device and everything this transfer left in the repository is deleted again (the files stay in the git history of the user's private repository).
 const CONV_KEY = "pianist.conv.v1";
 export function getConvAuth(): Auth | null {
+  if (__LOCAL_ONLY__) return null; // store builds never talk to GitHub
   try {
     const a = JSON.parse(localStorage.getItem(CONV_KEY) ?? "null");
     return a?.token && a?.repo ? a : null;
