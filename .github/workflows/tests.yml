@@ -38,7 +38,7 @@ jobs:
   # The same tests on the Safari engine (WebKit): what an iPad runs. Informational: a failure here does not stop the packaging, but it shows what only Safari gets wrong
   # (the report of this job: artifact "webkit-report").
   webkit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: true
     timeout-minutes: 45
     steps:
