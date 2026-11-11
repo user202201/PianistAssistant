@@ -476,7 +476,12 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-      ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "连接 GitHub 同步…")]),
+      ...(__LOCAL_ONLY__ ? [] : [
+        h("h3", {}, "PDF 转换"),
+        h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库：文件只存在你自己的仓库里。"),
+        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+        h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "连接 GitHub 同步…"),
+      ]),
     ] : []),
     ...(api.isLocal() ? [] : [
       h("h3", {}, "备份"),
