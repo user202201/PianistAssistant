@@ -56,3 +56,9 @@ Concerns to settle before building:
 
 ## 7. Four hands: align the bars of A and B (user request, idea stage)
 Both parts are laid out independently, so bar lines of A and B do not line up (different notes per bar -> different widths). Helps when two players read together / a teacher points at "bar 13". Options: (a) setting "align bars" = same number of bars per system for both parts (OSMD `RenderXMeasuresPerLine`-style, same value in both panes, user picks 2/3/4/auto), simple and robust; (b) fixed bar width (equal width for every bar, wasteful for dense bars); (c) true alignment (take the wider of A/B for each bar and pad the other) — needs custom layout, large. Recommended: (a), in Settings, default off. Test: bar numbers at the start of each system equal in both panes.
+
+## 8. Jianpu (numbered notation, 简谱) — user request, feasible, not started
+Convention to confirm with a Chinese teacher: movable-do (首调): 1 = tonic of the key signature (relative major for minor keys, e.g. A minor -> 1 = C, so A is 6), accidentals as ♯/♭ in front, octave dots above/below (combining dots U+0307 / U+0323), rests 0.
+- **Phase 1 (about a day): a digit under every note** on the staff, drawn by the same overlay as the fingering numbers (they already follow the notes, zoom, four hands, hand selection). Own colour / small size so it is not mixed up with fingerings; switch in the bottom bar (or an option of the fingering button); key changes per measure from `<key><fifths>`. Test: C major scale -> 1 2 3 4 5 6 7, A minor starts 6 7 1, accidentals, octave dots, key change, four hands.
+- **Phase 2 (a few days, optional): a real jianpu line / view** with durations (dashes for longer notes, underlines for shorter), bar lines, line breaks per measure, replacing or sitting under each staff system. Needs its own layout, the OSMD system geometry gives the measure x-ranges to align with.
+- Not covered: fixed-do, lyrics under jianpu, complicated tuplets in phase 1.
