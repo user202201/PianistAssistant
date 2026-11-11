@@ -42,3 +42,14 @@ A **练习 / 游戏 (Practice / Game) toggle** in the empty middle of the top ba
 - **Not tested on real hardware:** a real MIDI piano on a real iPad (native plugin only compiled in CI), Android WebView (the Android app) may not offer Web MIDI.
 - **Still open:** touch keyboard for big screens, microphone input, saving best scores, latency calibration ("my piano feels late"), a proper result page.
 - Open question: names for the screens ("Practice" / "Game"; the falling-note view "Waterfall").
+
+## 5. Game: saving scores (nice-to-have, decided: not now)
+Plan if we do it: store per piece (key = file name + hand/part choice + level) the **best score, best accuracy, stars, last 10 results (date, score, accuracy, max combo)** in `settings`-like localStorage `pianist.scores.v1`, and — only in GitHub mode — also in the scores repo as `history/<name>.json` through `src/api.ts` (so backup/restore already includes it). Show: a small "best ★★★ 92 %" line on the card in the result popup, and in the score's menu a "history" list (one row per result, tiny sparkline). Delete with the piece; "clear history" in Settings. Merge rule when two devices wrote: keep the best, union the last-10 by date. Test: play demo twice, reload, check the best/last values; layout suites for the new list. Texts in 6 languages.
+
+## 6. Game: on-screen touch keyboard — feasibility notes (not building now)
+Concerns to settle before building:
+- **Finger vs key size**: a white key must be ≥ ~9 mm wide to be hit reliably. On a phone in landscape (~6 cm of width per octave at best) only ~1.5–2 octaves fit, black keys are too small → large screens (tablet ≥ 10") only, or a limited range (the range of the piece, scrollable).
+- **Which key is pressed**: use pointer events per touch (`pointerdown` with `pointerId`), hit-test against key rectangles (black keys first); sliding finger = new key (glissando) must be a design choice; the touch contact area is large, so judge by the touch centre.
+- **Simultaneous touches**: iPadOS reports up to ~11 touches, many Android phones 5–10, some cheap devices only 2–5; Safari may swallow gestures with 5 fingers (system gestures). We need **10 fingers for chords with both hands** → add a one-time **multi-touch diagnostic** ("put all fingers on the screen": counts max `pointers`) and show the result; if < 4, warn that chords may be missed.
+- **Latency/feel**: no haptics on iPad; sound latency of WebAudio is the dominant delay (use the existing latency compensation).
+- Test plan: Playwright `touchscreen` / CDP `Input.dispatchTouchEvent` with several touch points (chords, glissando, edge keys), WebKit run, real-device check by the user.
