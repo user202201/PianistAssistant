@@ -1,0 +1,40 @@
+name: webkit
+# The same kind of tests on the Safari engine (WebKit) only, started by hand (Actions -> webkit -> Run workflow). Quick (about 6 minutes); the packaging workflow runs it too as an informational job.
+on:
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: "Suites to run (space separated, from tests/suites.txt); empty = the usual selection"
+        required: false
+        default: ""
+permissions:
+  contents: read
+jobs:
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps webkit
+      - name: Tests on WebKit
+        env:
+          SUITES: ${{ inputs.suites }}
+        run: |
+          [ -n "$SUITES" ] || SUITES="08-ipad-ui 12-split-view 21-home-tabs-favourites 37-layout-en 37-layout-de 40-tabs-fit 41-bottom-bar-small-screen 43-fourhand-small-screen 49-sort-lists 50-game-mode-egg 51-game-view 52-game-start 53-game-score 54-demo-baseline 58-game-fourhand-space"
+          BROWSER=webkit bash tests/run-all.sh $SUITES
+      - name: Report
+        if: always()
+        run: |
+          node tests/make-report.cjs
+          cat tests/out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webkit-report
+          path: |
+            tests/out/report.html
+            tests/out/report.md
+            tests/out/*.log
