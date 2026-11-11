@@ -1,0 +1,25 @@
+name: check
+# Quick check on every push (about 2 minutes): types, translations, production build. The slow things (all end-to-end suites, packages for the three
+# platforms) run once a day / by hand in the workflow "mobile-packages".
+on:
+  push:
+    branches: [main, claude/epic-dirac-38xck6]
+    paths: ["src/**", "public/**", "index.html", "vite.config.ts", "package.json", "package-lock.json", "scripts/**", ".github/workflows/check.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run check:i18n
+      - run: BASE_PATH=/ npx vite build

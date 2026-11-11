@@ -1,11 +1,12 @@
 name: mobile-packages
-# Builds the iOS / Android / HarmonyOS packages from the SAME code as the website, on every change of the app code.
+# Builds the iOS / Android / HarmonyOS packages from the SAME code as the website (after the whole end-to-end suite passed).
+# While the app changes many times a day this runs ONCE A DAY (night, UTC 20:11 = 04:11 in China) and by hand (Actions -> mobile-packages -> Run workflow),
+# not on every push; a quick check (check.yml: types, translations, build) still runs on every push.
 # Results: Actions artifacts of this run + the files of the release "app-builds" (always the newest build):
 #   https://github.com/user202201/PianistAssistant/releases/tag/app-builds
 on:
-  push:
-    branches: [main, claude/epic-dirac-38xck6]
-    paths: ["src/**", "public/**", "index.html", "vite.config.ts", "package.json", "package-lock.json", "mobile/**", "packages/**", "scores-repo-template/**", "scripts/make-scores-repo-bundle.sh", ".github/workflows/mobile.yml"]
+  schedule:
+    - cron: "11 20 * * *"
   workflow_dispatch:
 permissions:
   contents: write
