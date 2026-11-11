@@ -578,6 +578,33 @@ function engineRow(): HTMLElement {
   return h("label", { class: "engine" }, "转换引擎", sel);
 }
 
+/** How to get a playable score (MusicXML) out of a PDF without the cloud converter: pointers to outside tools, nothing of them is part of the app. */
+function openConvertHelp() {
+  const link = (name: string, href: string) => h("a", { href, target: "_blank", rel: "noopener noreferrer" }, name);
+  const dlg = h(
+    "dialog",
+    { class: "dlg convhelp", id: "convert-help" },
+    h("h2", { tabIndex: -1, autofocus: true }, "把 PDF 变成可播放的乐谱"),
+    h("p", { class: "muted" }, "App 可以直接看 PDF（翻页、批注）。要自动播放、指法、游戏模式，需要乐谱的 MusicXML 文件（.musicxml / .mxl）。几种拿到它的办法："),
+    h("h3", {}, "① 直接找现成的 MusicXML"),
+    h("p", {}, "很多乐谱网站提供 MusicXML 下载，比自己转换准确得多：MuseScore、Mutopia、IMSLP 的部分曲目。"),
+    h("p", { class: "links" }, "官网：", link("MuseScore", "https://musescore.org"), link("Mutopia", "https://www.mutopiaproject.org"), link("IMSLP", "https://imslp.org")),
+    h("h3", {}, "② 用识别软件转换"),
+    h("p", {}, "把 PDF 或照片转成 MusicXML：Audiveris（免费、开源，电脑软件）；ScanScore、PlayScore 2 等（付费，效果一般更好）。"),
+    h("p", { class: "links" }, "官网：", link("Audiveris", "https://github.com/Audiveris/audiveris"), link("ScanScore", "https://scan-score.com"), link("PlayScore 2", "https://www.playscore.co")),
+    h("h3", {}, "③ 用本 App 的 GitHub 云端转换"),
+    h("p", {}, "只在连接了 GitHub 的版本里可用：转换在你自己的仓库里运行，用的是你自己 GitHub 账号的额度。商店版没有这个功能。"),
+    h("h3", {}, "转换之后"),
+    h("p", {}, "识别结果常有音符、调号、节奏的错误。建议先用 MuseScore 等软件校对并导出，再点右上角“上传琴谱”，选择 .musicxml 或 .mxl 文件。"),
+    h("p", { class: "muted small" }, "以上软件和网站与本 App 无关，名称仅供参考，费用和条款以它们的官网为准。你的 PDF 会交给你选择的工具处理，请注意隐私。"),
+    h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "好的")),
+  ) as HTMLDialogElement;
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur();
+}
+
 // ---------- what to do with an uploaded PDF ----------
 function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
   if (batchCtx.pdf) return Promise.resolve(batchCtx.pdf);
@@ -593,6 +620,7 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
       h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
       h("p", { class: "muted small" }, "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。"),
       engineRow(),
+      h("button", { class: "linkbtn", id: "convert-help-btn", onclick: () => openConvertHelp() }, "其他转换方法…"),
       sameForAllRow(all),
       h(
         "div",
@@ -1095,7 +1123,7 @@ async function renderHome() {
         if (/\.pdf$/i.test(f.name)) {
           if (api.isLocal()) {
             mode = "keep"; // conversion needs the GitHub service
-            toast("本机模式：PDF 只能保存和查看，不能转换成可播放乐谱", 6000);
+            toast("本机模式：PDF 只能保存和查看。想要可播放的乐谱，见 PDF 卡片菜单里的“怎么转成可播放乐谱？”", 7000);
           } else {
             const a = await askPdfMode(f.name);
             if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
@@ -1216,6 +1244,7 @@ async function renderHome() {
       h("button", { class: "open", onclick: () => { markOpened(`pdf:${name}`); location.hash = `#/pdf/${encodeURIComponent(name)}`; } }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
       starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
+        { label: "怎么转成可播放乐谱？", icon: "note", run: () => openConvertHelp() },
         ...(api.isLocal() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
             const n = await api.convertStoredPdf(name, settings.ocrEngine);

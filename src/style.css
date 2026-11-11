@@ -892,3 +892,11 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .welcome[hidden] { display: none; }
 .welcome h2 { margin: 0 0 8px; font-size: 1.15rem; color: var(--text); text-transform: none; letter-spacing: 0; }
 .welcome ol { margin: 0 0 14px; padding-left: 1.3em; color: var(--muted); line-height: 1.5; } .welcome li { margin: 3px 0; }
+
+/* conversion help dialog: a long text, scrolls on a phone */
+.dlg.convhelp { max-width: min(560px, 94vw); max-height: 88vh; overflow-y: auto; }
+.dlg.convhelp h3 { margin: 14px 0 4px; font-size: 1rem; }
+.dlg.convhelp p { margin: 4px 0; }
+.dlg.convhelp .links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+.dlg.convhelp .links a { color: var(--accent); }
+button.linkbtn { background: none; border: 0; color: var(--accent); padding: 6px 0; text-align: left; font: inherit; cursor: pointer; }

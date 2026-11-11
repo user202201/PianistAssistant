@@ -68,7 +68,7 @@ exports.run = async (loc, tname) => {
       await page.evaluate(() => document.querySelectorAll('dialog').forEach((d) => d.close()));
       // the upload dialog for a PDF
       await page.setInputFiles('input[type=file]', { name: 'Piece.pdf', mimeType: 'application/pdf', buffer: fs.readFileSync(D + 'Test-Piece-for-OCR.pdf') });
-      await page.waitForSelector('dialog.center'); await check('pdf-dialog'); await page.evaluate(() => document.querySelector('dialog.center')?.querySelector('button:last-of-type')?.click()); await page.waitForTimeout(300);
+      await page.waitForSelector('dialog.center'); await check('pdf-dialog'); await page.click('#convert-help-btn'); await page.waitForSelector('#convert-help'); await check('convert-help'); await page.click('#convert-help button.primary'); await page.waitForTimeout(250); await page.evaluate(() => document.querySelector('dialog.center')?.querySelector('button:last-of-type')?.click()); await page.waitForTimeout(300);
       // a score with its panels
       await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1200); await check('player');
       for (const [i, b] of (await page.$$('.controls button.narrow')).entries()) { await b.click().catch(() => {}); await check(`player-panel${i}`); await b.click().catch(() => {}); }
