@@ -20,6 +20,7 @@ import { GameScore, WINDOWS, isComboMilestone } from "./gamescore";
 import { createHud } from "./gamehud";
 import { midi, MidiInput, type MidiNote } from "./midi";
 import { mic, MicInput } from "./mic";
+import { record as logError, getLog, clearLog, formatLog, startErrorLog } from "./errlog";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
 import { clearNew, clearQueued, getFavs, getHomeTab, getRecent, setFavs, setHomeTab, isNew, loadSettings, markNew, markQueued, pushRecent, markOpened, getOpened, getSeen, queuedAt, renameRecent, saveSettings } from "./settings";
@@ -291,12 +292,15 @@ function openFeedback() {
   );
   const body = h("textarea", { rows: 6, placeholder: "请描述你遇到的问题或想法…" });
   const err = h("p", { class: "error" });
+  const logCount = getLog().length;
+  const attach = h("input", { type: "checkbox", checked: logCount > 0 });
   const send = () => {
     if (!title.value.trim()) return void (err.textContent = "请填写标题");
     if (!body.value.trim()) return void (err.textContent = "请填写描述");
     const info = [`App: Pianist Assistant ${__BUILD__}`, `Platform: ${navigator.platform || "?"}`, `Language: ${getLang()}`, `Storage: ${api.isLocal() ? "device" : "GitHub"}`, `Browser: ${navigator.userAgent}`];
-    const url = `mailto:${__FEEDBACK_EMAIL__}?subject=${encodeURIComponent(`[${kind.value}] ${title.value.trim()}`)}&body=${encodeURIComponent(`${body.value.trim()}\n\n---\n${info.join("\n")}`)}`;
+    const url = `mailto:${__FEEDBACK_EMAIL__}?subject=${encodeURIComponent(`[${kind.value}] ${title.value.trim()}`)}&body=${encodeURIComponent(`${body.value.trim()}\n\n---\n${info.join("\n")}${attach.checked && logCount ? `\n\nError log:\n${formatLog()}` : ""}`)}`;
     dlg.close();
+    (window as unknown as { __mail?: string }).__mail = url; // (for the tests)
     location.href = url;
     toast("已打开邮件应用，请在邮件里点发送", 6000);
   };
@@ -308,6 +312,7 @@ function openFeedback() {
     h("label", {}, "类型", kind),
     h("label", {}, "描述", body),
     h("p", { class: "muted small" }, "点“确认并发送”会打开你的邮件应用，邮件里会附上 App 版本和系统信息（不包含你的谱子）。"),
+    ...(logCount ? [h("label", { class: "inline" }, `附上最近的错误记录（${logCount} 条，不含谱子内容和账号）`, attach), h("button", { class: "rowbtn", onclick: async () => { try { await navigator.clipboard.writeText(formatLog(6000)); toast("已复制错误记录"); } catch { toast("复制失败"); } } }, ic("note", 20), "复制错误记录")] : []),
     err,
     h("div", { class: "row" }, h("button", { onclick: () => dlg.close() }, "取消"), h("div", { class: "grow" }), h("button", { class: "primary", onclick: send }, "确认并发送")),
   );
@@ -712,6 +717,7 @@ function openPairDialog(opts: {
 
 /** A failure the user can read, with what to try, and copy to send to someone. */
 function showError(title: string, e: unknown) {
+  logError(e, title);
   const err = e as Error & { status?: number };
   const msg = err.message || String(e);
   const hint =
@@ -1007,6 +1013,34 @@ async function renderHome() {
   let lastPdfs: api.ScoreInfo[] = [];
   let pairs: api.Pair[] = [];
   let allScores: string[] = [];
+  // first start with an empty library: a short welcome with a button that adds a few example scores
+  const SAMPLES = ["Ode to Joy (Primo).musicxml", "Ode to Joy (Secondo).musicxml", "C major scale.musicxml"];
+  const WELCOME_KEY = "pianist.welcome.v1";
+  const welcomeDone = () => { try { return !!localStorage.getItem(WELCOME_KEY); } catch { return false; } };
+  const dismissWelcome = () => { try { localStorage.setItem(WELCOME_KEY, "1"); } catch { /* ignore */ } welcome.hidden = true; };
+  const addSamples = async () => {
+    const done = toast("正在添加示例曲目…", 0, true);
+    try {
+      for (const f of SAMPLES) {
+        const r = await fetch(new URL(import.meta.env.BASE_URL + "samples/" + encodeURIComponent(f), location.href));
+        if (!r.ok) throw new Error(`示例曲目下载失败 (${r.status})`);
+        await api.putScoreText(f, await r.text(), `Add example: ${f}`);
+      }
+      // the two parts of the four-hand example are one piece
+      await api.writePairs([...(await api.readPairs()), { name: "Ode to Joy (4 hands)", a: SAMPLES[0], b: SAMPLES[1] }]);
+      dismissWelcome();
+      done();
+      toast(`已添加 ${SAMPLES.length} 份示例曲目`);
+      refreshHome?.();
+    } catch (e) {
+      done();
+      showError("添加示例曲目失败", e);
+    }
+  };
+  const welcome = h("div", { class: "welcome", hidden: true },
+    h("h2", {}, "欢迎！先试一试"),
+    h("ol", {}, h("li", {}, "添加示例曲目，或点右上角“上传琴谱”（支持 MusicXML / .mxl / PDF）。"), h("li", {}, "点开一份谱子，点谱面上的任意位置，就从那里开始播放。"), h("li", {}, "遇到问题：设置里点“帮助与反馈”。")),
+    h("div", { class: "row wrap" }, h("button", { class: "primary", id: "add-samples", onclick: () => void addSamples() }, "添加示例曲目"), h("button", { id: "skip-welcome", onclick: dismissWelcome }, "不用了，我自己上传")));
   const suggest = h("div", { class: "suggest" });
   const savePairs = async (next: api.Pair[], done = "") => {
     try {
@@ -1102,7 +1136,7 @@ async function renderHome() {
       h("button", { class: "icon", onclick: () => openSettings(), title: "设置" }, ic("sliders")),
     ),
     file,
-    h("main", { class: "home" }, queueSec, suggest, recentSec, tabsBar, listBox),
+    h("main", { class: "home" }, welcome, queueSec, suggest, recentSec, tabsBar, listBox),
   );
 
   /** `run` returns false when the user cancelled (nothing happened); `done` is the message after a successful delete */
@@ -1368,6 +1402,7 @@ async function renderHome() {
       // every score stays in the list (each part can be practised alone); a combined piece is an extra card
       lastScores = scores;
       lastPdfs = pdfs;
+      welcome.hidden = welcomeDone() || scores.length > 0 || pdfs.length > 0 || pairs.length > 0; // only on an empty library, until it is dismissed or used
       // favourites of things that no longer exist (deleted, unlinked) are dropped; only when the lists are complete
       if (!api.isOffline() && !favDirty) {
         const alive = new Set([...scores.map((x) => favKey.score(x.name)), ...pairs.map((p) => favKey.pair(p)), ...pdfs.map((x) => favKey.pdf(x.name))]);
@@ -3006,6 +3041,7 @@ function route() {
     else if (m) void renderPlayer(decodeURIComponent(m[1]));
   });
 }
+startErrorLog();
 window.addEventListener("hashchange", route);
 route();
 if (ent.hasStore()) {
