@@ -23,6 +23,7 @@ exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {})
     if (p === '/repos/user202201/PianistScores') return json({ permissions: { push: true }, default_branch: 'main', private: true });
     if (p === '/user') return json({ login: 'tester' });
     if (p === '/repos/user202201/PianistScores/commits') { const nm = (u.searchParams.get('path') || '').replace(/^inbox\//, ''); const ms = opts.commitDates ? opts.commitDates[nm] : Date.now(); if (!ms) return json([]); return json([{ commit: { committer: { date: new Date(ms).toISOString() } } }]); }
+    if (p === '/repos/user202201/PianistScores/actions/workflows/convert.yml/runs') { if (opts.actionsStatus) return json({ message: 'x' }, opts.actionsStatus); const runs = opts.actionsRuns || []; return json({ total_count: runs.length, workflow_runs: runs }); }
     const m = p.match(/^\/repos\/user202201\/PianistScores\/contents\/([^/]+)(?:\/(.+))?$/);
     if (!m) return json({}, 404);
     const dir = m[1], name = m[2] && decodeURIComponent(m[2]);

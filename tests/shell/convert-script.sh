@@ -43,5 +43,11 @@ check "a title is set for deep-learning results" 'grep -q "<work-title>OnlyHomr"
 check "engine notes are cleaned up and converted PDFs are removed" '[ -z "$(ls inbox | grep -v Broken)" ]'
 check "a failing file does not stop the others, and says why" '[ -f inbox/Broken.pdf.failed.txt ] && grep -q "homr failed" inbox/Broken.pdf.failed.txt'
 check "everything is committed and pushed" '[ -z "$(git status --porcelain)" ] && [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]'
+# an engine kept from an earlier run (the workflow caches the folder between runs): used without any download (every download fails here)
+mkdir -p "$W/cache/audiveris-root/opt/audiveris/bin"; cp "$W/bin/fakeaud" "$W/cache/audiveris-root/opt/audiveris/bin/Audiveris"
+printf '#!/bin/bash\nexit 22\n' > "$W/bin/curl"; chmod +x "$W/bin/curl"
+cp "$PDF" inbox/Cached.pdf; git add -A; git -c user.email=a@b -c user.name=t commit -qm more; git push -q 2>/dev/null
+PATH="$W/bin:$PATH" ENGINE_CACHE="$W/cache" bash "$W/convert.sh" > "$W/run2.log" 2>&1
+check "an engine kept from an earlier run is used without downloading it again" '[ "$(first Cached.musicxml)" = C ] && grep -q "taken from the cache" /tmp/convert-setup.log'
 [ $fail = 0 ] && echo "ALL PASSED" || { echo; tail -n 30 "$W/run.log"; }
 exit $fail

@@ -190,6 +190,36 @@ async function gh(a: Auth, url: string, init: RequestInit = {}): Promise<Respons
   return res;
 }
 
+/** The token may not read the workflow runs (needs "Actions: Read-only" next to "Contents: Read and write"). */
+export class NoActionsPermission extends Error {}
+export interface ConvUsage { minutes: number; runs: number }
+/**
+ * How much of the monthly GitHub Actions allowance the PDF conversion of this repository used this month: every run of the conversion workflow,
+ * from its start to its end, rounded up to whole minutes (GitHub bills by the minute). An estimate: the exact figure is in the GitHub account's billing page.
+ */
+export async function conversionUsage(): Promise<ConvUsage> {
+  const a = need();
+  const d = new Date();
+  const first = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  let minutes = 0;
+  let runs = 0;
+  for (let page = 1; page <= 5; page++) {
+    const r = await gh(a, `https://api.github.com/repos/${a.repo}/actions/workflows/convert.yml/runs?created=${encodeURIComponent(">=" + first)}&per_page=100&page=${page}`, { headers: headers(a) });
+    if (r.status === 403) throw new NoActionsPermission("no permission to read the workflow runs");
+    if (r.status === 404) throw new Error("没有找到转换任务（convert.yml）：还没有按教程设置转换？");
+    if (!r.ok) throw new Error(`GitHub 返回 ${r.status}`);
+    const j = (await r.json()) as { workflow_runs?: { run_started_at?: string; created_at: string; updated_at: string }[] };
+    const list = j.workflow_runs ?? [];
+    for (const w of list) {
+      const s = Date.parse(w.run_started_at ?? w.created_at);
+      const e = Date.parse(w.updated_at);
+      if (!Number.isNaN(s) && !Number.isNaN(e)) { minutes += Math.max(1, Math.ceil((e - s) / 60000)); runs++; }
+    }
+    if (list.length < 100) break;
+  }
+  return { minutes, runs };
+}
+
 /** Validate token + repo, then remember them on this device. */
 export async function login(token: string, repo: string, remember = true): Promise<Auth> {
   const link = parseLink(token);

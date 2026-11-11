@@ -76,6 +76,7 @@ for f in "${todo[@]}"; do
   esac
 done
 
+CACHE="${ENGINE_CACHE:-$HOME/.cache/pianist-engines}"; mkdir -p "$CACHE"
 # ---- install Audiveris (unpack the .deb without running its desktop-menu post-install script) ----
 install_audiveris() {
   if [ -n "${AUDIVERIS_BIN:-}" ]; then
@@ -85,17 +86,25 @@ install_audiveris() {
       set -e
       sudo apt-get update -qq
       sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-eng jq unzip
-      auth=()
-      [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
-      url=$(curl -fsSL "${auth[@]}" https://api.github.com/repos/Audiveris/audiveris/releases/latest |
-        jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
-      echo "Using $url"
-      curl -fsSL -o /tmp/audiveris.deb "$url"
-      mkdir -p /tmp/audiveris-root
-      dpkg-deb -x /tmp/audiveris.deb /tmp/audiveris-root
+      # the engine is kept in $CACHE (the workflow caches that folder between runs, see convert.yml): downloaded only when it is not there yet
+      if find "$CACHE/audiveris-root" -type f -name Audiveris 2>/dev/null | grep -q .; then
+        echo "Audiveris: taken from the cache"
+      else
+        auth=()
+        [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
+        api=https://api.github.com/repos/Audiveris/audiveris/releases/latest
+        [ -n "${AUDIVERIS_VERSION:-}" ] && api=https://api.github.com/repos/Audiveris/audiveris/releases/tags/$AUDIVERIS_VERSION   # fixed version (set it in convert.yml)
+        rel=$(curl -fsSL "${auth[@]}" "$api")
+        echo "Audiveris release: $(echo "$rel" | jq -r .tag_name)"
+        url=$(echo "$rel" | jq -r '([.assets[].browser_download_url | select(test("(?i)ubuntu.*(x86_64|amd64).*\\.deb$"))][0]) // ([.assets[].browser_download_url | select(test("(?i)\\.deb$"))][0])')
+        echo "Using $url"
+        curl -fsSL -o /tmp/audiveris.deb "$url"
+        mkdir -p "$CACHE/audiveris-root"
+        dpkg-deb -x /tmp/audiveris.deb "$CACHE/audiveris-root"
+      fi
     ) >> "$LOG" 2>&1 || fail_all "Installing Audiveris failed"
-    AUD=$(find /tmp/audiveris-root -type f -name Audiveris 2>/dev/null | head -1)
-    [ -n "$AUD" ] || { ls -R /tmp/audiveris-root 2>&1 | head -40 >> "$LOG"; fail_all "Audiveris executable not found in the package"; }
+    AUD=$(find "$CACHE/audiveris-root" -type f -name Audiveris 2>/dev/null | head -1)
+    [ -n "$AUD" ] || { ls -R "$CACHE/audiveris-root" 2>&1 | head -40 >> "$LOG"; fail_all "Audiveris executable not found in the package"; }
     chmod +x "$AUD"
   fi
   echo "Audiveris: $AUD" | tee -a "$LOG"
@@ -104,8 +113,10 @@ install_audiveris() {
   # Ubuntu's English model cannot be loaded by Audiveris ("Could not initialize TessBaseAPI ... legacy mode"), so titles, tempo marks and
   # other text were lost. The full model from the Tesseract project works (measured in the OCR lab, .github/workflows/ocr-lab.yml).
   mkdir -p /tmp/tessdata-full
-  if curl -fsSL --retry 3 -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata && [ "$(wc -c < /tmp/tessdata-full/eng.traineddata)" -gt 1000000 ]; then
+  [ -s "$CACHE/eng.traineddata" ] && cp "$CACHE/eng.traineddata" /tmp/tessdata-full/eng.traineddata   # kept from an earlier run
+  if [ -s /tmp/tessdata-full/eng.traineddata ] || curl -fsSL --retry 3 -o /tmp/tessdata-full/eng.traineddata https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata && [ "$(wc -c < /tmp/tessdata-full/eng.traineddata)" -gt 1000000 ]; then
     export TESSDATA_PREFIX=/tmp/tessdata-full
+    cp /tmp/tessdata-full/eng.traineddata "$CACHE/eng.traineddata" 2>/dev/null || true
     echo "using the full English text model" >> "$LOG"
   else
     echo "could not download the full English text model, using the system one" >> "$LOG"

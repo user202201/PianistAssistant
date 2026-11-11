@@ -484,6 +484,12 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
     ]),
+    ...(api.isLocal() ? [] : [
+      h("h3", {}, "PDF 转换"),
+      h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
+      h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+      h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+    ]),
     ...(api.isLocal() ? [] : [h("h3", {}, "登录与设备")]),
     h(
       "p",
@@ -578,6 +584,51 @@ function engineRow(): HTMLElement {
   return h("label", { class: "engine" }, "转换引擎", sel);
 }
 
+/** This month's conversion minutes of the user's repository (estimate from the workflow runs; needs the token to have "Actions: Read-only"). */
+async function showUsage() {
+  const done = toast("正在查询本月转换用量…", 60000, true);
+  try {
+    const u = await api.conversionUsage();
+    done();
+    toast(`本月转换已用约 ${u.minutes} 分钟（${u.runs} 次）。免费额度以你的 GitHub 账号为准。`, 8000);
+  } catch (e) {
+    done();
+    if (e instanceof api.NoActionsPermission) toast("令牌不能读取运行记录。要看用量，请到 GitHub 的令牌设置里加上 Actions: Read-only 权限（教程里有说明）。", 10000);
+    else if (e instanceof api.AuthExpired) renderLogin(e.message);
+    else showError("查询用量失败", e);
+  }
+}
+
+/** Step by step: how to get the cloud conversion running with one's own GitHub account. */
+function openGithubSetup() {
+  const link = (name: string, href: string) => h("a", { href, target: "_blank", rel: "noopener noreferrer" }, name);
+  const dlg = h(
+    "dialog",
+    { class: "dlg convhelp", id: "github-setup" },
+    h("h2", { tabIndex: -1, autofocus: true }, "设置 GitHub 转换（约 5 分钟）"),
+    h("div", { class: "convbody" },
+      h("p", { class: "muted" }, "PDF 转换在你自己的 GitHub 仓库里运行，需要一个 GitHub 账号（免费）。每一步都在 GitHub 网站上做；界面可能有变化，以 GitHub 官方为准。"),
+      h("h3", {}, "① 注册 GitHub 账号"),
+      h("p", { class: "links" }, link("github.com/signup", "https://github.com/signup")),
+      h("h3", {}, "② 新建一个私有（Private）仓库，名字例如 PianistScores。"),
+      h("p", { class: "links" }, link("github.com/new", "https://github.com/new")),
+      h("h3", {}, "③ 在仓库里新建文件 .github/workflows/convert.yml，内容复制自下面的文件。"),
+      h("p", { class: "links" }, link("convert.yml", "https://github.com/user202201/PianistAssistant/blob/main/scores-repo-template/.github/workflows/convert.yml")),
+      h("h3", {}, "④ 生成令牌：只授权这一个仓库；权限 Contents: Read and write；想在 App 里看用量，再加 Actions: Read-only；有效期最长 1 年。"),
+      h("p", { class: "links" }, link("github.com/settings/personal-access-tokens/new", "https://github.com/settings/personal-access-tokens/new")),
+      h("h3", {}, "⑤ 回到 App 的登录页，粘贴令牌，仓库填“你的用户名/PianistScores”。"),
+      h("h3", {}, "⑥ 上传 PDF 并选“转换”，几分钟后谱子出现在列表里。"),
+      h("p", { class: "muted small" }, "转换用的是你 GitHub 账号的免费额度（私有仓库每月有一定的免费分钟数），额度以 GitHub 为准。官方用量在 GitHub 的账单页面；App 设置里也有一个估算。"),
+      h("p", { class: "links" }, link("github.com/settings/billing", "https://github.com/settings/billing")),
+    ),
+    h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "好的")),
+  ) as HTMLDialogElement;
+  dlg.addEventListener("close", () => dlg.remove());
+  document.body.append(dlg);
+  dlg.showModal();
+  (document.activeElement as HTMLElement | null)?.blur();
+}
+
 /** How to get a playable score (MusicXML) out of a PDF without the cloud converter: pointers to outside tools, nothing of them is part of the app. */
 function openConvertHelp() {
   const link = (name: string, href: string) => h("a", { href, target: "_blank", rel: "noopener noreferrer" }, name);
@@ -595,6 +646,7 @@ function openConvertHelp() {
       h("p", { class: "links" }, "官网：", link("Audiveris", "https://github.com/Audiveris/audiveris"), link("ScanScore", "https://scan-score.com"), link("PlayScore 2", "https://www.playscore.co")),
       h("h3", {}, "③ 用本 App 的 GitHub 云端转换"),
       h("p", {}, "只在连接了 GitHub 的版本里可用：转换在你自己的仓库里运行，用的是你自己 GitHub 账号的额度。商店版没有这个功能。"),
+      h("button", { class: "linkbtn", id: "github-setup-btn", onclick: () => openGithubSetup() }, "怎么设置？"),
       h("h3", {}, "转换之后"),
       h("p", {}, "识别结果常有音符、调号、节奏的错误。建议先用 MuseScore 等软件校对并导出，再点右上角“上传琴谱”，选择 .musicxml 或 .mxl 文件。"),
       h("p", { class: "muted small" }, "以上软件和网站与本 App 无关，名称仅供参考，费用和条款以它们的官网为准。你的 PDF 会交给你选择的工具处理，请注意隐私。"),

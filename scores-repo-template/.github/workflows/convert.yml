@@ -26,7 +26,20 @@ jobs:
           if [ -f tools/convert.sh ]; then echo "TOOLS=tools" >> "$GITHUB_ENV"; else
             git clone --depth 1 https://github.com/user202201/PianistAssistant .tools && echo "TOOLS=.tools/scores-repo-template" >> "$GITHUB_ENV"
           fi
+      # The engines (Audiveris, the text model, pip packages) are kept between runs, so a conversion does not download them every time.
+      # The key changes every week, so a new version of an engine is picked up within a week.
+      - name: Cache key (week)
+        id: week
+        run: echo "w=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pianist-engines
+            ~/.cache/pip
+          key: engines-${{ steps.week.outputs.w }}
       - name: Convert inbox files
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # a fixed Audiveris version (for example "5.3.1") instead of the newest one; empty = newest
+          AUDIVERIS_VERSION: ""
         run: bash "$TOOLS/convert.sh"

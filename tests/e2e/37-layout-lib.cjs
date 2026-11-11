@@ -63,7 +63,7 @@ exports.run = async (loc, tname) => {
       const check = async (screen) => { await page.waitForTimeout(500); const bad = await inspect(page, zhKeys, noZh, w); await page.screenshot({ path: D + `layout-${loc}-${vname}-${screen}.png` }); ok(bad.length === 0, `${tag} ${screen}: fits${bad.length ? ' — ' + JSON.stringify(bad) : ''}`); };
       await page.evaluate(() => { window.__noAuto = true; });
       await page.waitForSelector('.card'); await check('home');
-      await page.evaluate(() => document.querySelector('.top button:last-child')?.click()); await page.waitForSelector('dialog'); await check('settings');
+      await page.evaluate(() => document.querySelector('.top button:last-child')?.click()); await page.waitForSelector('dialog'); await check('settings'); await page.evaluate(() => document.querySelector('#setup-help-btn')?.click()); await page.waitForSelector('#github-setup'); await check('github-setup'); await page.click('#github-setup button.primary'); await page.waitForTimeout(250);
       await page.evaluate(() => document.querySelector('#feedback-btn')?.click()); await page.waitForTimeout(300); if (await page.locator('dialog >> text=/./').count()) await check('feedback');
       await page.evaluate(() => document.querySelectorAll('dialog').forEach((d) => d.close()));
       // the upload dialog for a PDF
