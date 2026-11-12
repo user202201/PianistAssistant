@@ -35,7 +35,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const jpeg = await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 600; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 600, 400); x.fillStyle = '#000'; x.fillRect(80, 80, 240, 120); const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9)); return Array.from(new Uint8Array(await b.arrayBuffer())); });
   await up({ name: 'Photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg) });
   await page.waitForSelector('#pdf-go');
-  ok((await page.textContent('dialog.center')).includes('Photo.pdf'), 'a photo: the PDF question appears, for "Photo.pdf" (it was turned into a PDF first)');
+  ok((await page.textContent('dialog.center')).includes('Photo.pdf') && (await page.textContent('dialog.center')).includes('照片将转存为 PDF'), 'a photo: the PDF question appears for "Photo.pdf" with a line saying the photo is saved as a PDF');
   await page.selectOption('#pdf-mode', 'keep'); await page.click('#pdf-go'); await page.waitForTimeout(1500);
   const b = store.get('pdfs/Photo.pdf');
   const s = b ? b.toString('latin1') : '';

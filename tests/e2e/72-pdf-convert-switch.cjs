@@ -22,7 +22,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // 3. off: a photo becomes a PDF first and is kept like one (the same notice)
   const jpeg = await page.evaluate(async () => { const c = document.createElement('canvas'); c.width = 300; c.height = 200; const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, 300, 200); x.fillStyle = '#000'; x.fillRect(40, 40, 120, 60); const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9)); return Array.from(new Uint8Array(await b.arrayBuffer())); });
   await up({ name: 'Photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg) });
-  await page.waitForSelector('#pdf-notice[open]'); await page.click('#pdf-notice-ok'); await page.waitForTimeout(1500);
+  await page.waitForSelector('#pdf-notice[open]'); ok((await page.textContent('#pdf-notice')).includes('照片将转存为 PDF'), 'the notice for a photo also says it is saved as a PDF'); await page.click('#pdf-notice-ok'); await page.waitForTimeout(1500);
   ok(store.has('pdfs/Photo.pdf') && store.get('pdfs/Photo.pdf').slice(0, 5).toString() === '%PDF-' && !store.has('inbox/Photo.jpg'), 'off: a photo is turned into a PDF and kept (viewing only), nothing is queued');
   // 4. the card menu of a PDF has no conversion while it is off
   await page.click('.tabsbar .seg[data-k=pdf]'); await page.waitForSelector('.card.pdf');

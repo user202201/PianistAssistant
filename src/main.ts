@@ -774,12 +774,13 @@ function canConvert(): boolean {
 }
 
 /** A PDF is only kept for viewing (conversion is off or not connected): one short notice with one button. */
-function noticePdfOnly(connectHint: boolean): Promise<void> {
+function noticePdfOnly(connectHint: boolean, fromPhoto = false): Promise<void> {
   return new Promise((resolve) => {
     const dlg = h(
       "dialog",
       { class: "dlg center", id: "pdf-notice" },
       h("h2", {}, "注意！"),
+      fromPhoto ? h("p", { class: "muted small" }, "照片将转存为 PDF。") : null,
       h("p", {}, "PDF 文件仅可查看，不能播放。"),
       connectHint ? h("p", { class: "muted small" }, "要转换 PDF，请先在“设置 → PDF 转换”里连接 GitHub。") : null,
       h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", id: "pdf-notice-ok", onclick: () => dlg.close() }, "好的")),
@@ -791,7 +792,7 @@ function noticePdfOnly(connectHint: boolean): Promise<void> {
   });
 }
 
-function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
+function askPdfMode(name: string, fromPhoto = false): Promise<"convert" | "keep" | "both" | "cancel"> {
   if (batchCtx.pdf) return Promise.resolve(batchCtx.pdf);
   return new Promise((resolve) => {
     let answer: "convert" | "keep" | "both" | "cancel" = "cancel";
@@ -816,6 +817,7 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
       { class: "dlg center" },
       h("h2", {}, "这份 PDF 怎么处理？"),
       h("p", { class: "small" }, name),
+      fromPhoto ? h("p", { class: "muted small" }, "照片将转存为 PDF。") : null,
       h("label", { class: "engine" }, "处理方式", mode),
       engine,
       h(
@@ -1317,7 +1319,9 @@ async function renderHome() {
       let closeUp = () => {}; // the "uploading…" message stays until this file is done
       try {
         // a photo of a score becomes a PDF first: from here on it is handled like any other PDF (kept, viewed, converted when conversion is on)
+        let fromPhoto = false;
         if (/\.(png|jpe?g|tiff?|bmp)$/i.test(f.name)) {
+          fromPhoto = true;
           const doneImg = toast(`正在把照片转成 PDF：${f.name}`, 60000, true);
           try { f = await imageToPdf(f); } catch { doneImg(); throw new Error(`无法读取这张照片：${f.name}`); }
           doneImg();
@@ -1327,12 +1331,12 @@ async function renderHome() {
         if (isPdf && !canConvert()) {
           // conversion is off (or no repository connected): a PDF is only kept for viewing
           if (batchCtx.pdf !== "keep") {
-            await noticePdfOnly(!__LOCAL_ONLY__ && settings.pdfConvert && api.isLocal());
+            await noticePdfOnly(!__LOCAL_ONLY__ && settings.pdfConvert && api.isLocal(), fromPhoto);
             if (batchCtx.files > 1) batchCtx.pdf = "keep"; // one notice for the whole batch
           }
           mode = "keep";
         } else if (isPdf) {
-          const a = await askPdfMode(f.name);
+          const a = await askPdfMode(f.name, fromPhoto);
           if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
           mode = a;
           if (mode !== "keep" && !(await ensureConvertYml())) mode = "keep"; // no convert.yml in the repository: help to add it, the PDF is only kept
