@@ -183,7 +183,7 @@ function renderLogin(message = "") {
           "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
         ),
         h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
-        h("li", {}, "已有一台登录好的设备？在它的“设置 → 存储与账号”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
+        h("li", {}, "已有一台登录好的设备？在它的“设置 → GitHub 与 PDF 转换”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
       ),
     ),
   ];
@@ -377,7 +377,7 @@ function alignRules(o: OpenSheetMusicDisplay) {
   if (settings.alignBars > 0) { r.NewSystemAtXMLNewSystemAttribute = false; r.NewPageAtXMLNewPageAttribute = false; }
 }
 
-function openSettings(onSound?: () => void, onLayout?: () => void) {
+function openSettings(onSound?: () => void, onLayout?: () => void, scrollTo = 0) {
   const dlg = h("dialog", { class: "dlg settings dismiss" });
   const sound = h("select", {}, ...SOUNDS.map((s) => h("option", { value: s.id, selected: s.id === settings.sound }, s.label)));
   sound.addEventListener("change", () => {
@@ -419,8 +419,9 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   pdfBox.addEventListener("change", () => {
     settings.pdfConvert = pdfBox.checked;
     saveSettings(settings);
+    const keep = dlg.querySelector<HTMLElement>(".dlgbody")?.scrollTop ?? 0;
     dlg.close();
-    openSettings(onSound, onLayout);
+    openSettings(onSound, onLayout, keep);
     if (settings.pdfConvert) openConvertHelp();
   });
   const pdfRow = h("label", { class: "inline", id: "pdf-convert-opt" }, "开启 PDF 转换", pdfBox);
@@ -484,34 +485,35 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     ...(__FEEDBACK_EMAIL__ ? [h("button", { class: "rowbtn", id: "feedback-btn", onclick: () => { dlg.close(); openFeedback(); } }, ic("note", 20), "帮助与反馈")] : []),
     h("p", { class: "muted small ver" }, `当前版本 ${__BUILD__}`),
     ...(api.isLocal() ? [
-      h("h3", {}, "存储与账号"),
-      h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
+      h("h3", {}, "存储"),
+      h("p", { class: "muted small" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
       // store builds are local-only: no GitHub at all
       ...(__LOCAL_ONLY__ ? [] : [
         h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…"),
-        // the GitHub account of this mode: only for converting PDFs (the scores stay on the device)
-        h("p", { class: "muted" }, api.getConvAuth() ? `GitHub 账号（仅用于 PDF 转换）：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}` : "GitHub 账号（仅用于 PDF 转换）：未连接"),
-        ...(api.getConvAuth() ? [
-          h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
-        ] : [
-          h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
-        ]),
-        h("h3", {}, "PDF 转换"),
+        h("h3", {}, "GitHub 与 PDF 转换"),
         pdfRow,
         ...(settings.pdfConvert ? [
           h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
+          // the GitHub account of this mode: only for converting PDFs (the scores stay on the device)
+          h("p", { class: "muted" }, api.getConvAuth() ? `GitHub 账号（仅用于 PDF 转换）：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}` : "GitHub 账号（仅用于 PDF 转换）：未连接"),
           ...(api.getConvAuth() ? [
             h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+            h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
           ] : [
-            h("p", { class: "muted" }, "需要先在上面的“存储与账号”里连接 GitHub。"),
+            h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
           ]),
           h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
         ] : []),
       ]),
     ] : []),
-    ...(api.isLocal() ? [] : [h("h3", {}, "存储与账号")]),
+    ...(api.isLocal() ? [] : [
+      h("h3", {}, "备份"),
+      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
+      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
+    ]),
+    ...(api.isLocal() ? [] : [h("h3", {}, "GitHub 与 PDF 转换")]),
     h(
       "p",
       { class: "muted", hidden: api.isLocal() },
@@ -534,13 +536,6 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     ...(api.isLocal() ? [] : [h("button", { class: "rowbtn", id: "change-token-btn", onclick: () => { dlg.close(); renderLogin(); } }, ic("refresh", 20), "更换令牌…")]),
     ...(api.isLocal() ? [] : [h("div", { class: "row" }, h("button", { class: "danger", id: "logout-btn", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出登录（本设备）"))]),
     ...(api.isLocal() ? [] : [
-      h("h3", {}, "备份"),
-      h("p", { class: "muted" }, "谱子保存在你的 GitHub 仓库里。备份会把它们全部下载成一个压缩包；恢复会把压缩包里的文件放回仓库。"),
-      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
-      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-    ]),
-    ...(api.isLocal() ? [] : [
-      h("h3", {}, "PDF 转换"),
       pdfRow,
       ...(settings.pdfConvert ? [
         h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
@@ -567,6 +562,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   dlg.addEventListener("close", () => dlg.remove());
   document.body.append(dlg);
   dlg.showModal();
+  if (scrollTo > 0) body.scrollTop = scrollTo; // built again after a switch: stay where the user was, so what appeared / disappeared is seen
   edges(); // (is there more below?)
   (document.activeElement as HTMLElement | null)?.blur(); // no focus ring on the first control
 }
@@ -788,7 +784,7 @@ function noticePdfOnly(connectHint: boolean, fromPhoto = false): Promise<void> {
       h("h2", {}, "注意！"),
       fromPhoto ? h("p", { class: "muted small" }, "照片将转存为 PDF。") : null,
       h("p", {}, "PDF 文件仅可查看，不能播放。"),
-      connectHint ? h("p", { class: "muted small" }, "要转换 PDF，请先在“设置 → 存储与账号”里连接 GitHub。") : null,
+      connectHint ? h("p", { class: "muted small" }, "要转换 PDF，请先在“设置 → GitHub 与 PDF 转换”里连接 GitHub。") : null,
       h("div", { class: "row" }, h("button", { class: "primary", id: "pdf-notice-ok", onclick: () => dlg.close() }, "好的")),
     ) as HTMLDialogElement;
     dlg.addEventListener("close", () => { dlg.remove(); resolve(); });

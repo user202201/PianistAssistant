@@ -47,5 +47,14 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('.card.pdf button.del[title="更多"]'); await page.waitForSelector('dialog.dismiss[open]');
   items = await page.evaluate(() => [...document.querySelectorAll('dialog.dismiss[open] .rowbtn')].map((b) => b.innerText.trim()));
   ok(items.some((x) => x.startsWith('转换成可播放乐谱')), 'on: the PDF card menu offers the conversion');
+  // the Settings stay where they were when the switch is turned on / off (what appeared or disappeared is seen)
+  await page.mouse.click(5, 5); await page.waitForTimeout(250); // the card menu
+  await page.setViewportSize({ width: 1194, height: 560 });
+  await page.click('button[title="设置"]'); await page.waitForSelector('dialog.settings[open]');
+  await page.evaluate(() => { const b = document.querySelector('dialog.settings .dlgbody'); b.scrollTop = b.scrollHeight; });
+  const before = await page.evaluate(() => document.querySelector('dialog.settings .dlgbody').scrollTop);
+  await page.click('#pdf-convert-opt input'); await page.waitForTimeout(400); // turned off: no help popup
+  const after = await page.evaluate(() => document.querySelector('dialog.settings .dlgbody').scrollTop);
+  ok(before > 100 && after > before * 0.5, `the Settings do not jump to the top when the switch is turned (${Math.round(before)} -> ${Math.round(after)})`);
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

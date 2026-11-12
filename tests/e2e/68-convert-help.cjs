@@ -25,8 +25,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // device mode: the switch too; the connection items only when it is on
   ({ browser, page } = await h.start(new Map(), { local: true, pdfConvert: false, context: { viewport: { width: 1194, height: 1000 } } }));
   await page.waitForSelector('.top'); await page.click('button[title="设置"]'); await page.waitForSelector('dialog.settings[open]');
-  ok(await page.isVisible('#pdf-convert-opt') && await page.isVisible('#connect-conv-btn') && !(await page.isVisible('#setup-help-btn')), 'device mode: the GitHub account (for conversion only) is under "Storage & account", the switch under "PDF conversion"; the guide only after turning it on');
+  ok(await page.isVisible('#pdf-convert-opt') && !(await page.isVisible('#connect-conv-btn')) && !(await page.isVisible('#setup-help-btn')), 'device mode: the switch is there; the GitHub account (for conversion only) and the guide only after turning it on');
   await page.click('#pdf-convert-opt input'); await page.waitForSelector('#convert-help[open]'); await page.click('#convert-help button.primary'); await page.waitForTimeout(300);
-  ok(await page.isVisible('#setup-help-btn') && (await page.textContent('dialog.settings')).includes('需要先在上面的“存储与账号”里连接 GitHub'), 'turned on: the setup guide appears, and a hint says to connect GitHub above');
+  ok(await page.isVisible('#setup-help-btn') && await page.isVisible('#connect-conv-btn') && (await page.textContent('dialog.settings')).includes('未连接'), 'turned on: "not connected", the connect button and the setup guide appear');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();
