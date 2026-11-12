@@ -183,7 +183,7 @@ function renderLogin(message = "") {
           "：Repository access 选 Only select repositories → 只选该私有仓库；Permissions → Contents 选 Read and write。",
         ),
         h("li", {}, "复制生成的令牌粘贴到上面。令牌只保存在这台设备的浏览器里，可随时在 GitHub 撤销。"),
-        h("li", {}, "已有一台登录好的设备？在它的“设置 → PDF 转换”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
+        h("li", {}, "已有一台登录好的设备？在它的“设置 → 存储与账号”里用手机扫码，或复制登录链接粘贴到上面，就不用重新生成令牌。"),
       ),
     ),
   ];
@@ -488,6 +488,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
+      ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…")]),
       // store builds are local-only: no GitHub at all
       ...(__LOCAL_ONLY__ ? [] : [
         h("h3", {}, "PDF 转换"),
@@ -503,24 +504,9 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
           ]),
           h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
         ] : []),
-        h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…"),
       ]),
     ] : []),
-    ...(api.isLocal() ? [] : [
-      h("h3", {}, "备份"),
-      h("p", { class: "muted" }, "谱子保存在你的 GitHub 仓库里。备份会把它们全部下载成一个压缩包；恢复会把压缩包里的文件放回仓库。"),
-      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
-      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-    ]),
-    ...(api.isLocal() ? [] : [
-      h("h3", {}, "PDF 转换"),
-      pdfRow,
-      ...(settings.pdfConvert ? [
-        h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
-        h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
-        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
-      ] : []),
-    ]),
+    ...(api.isLocal() ? [] : [h("h3", {}, "存储与账号")]),
     h(
       "p",
       { class: "muted", hidden: api.isLocal() },
@@ -542,6 +528,21 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     )]),
     ...(api.isLocal() ? [] : [h("button", { class: "rowbtn", id: "change-token-btn", onclick: () => { dlg.close(); renderLogin(); } }, ic("refresh", 20), "更换令牌…")]),
     ...(api.isLocal() ? [] : [h("div", { class: "row" }, h("button", { class: "danger", id: "logout-btn", onclick: () => { api.logout(); dlg.close(); renderLogin(); } }, "退出登录（本设备）"))]),
+    ...(api.isLocal() ? [] : [
+      h("h3", {}, "备份"),
+      h("p", { class: "muted" }, "谱子保存在你的 GitHub 仓库里。备份会把它们全部下载成一个压缩包；恢复会把压缩包里的文件放回仓库。"),
+      h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
+      h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
+    ]),
+    ...(api.isLocal() ? [] : [
+      h("h3", {}, "PDF 转换"),
+      pdfRow,
+      ...(settings.pdfConvert ? [
+        h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
+        h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+      ] : []),
+    ]),
   );
   // the title bar (with "Done") stays where it is; only the part below it scrolls (so pulling down on a tablet does not drag the title bar along)
   const head = dlg.querySelector("#settings-head")!;
