@@ -58,17 +58,18 @@ exports.run = async (loc, tname) => {
     ok(zhKeys.length > 300, `${loc}: translation table loaded (${zhKeys.length} texts)`);
     for (const [w, hgt, vname] of VIEWPORTS) {
       const store = new Map([['scores/long.musicxml', fs.readFileSync(D + 'long.musicxml')], ['scores/fingered.musicxml', fs.readFileSync(D + 'fingered.musicxml')], ['scores/Ode_Primo.musicxml', fs.readFileSync(D + 'Ode_Primo.musicxml')], ['scores/Ode_Secondo.musicxml', fs.readFileSync(D + 'Ode_Secondo.musicxml')], ['pdfs/Long3.pdf', fs.readFileSync(path.join(__dirname, '../../samples/ocr-lab/Long3.pdf'))]]);
-      const { browser, page } = await h.start(store, { locale: loc, init: fakeStore, context: { viewport: { width: w, height: hgt }, hasTouch: true, isMobile: true, locale: loc } });
+      const { browser, page } = await h.start(store, { locale: loc, pdfConvert: false, init: fakeStore, context: { viewport: { width: w, height: hgt }, hasTouch: true, isMobile: true, locale: loc } });
       const tag = `${loc}/${vname}`; const noZh = loc !== 'ja-JP'; // Japanese legitimately uses kanji
       const check = async (screen) => { await page.waitForTimeout(500); const bad = await inspect(page, zhKeys, noZh, w); await page.screenshot({ path: D + `layout-${loc}-${vname}-${screen}.png` }); ok(bad.length === 0, `${tag} ${screen}: fits${bad.length ? ' — ' + JSON.stringify(bad) : ''}`); };
       await page.evaluate(() => { window.__noAuto = true; });
       await page.waitForSelector('.card'); await check('home');
-      await page.evaluate(() => document.querySelector('.top button:last-child')?.click()); await page.waitForSelector('dialog'); await check('settings'); await page.evaluate(() => document.querySelector('#setup-help-btn')?.click()); await page.waitForSelector('#github-setup'); await check('github-setup'); await page.click('#github-setup button.primary'); await page.waitForTimeout(250);
+      await page.evaluate(() => document.querySelector('.top button:last-child')?.click()); await page.waitForSelector('dialog'); await check('settings'); await page.evaluate(() => document.querySelector('#pdf-convert-opt input')?.click()); await page.waitForSelector('#convert-help'); await check('convert-help'); await page.click('#convert-help button.primary'); await page.waitForTimeout(300);
+      await page.waitForSelector('#setup-help-btn'); await page.evaluate(() => document.querySelector('#setup-help-btn')?.click()); await page.waitForSelector('#github-setup'); await check('github-setup'); await page.click('#github-setup button.primary'); await page.waitForTimeout(250);
       await page.evaluate(() => document.querySelector('#feedback-btn')?.click()); await page.waitForTimeout(300); if (await page.locator('dialog >> text=/./').count()) await check('feedback');
       await page.evaluate(() => document.querySelectorAll('dialog').forEach((d) => d.close()));
       // the upload dialog for a PDF
       await page.setInputFiles('input[type=file]', { name: 'Piece.pdf', mimeType: 'application/pdf', buffer: fs.readFileSync(D + 'Test-Piece-for-OCR.pdf') });
-      await page.waitForSelector('dialog.center'); await check('pdf-dialog'); await page.click('#convert-help-btn'); await page.waitForSelector('#convert-help'); await check('convert-help'); await page.click('#convert-help button.primary'); await page.waitForTimeout(250); await page.evaluate(() => document.querySelector('#pdf-cancel')?.click()); await page.waitForTimeout(300);
+      await page.waitForSelector('dialog.center'); await check('pdf-dialog'); await page.evaluate(() => document.querySelector('#pdf-cancel')?.click()); await page.waitForTimeout(300);
       // a score with its panels
       await page.evaluate(() => (location.hash = '#/score/fingered.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1200); await check('player');
       for (const [i, b] of (await page.$$('.controls button.narrow')).entries()) { await b.click().catch(() => {}); await check(`player-panel${i}`); await b.click().catch(() => {}); }

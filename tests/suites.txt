@@ -72,3 +72,4 @@
 69-github-usage-setup
 70-relay-convert
 71-dropdown-theme
+72-pdf-convert-switch

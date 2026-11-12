@@ -37,13 +37,6 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.waitForSelector('.listbox .card'); await open(page); await page.click('#usage-btn'); await page.waitForTimeout(600);
   ok(await page.evaluate(() => [...document.querySelectorAll('dialog[open]')].some((d) => d.innerText.includes('convert.yml'))), 'no conversion workflow yet: the message says so (convert.yml)');
   await browser.close();
-  // the help page points to the guide
-  ({ browser, page } = await h.start(new Map([['pdfs/z.pdf', Buffer.from('%PDF')], ['scores/single.musicxml', fs.readFileSync(D + 'single.musicxml')]]), { context: { viewport: { width: 1194, height: 834 } } }));
-  await page.waitForSelector('.listbox .card'); await page.click('.tabsbar .seg[data-k=pdf]'); await page.waitForSelector('.card.pdf');
-  await page.click('.card button.del[title="更多"]'); await page.click('dialog.dismiss[open] .rowbtn:has-text("怎么转成可播放乐谱？")'); await page.waitForSelector('#convert-help[open]');
-  await page.click('#github-setup-btn'); await page.waitForSelector('#github-setup[open]');
-  ok(true, 'the conversion help has a "how to set it up?" button that opens the guide');
-  await browser.close();
   // device mode: none of it
   ({ browser, page } = await h.start(new Map(), { local: true, context: { viewport: { width: 1194, height: 1000 } } }));
   await page.waitForSelector('.top'); await open(page);

@@ -16,6 +16,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('button[title=返回]'); await page.waitForSelector('.home');
   // pdf: kept only
   await up('Sheet.pdf', fs.readFileSync(D + 'Test-Piece-for-OCR.pdf'), 'application/pdf');
+  await page.waitForSelector('#pdf-notice[open]'); await page.click('#pdf-notice-ok'); // a PDF is only kept on the device (no conversion connected)
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf', { timeout: 10000 });
   ok(await page.evaluate(() => !document.querySelector('[class*=dlg]')), 'PDF: no conversion dialog in on-device mode (kept as a PDF)');
   await page.click('.card.pdf .open'); await page.waitForSelector('.pdfpage', { timeout: 20000 }); ok(true, 'PDF opens from the device');

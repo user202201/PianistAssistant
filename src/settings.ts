@@ -52,6 +52,8 @@ export interface Settings {
   gameJudgeText: boolean;
   /** score mode: milliseconds the player's keys are treated as EARLIER (a keyboard / Bluetooth that delays its signals); -200 .. 200 */
   gameLatency: number;
+  /** PDF conversion switched on (Settings -> PDF conversion): without it a PDF is only kept for viewing */
+  pdfConvert: boolean;
   /** jianpu (numbered notation) as a line under every staff */
   jianpu: boolean;
   /** four hands: bars per line, the same in both parts so the bar lines of A and B stand above each other (0 = each part is laid out on its own) */
@@ -65,13 +67,13 @@ const KEY = "pianist.settings.v1";
 /** Tablets (touch + wide screen) get a larger score by default. */
 const tabletZoom = () =>
   typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) >= 700 ? 1.4 : 1;
-const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0, micSensitivity: 1, alignBars: 0, alignPref: 4, jianpu: false });
+const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", volume: 0.8, zoom: tabletZoom(), fingers: true, expressive: true, scrollMode: "page", lineHighlight: true, splitView: true, barMode: null, theme: "system", lang: "auto", peekNext: true, countIn: true, ocrEngine: "audiveris", clickVolume: 0.6, pdfView: "single", pdfTurnSeconds: 20, fingerDraw: false, sortBy: "name", sortReverse: false, gameMode: false, gameView: false, gameTilt: false, gameH: 0, gameBar: null, gameScoring: false, gameLevel: "easy", gameDemoMistakes: false, gameJudgeText: true, gameLatency: 0, micSensitivity: 1, alignBars: 0, alignPref: 4, jianpu: false, pdfConvert: false });
 
 export function loadSettings(): Settings {
   try {
     const s = { ...defaults(), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
     // oemer produced no result on any of our test scores: it is not offered any more (a remembered choice of it, or of "all three", becomes Audiveris)
-    if (s.ocrEngine === "oemer" || s.ocrEngine === "all") s.ocrEngine = "audiveris";
+    if (s.ocrEngine === "oemer" || s.ocrEngine === "all" || s.ocrEngine === "both") s.ocrEngine = "audiveris";
     return s;
   } catch {
     return defaults();

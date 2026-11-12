@@ -42,6 +42,8 @@ exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {})
     if (req.method() === 'DELETE') { store.delete(key); return json({}); }
     return json({}, 404);
   });
+  // PDF conversion is a switch in the Settings (off by default); the suites that convert need it on (opts.pdfConvert === false keeps the default)
+  if (opts.pdfConvert !== false) await page.addInitScript(() => { try { const k = 'pianist.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (s.pdfConvert === undefined) { s.pdfConvert = true; localStorage.setItem(k, JSON.stringify(s)); } } catch (e) { /* ignore */ } });
   await page.goto(opts.url || 'http://localhost:5173/');
   if (opts.local) { await page.click('text=在本机使用（不需要账号）'); await page.waitForSelector('.home'); }
   else { await page.fill('input[type=password]', 'good'); await page.click('button.primary'); await page.waitForSelector('.home'); }

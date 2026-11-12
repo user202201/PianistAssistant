@@ -412,6 +412,16 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   mistakeBox.addEventListener("change", () => { settings.gameDemoMistakes = mistakeBox.checked; saveSettings(settings); });
   const judgeBox = h("input", { type: "checkbox", checked: settings.gameJudgeText });
   judgeBox.addEventListener("change", () => { settings.gameJudgeText = judgeBox.checked; saveSettings(settings); });
+  // the switch for PDF conversion; turning it on explains what it needs; the items under it appear / disappear (the dialog is built again)
+  const pdfBox = h("input", { type: "checkbox", checked: settings.pdfConvert });
+  pdfBox.addEventListener("change", () => {
+    settings.pdfConvert = pdfBox.checked;
+    saveSettings(settings);
+    dlg.close();
+    openSettings(onSound, onLayout);
+    if (settings.pdfConvert) openConvertHelp();
+  });
+  const pdfRow = h("label", { class: "inline", id: "pdf-convert-opt" }, "开启 PDF 转换", pdfBox);
   const jianpuBox = h("input", { type: "checkbox", checked: settings.jianpu });
   jianpuBox.addEventListener("change", () => { settings.jianpu = jianpuBox.checked; saveSettings(settings); if (onLayout) { dlg.close(); onLayout(); } }); // inside a score the score is drawn again; on the home screen it is used the next time a score opens
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
@@ -476,19 +486,22 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
       h("p", { class: "muted" }, "谱子保存在这台设备上，不需要账号。"),
       h("button", { class: "rowbtn", id: "backup-btn", onclick: () => void exportBackup() }, ic("note", 20), "备份：导出全部谱子"),
       h("button", { class: "rowbtn", id: "restore-btn", onclick: () => restoreInput.click() }, ic("plus", 20), "从备份恢复…"),
-      // store builds are local-only: no GitHub at all (conversion goes through the help page)
+      // store builds are local-only: no GitHub at all
       ...(__LOCAL_ONLY__ ? [] : [
         h("h3", {}, "PDF 转换"),
-        h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
-        ...(api.getConvAuth() ? [
-          h("p", { class: "muted" }, `已连接：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}`),
-          h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
-          h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
-        ] : [
-          h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
-        ]),
-        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
-        ...(__LOCAL_ONLY__ ? [] : [h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…")]),
+        pdfRow,
+        ...(settings.pdfConvert ? [
+          h("p", { class: "muted" }, "要把 PDF 转成可播放乐谱，需要一个免费的 GitHub 账号和你自己的私有仓库。乐谱仍然只在这台设备上；仓库只是临时中转，转换完就删除。"),
+          ...(api.getConvAuth() ? [
+            h("p", { class: "muted" }, `已连接：${api.getConvAuth()!.user ?? "GitHub"} · ${api.getConvAuth()!.repo}`),
+            h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+            h("button", { class: "rowbtn", id: "disconnect-conv", onclick: () => { api.clearConvAuth(); dlg.close(); toast("已断开 GitHub 转换"); } }, ic("hand", 20), "断开 GitHub 转换"),
+          ] : [
+            h("button", { class: "rowbtn", id: "connect-conv-btn", onclick: () => { dlg.close(); openConnectConversion(() => {}); } }, ic("plus", 20), "连接 GitHub 用于 PDF 转换…"),
+          ]),
+          h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+        ] : []),
+        h("button", { class: "rowbtn", id: "to-github", onclick: () => { api.leaveLocal(); dlg.close(); renderLogin(); } }, ic("refresh", 20), "改用 GitHub 保存全部乐谱…"),
       ]),
     ] : []),
     ...(api.isLocal() ? [] : [
@@ -499,9 +512,12 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     ]),
     ...(api.isLocal() ? [] : [
       h("h3", {}, "PDF 转换"),
-      h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
-      h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
-      h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+      pdfRow,
+      ...(settings.pdfConvert ? [
+        h("p", { class: "muted" }, "转换在你自己的 GitHub 仓库里运行，用的是你账号的免费额度（分钟数）。"),
+        h("button", { class: "rowbtn", id: "usage-btn", onclick: () => void showUsage() }, ic("refresh", 20), "查看本月转换用量"),
+        h("button", { class: "rowbtn", id: "setup-help-btn", onclick: () => openGithubSetup() }, ic("note", 20), "GitHub 转换设置教程"),
+      ] : []),
     ]),
     h(
       "p",
@@ -589,7 +605,6 @@ function engineRow(): HTMLElement {
     { id: "pdf-engine" },
     h("option", { value: "audiveris", selected: settings.ocrEngine === "audiveris" }, "Audiveris（默认）"),
     h("option", { value: "homr", selected: settings.ocrEngine === "homr" }, "homr（深度学习，实验）"),
-    h("option", { value: "both", selected: settings.ocrEngine === "both" }, "Audiveris + homr（对比）"),
   );
   sel.addEventListener("change", () => { settings.ocrEngine = sel.value as typeof settings.ocrEngine; saveSettings(settings); });
   return h("label", { class: "engine" }, "转换引擎", sel);
@@ -698,7 +713,7 @@ function openConvertHelp() {
     { class: "dlg convhelp", id: "convert-help" },
     h("h2", { tabIndex: -1, autofocus: true }, "将 PDF 转为可播放乐谱"),
     h("div", { class: "convbody" },
-      h("p", {}, "播放、指法和游戏模式需要 MusicXML 文件（.musicxml / .mxl），获取方式如下："),
+      h("p", {}, "播放、指法和游戏模式需要 MusicXML 文件 (.musicxml / .mxl), 获取方式如下:"),
       h("ul", { class: "tips" },
         h("li", {}, link("MuseScore", "https://musescore.org"), " · ", link("Mutopia", "https://www.mutopiaproject.org"), " · ", link("IMSLP", "https://imslp.org"), " – 现成文件，准确度最高"),
         h("li", {}, link("Audiveris", "https://github.com/Audiveris/audiveris"), " – 免费识别软件"),
@@ -717,6 +732,29 @@ function openConvertHelp() {
 }
 
 // ---------- what to do with an uploaded PDF ----------
+/** PDF conversion is available: switched on in the Settings, and (device mode) a repository connected. Store builds never convert. */
+function canConvert(): boolean {
+  return !__LOCAL_ONLY__ && settings.pdfConvert && (!api.isLocal() || !!api.getConvAuth());
+}
+
+/** A PDF is only kept for viewing (conversion is off or not connected): one short notice with one button. */
+function noticePdfOnly(connectHint: boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const dlg = h(
+      "dialog",
+      { class: "dlg center", id: "pdf-notice" },
+      h("h2", {}, "注意！"),
+      h("p", {}, "PDF 文件仅可查看，不能播放。"),
+      connectHint ? h("p", { class: "muted small" }, "要转换 PDF，请先在“设置 → PDF 转换”里连接 GitHub。") : null,
+      h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", id: "pdf-notice-ok", onclick: () => dlg.close() }, "好的")),
+    ) as HTMLDialogElement;
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(); });
+    document.body.append(dlg);
+    dlg.showModal();
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+
 function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel"> {
   if (batchCtx.pdf) return Promise.resolve(batchCtx.pdf);
   return new Promise((resolve) => {
@@ -749,9 +787,8 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
         { class: "tips" },
         h("li", {}, "转换结果由算法自动识别，无法保证完全正确，请自行核对。"),
         h("li", {}, "保存 PDF 仅可查看，不能播放。"),
-        h("li", {}, "建议直接上传 MusicXML 文件（.musicxml / .mxl），效果最佳。"),
+        h("li", {}, "建议直接上传 MusicXML 文件 (.musicxml / .mxl), 效果最佳。"),
       ),
-      h("button", { class: "linkbtn", id: "convert-help-btn", onclick: () => openConvertHelp() }, "其他转换方法…"),
       sameForAllRow(all),
       h("div", { class: "row wrap" }, h("button", { id: "pdf-cancel", onclick: () => dlg.close() }, "取消"), h("div", { class: "grow" }), h("button", { class: "primary", id: "pdf-go", onclick: go }, "继续")),
     ) as HTMLDialogElement;
@@ -1244,15 +1281,20 @@ async function renderHome() {
       let closeUp = () => {}; // the "uploading…" message stays until this file is done
       try {
         let mode: "convert" | "keep" | "both" = "convert";
-        if (/\.pdf$/i.test(f.name)) {
-          if (api.isLocal() && !api.getConvAuth()) {
-            mode = "keep"; // conversion needs the user's own GitHub repository (Settings -> PDF conversion)
-            toast("本机模式：PDF 只能保存和查看。想要可播放的乐谱：在设置里连接 GitHub 转换，或见 PDF 卡片菜单里的“怎么转成可播放乐谱？”", 8000);
-          } else {
-            const a = await askPdfMode(f.name);
-            if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
-            mode = a;
+        const isPdf = /\.pdf$/i.test(f.name);
+        const isImage = /\.(png|jpe?g|tiff?|bmp)$/i.test(f.name);
+        if ((isPdf || isImage) && !canConvert()) {
+          // conversion is off (or no repository connected): a PDF is only kept for viewing, a photo cannot be used
+          if (isImage) { toast("图片需要先开启 PDF 转换（设置 → PDF 转换）。", 7000); continue; }
+          if (batchCtx.pdf !== "keep") {
+            await noticePdfOnly(!__LOCAL_ONLY__ && settings.pdfConvert && api.isLocal());
+            if (batchCtx.files > 1) batchCtx.pdf = "keep"; // one notice for the whole batch
           }
+          mode = "keep";
+        } else if (isPdf) {
+          const a = await askPdfMode(f.name);
+          if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
+          mode = a;
         }
         closeUp = toast(`上传中：${f.name}`, 120000, true);
         if (mode !== "convert") {
@@ -1376,8 +1418,7 @@ async function renderHome() {
       h("button", { class: "open", onclick: () => { markOpened(`pdf:${name}`); location.hash = `#/pdf/${encodeURIComponent(name)}`; } }, h("span", { class: "ttl" }, h("div", { class: "trow" }, marquee(name.replace(/\.pdf$/i, ""))))),
       starBtn(favKey.pdf(name)),
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
-        { label: "怎么转成可播放乐谱？", icon: "note", run: () => openConvertHelp() },
-        ...(api.isLocal() && !api.getConvAuth() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
+        ...(!canConvert() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
             if (api.isLocal()) { await relayConvert(name, await api.readStoredPdf(name)); void load(); return; }
             const n = await api.convertStoredPdf(name, settings.ocrEngine);
