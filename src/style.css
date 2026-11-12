@@ -939,3 +939,11 @@ button.linkbtn.inline { display: inline; padding: 0; }
 .dlg ul.tips li { line-height: 1.5; }
 .dlg .hl { color: var(--text); font-weight: 600; }
 .dlg.convhelp .convbody > p { font-size: .88rem; }
+
+/* whatever is last in a centred dialog keeps its distance from the bottom edge (the buttons are never flush with it) */
+.dlg.center > :last-child { padding-bottom: 20px; }
+/* the short notice ("a PDF can only be viewed"): a compact card, text and button in the middle */
+#pdf-notice { width: min(320px, 88vw); }
+#pdf-notice p { margin: 6px 0 0; }
+#pdf-notice .row { justify-content: center; margin-top: 18px; padding-bottom: 22px; }
+#pdf-notice .row button { min-width: 120px; }

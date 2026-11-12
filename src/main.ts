@@ -783,7 +783,7 @@ function noticePdfOnly(connectHint: boolean, fromPhoto = false): Promise<void> {
       fromPhoto ? h("p", { class: "muted small" }, "照片将转存为 PDF。") : null,
       h("p", {}, "PDF 文件仅可查看，不能播放。"),
       connectHint ? h("p", { class: "muted small" }, "要转换 PDF，请先在“设置 → PDF 转换”里连接 GitHub。") : null,
-      h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", id: "pdf-notice-ok", onclick: () => dlg.close() }, "好的")),
+      h("div", { class: "row" }, h("button", { class: "primary", id: "pdf-notice-ok", onclick: () => dlg.close() }, "好的")),
     ) as HTMLDialogElement;
     dlg.addEventListener("close", () => { dlg.remove(); resolve(); });
     document.body.append(dlg);

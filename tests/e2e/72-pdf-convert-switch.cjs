@@ -11,6 +11,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // 1. off: one PDF
   await up({ name: 'Piece.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.waitForSelector('#pdf-notice[open]');
+  await page.screenshot({ path: D + 'pdf-notice.png' });
   const t = await page.textContent('#pdf-notice');
   ok(t.includes('PDF 文件仅可查看，不能播放') && !t.includes('连接 GitHub') && (await page.$$('#pdf-notice button')).length === 1, 'off: a short notice "a PDF file can only be viewed, not played" with one button');
   await page.click('#pdf-notice-ok'); await page.waitForTimeout(1200);
