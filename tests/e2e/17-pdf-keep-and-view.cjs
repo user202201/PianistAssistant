@@ -10,7 +10,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const t = await page.textContent('dialog.center');
   ok(t.includes('只保留 PDF') && t.includes('并保留 PDF') && t.includes('只转换') && t.includes('取消') && t.includes('继续'), 'PDF upload asks what to do: one dropdown (convert + keep / convert only / keep only), Cancel and Continue');
   ok(await page.evaluate(() => [...document.querySelectorAll('dialog.center select#pdf-mode option')].length === 3 && document.querySelectorAll('dialog.center ul.tips li').length === 3), 'the three ways are a dropdown (mutually exclusive) and the notes are three short bullets');
-  ok(t.includes('MusicXML') && t.includes('常有错'), 'the dialog says the conversion may need correcting and that a MusicXML file gives the best result');
+  ok(t.includes('MusicXML') && t.includes('无法保证完全正确'), 'the dialog says the conversion may need correcting and that a MusicXML file gives the best result');
   await page.selectOption('#pdf-mode', 'keep'); await page.click('#pdf-go');
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf', { timeout: 15000 });
   ok(store.has('pdfs/Piece.pdf') && !store.has('inbox/Piece.pdf'), 'kept as PDF only (not queued for conversion)');
