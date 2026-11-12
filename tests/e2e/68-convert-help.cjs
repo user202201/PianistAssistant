@@ -11,7 +11,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(items.includes('怎么转成可播放乐谱？') && items.some((x) => x.startsWith('转换成可播放乐谱')), 'the PDF card menu has the help entry next to the cloud conversion (' + items.join(' | ') + ')');
   await page.click('dialog.dismiss[open] .rowbtn:has-text("怎么转成可播放乐谱？")'); await page.waitForSelector('#convert-help[open]');
   const info = await page.evaluate(() => { const d = document.querySelector('#convert-help'); return { title: d.querySelector('h2').innerText, links: [...d.querySelectorAll('a')].map((a) => ({ t: a.innerText, ext: a.target === '_blank' && /noopener/.test(a.rel) && a.href.startsWith('https://') })), bullets: d.querySelectorAll('ul.tips li').length }; });
-  ok(info.title === '把 PDF 变成可播放的乐谱' && info.bullets === 3, 'the help dialog opens: a short lead, three bullets (find one / convert with software / the app\'s GitHub conversion) and a note');
+  ok(info.title === '将 PDF 转为可播放乐谱' && info.bullets === 4, 'the help dialog opens: a short lead, four bullets (ready-made / free software / paid software / the app\'s GitHub conversion), one line after and a note');
   ok(info.links.length >= 6 && info.links.every((l) => l.ext), `the outside tools are links that open in a new tab (${info.links.map((l) => l.t).join(', ')})`);
   await page.mouse.click(5, 5); await page.waitForTimeout(250);
   ok(await page.evaluate(() => !!document.querySelector('#convert-help[open]')), 'a tap outside does not close it (a message dialog has its own button)');
