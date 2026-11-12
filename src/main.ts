@@ -2751,7 +2751,7 @@ function buildControls(
   if (strip) app.querySelector(".top")?.after(strip);
   app.append(bar);
   // the game panel (falling notes + keyboard) sits between the score and the bottom bar while the Game switch is on
-  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : "平面视角"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); },
+  const gv = createGameView(player, score, { tilt: settings.gameTilt, onTilt: (on) => { settings.gameTilt = on; saveSettings(settings); }, title: (k) => (k === "tilt" ? "立体视角" : k === "flat" ? "平面视角" : k === "full" ? "只看琴键（不看谱）" : "回到乐谱"), height: () => settings.gameH, onHeight: (px) => { settings.gameH = px; saveSettings(settings); },
     scoring: settings.gameScoring, onMode: (sc) => { settings.gameScoring = sc; saveSettings(settings); syncGame(); }, judgeText: () => settings.gameJudgeText });
   // ---- score mode: you play on a MIDI keyboard, the app judges the timing ----
   let gs: GameScore | null = null, roundOver = false, setupShown = false;
@@ -2833,11 +2833,21 @@ function buildControls(
     }
     if (gs.finished && (player.playing || ended)) { roundOver = true; hud.showResult(gs.stats, gs.stars(), gs.accuracy(true)); }
   }, 60);
+  // floating part buttons fade when nobody touches the screen; on a phone held sideways the title bar leaves while the music plays and returns with a tap
+  let idleT = 0, topT = 0;
+  const wakeUi = (e?: Event) => {
+    const root = document.documentElement; root.classList.remove("ctlidle"); clearTimeout(idleT);
+    idleT = window.setTimeout(() => root.classList.add("ctlidle"), 3500);
+    if (e && app.classList.contains("autohidetop") && !(e.target as Element | null)?.closest?.(".top")) { app.classList.add("topshow"); clearTimeout(topT); topT = window.setTimeout(() => app.classList.remove("topshow"), 4000); }
+  };
+  document.addEventListener("pointerdown", wakeUi, true); wakeUi();
+  const topPoll = window.setInterval(() => { const on = window.matchMedia("(max-height: 480px)").matches && player.playing; if (app.classList.contains("autohidetop") !== on) { app.classList.toggle("autohidetop", on); if (!on) app.classList.remove("topshow"); } }, 400);
   const syncGame = () => {
-    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); document.documentElement.classList.remove("gamecompact"); clearInterval(roundTimer); offNote(); offMic(); mic.stop(); offState(); hud.destroy(); gv.destroy(); return; }
+    if (!gv.el.isConnected && !app.contains(bar)) { window.removeEventListener("pianist-game", syncGame); document.documentElement.classList.remove("gamecompact", "gamefull", "ctlidle"); app.classList.remove("autohidetop", "topshow"); clearInterval(roundTimer); clearInterval(topPoll); document.removeEventListener("pointerdown", wakeUi, true); offNote(); offMic(); mic.stop(); offState(); hud.destroy(); gv.destroy(); return; }
     gv.el.hidden = !(settings.gameMode && settings.gameView);
     gv.setTilt(settings.gameTilt);
-    document.documentElement.classList.toggle("gamecompact", gameOn() && split); // four hands: the part bars hide behind small floating buttons
+    document.documentElement.classList.toggle("gamecompact", gameOn() && split);
+    if (!gameOn()) document.documentElement.classList.remove("gamefull"); // four hands: the part bars hide behind small floating buttons
     gv.setScoring(settings.gameScoring);
     gv.refit();
     player.practiceMute = scoringOn();

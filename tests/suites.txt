@@ -75,3 +75,4 @@
 72-pdf-convert-switch
 73-convert-yml-and-photo
 74-tabs-stay-on-top
+75-game-small-screen

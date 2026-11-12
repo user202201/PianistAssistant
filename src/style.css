@@ -876,7 +876,7 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .gamecompact .panehead .pn, .gamecompact .panehead .lbl, .gamecompact .panehead .hand .lbl { display: none; }
 .gamecompact .panehead .pl { display: inline; }
 .gamecompact .panehead .hand .sh { display: inline; }
-.gamecompact .panehead .seg, .gamecompact .panefs, :root[data-game="1"].gamecompact .panehead .seg, :root[data-game="1"].gamecompact .panefs { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 38px; height: 38px; min-width: 38px; min-height: 38px; padding: 0; font-size: .8rem; font-weight: 700; border-radius: 50%; color: #fff; background: rgba(25, 120, 240, .55); border: 1px solid rgba(255, 255, 255, .75); -webkit-backdrop-filter: blur(10px) saturate(160%); backdrop-filter: blur(10px) saturate(160%); box-shadow: none; }
+.gamecompact .panehead .seg, .gamecompact .panefs, :root[data-game="1"].gamecompact .panehead .seg, :root[data-game="1"].gamecompact .panefs { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 38px; height: 38px; min-width: 38px; min-height: 38px; padding: 0; font-size: .8rem; font-weight: 700; border-radius: 50%; color: #fff; background: rgba(25, 120, 240, .38); border: 1px solid rgba(255, 255, 255, .6); -webkit-backdrop-filter: blur(8px) saturate(150%); backdrop-filter: blur(8px) saturate(150%); box-shadow: none; transition: opacity .6s; }
 .gamecompact .panehead .seg.on, :root[data-game="1"].gamecompact .panehead .seg.on { background: #19d3ff; color: #021019; border-color: #fff; }
 .gamecompact .panehead .seg.pname.on { background: #19d3ff; }
 .gamecompact .panefs { position: absolute; top: 6px; right: 22px; z-index: 26; }
@@ -951,4 +951,18 @@ button.linkbtn.inline { display: inline; padding: 0; }
 /* small screens: the whole home screen scrolls (the "recent" row scrolls away); the tabs then stay at the top, like a frozen row in a spreadsheet */
 @media (max-width: 920px) {
   .home > .tabsbar { position: sticky; top: 0; z-index: 25; background: var(--bg); padding-top: 8px; padding-bottom: 8px; }
+}
+
+/* Game view on a phone: the part buttons floating over the score fade when nobody touches the screen (still there, still tappable) */
+html.ctlidle.gamecompact .panehead .seg, html.ctlidle.gamecompact .panefs { opacity: .28; }
+/* "keys only": the score is hidden, the game panel fills the screen (the title bar and the transport bar stay) */
+.gamepanel .gfull { flex: none; background: rgba(6, 12, 30, .7); }
+html.gamefull .splitwrap, html.gamefull .viewbox, html.gamefull .handstrip { display: none; }
+html.gamefull .gamepanel { flex: 1 1 auto; height: auto !important; }
+/* a phone held sideways, playing: the title bar slides away and comes back with a tap */
+#app.autohidetop .top { position: fixed; left: 0; right: 0; top: 0; transform: translateY(-110%); transition: transform .2s; }
+#app.autohidetop.topshow .top { transform: none; }
+/* phone: refresh and settings stay in the top right corner; a long title goes to its own line under them */
+@media (max-width: 560px) {
+  .top.compact:has(.modetoggle) h1 { order: 5; flex: 1 0 100%; white-space: normal; overflow: visible; margin-top: -2px; }
 }

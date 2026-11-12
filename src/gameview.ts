@@ -40,7 +40,7 @@ function neon(ctx: CanvasRenderingContext2D, x: number, w: number, col: string, 
   return g;
 }
 
-export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void; judgeText: () => boolean }): GameView {
+export function createGameView(player: Player, score: ParsedScore, opts: { tilt: boolean; onTilt: (on: boolean) => void; title: (k: "flat" | "tilt" | "full" | "back") => string; height: () => number; onHeight: (px: number) => void; scoring: boolean; onMode: (scoring: boolean) => void; judgeText: () => boolean }): GameView {
   const canvas = document.createElement("canvas");
   canvas.className = "gcanvas";
   const stage = document.createElement("div");
@@ -50,6 +50,8 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   stage.append(canvas, fx);
   const tiltBtn = document.createElement("button");
   tiltBtn.className = "icon gtilt";
+  const fullBtn = document.createElement("button");
+  fullBtn.className = "icon gfull";
   const el = document.createElement("section");
   el.className = "gamepanel";
   const grip = document.createElement("div");
@@ -65,9 +67,13 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
   const topLeft = document.createElement("div");
   topLeft.className = "gtopleft";
   topLeft.append(modes);
+  topLeft.append(fullBtn);
   el.append(stage, tiltBtn, topLeft, grip);
   // The panel height: default a little more than the keyboard; the user drags the top edge. Never lower than the keyboard plus a strip of the coming notes.
-  const MINH = 150;
+  // small screens: the keyboard and the panel are lower, the score keeps the room (a phone held sideways: only a strip of the keys)
+  const small = () => window.innerWidth <= 700 || window.innerHeight <= 480, land = () => window.innerHeight <= 480;
+  const isFull = () => document.documentElement.classList.contains("gamefull");
+  const MIN = () => (isFull() ? 150 : land() ? 84 : small() ? 108 : 150);
   // The score above must keep at least one line per part: the game panel may only take what is left. (Four hands with the part bars hidden: 200 px per part, a whole grand-staff line.)
   const maxH = () => {
     const q = (sel: string) => { const e = document.querySelector<HTMLElement>(sel); return e && e.offsetParent !== null ? e.offsetHeight : 0; };
@@ -75,10 +81,10 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     const heads = document.documentElement.classList.contains("gamecompact") ? 0 : panes > 1 ? panes * 56 : 0;
     const used = q(".top") + q(".handstrip") + Math.max(q(".controls"), q(".barhandle"));
     const room = window.innerHeight - used - panes * 200 - heads;
-    return Math.max(MINH, Math.min(Math.round(window.innerHeight * 0.6), Math.round(room)));
+    return Math.max(MIN(), Math.min(Math.round(window.innerHeight * (land() ? 0.42 : 0.6)), Math.round(room)));
   };
-  const defH = () => Math.max(MINH, Math.min(250, Math.round(window.innerHeight * 0.3)));
-  const setH = (px: number) => { el.style.height = `${Math.max(MINH, Math.min(maxH(), Math.round(px)))}px`; };
+  const defH = () => Math.max(MIN(), land() ? Math.round(window.innerHeight * 0.34) : small() ? Math.min(190, Math.round(window.innerHeight * 0.24)) : Math.min(250, Math.round(window.innerHeight * 0.3)));
+  const setH = (px: number) => { el.style.height = isFull() ? "" : `${Math.max(MIN(), Math.min(maxH(), Math.round(px)))}px`; };
   const applyH = () => setH(opts.height() || defH());
   applyH();
   window.addEventListener("resize", applyH);
@@ -110,6 +116,9 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     tiltBtn.setAttribute("aria-label", tiltBtn.title);
   };
   apply();
+  const applyFull = () => { const on = isFull(); fullBtn.replaceChildren(icon(on ? "restore" : "fullscreen", 22)); fullBtn.title = opts.title(on ? "back" : "full"); fullBtn.setAttribute("aria-label", fullBtn.title); fullBtn.classList.toggle("on", on); };
+  applyFull();
+  fullBtn.onclick = () => { document.documentElement.classList.toggle("gamefull"); applyFull(); applyH(); window.dispatchEvent(new Event("resize")); };
   tiltBtn.onclick = () => { tilt = !tilt; apply(); opts.onTilt(tilt); };
 
   const resize = () => {
@@ -165,7 +174,7 @@ export function createGameView(player: Player, score: ParsedScore, opts: { tilt:
     // before the start (and while stopped at the beginning) the lane is EMPTY: the notes are still above the picture; keys light up only while playing
     const playing = player.playing;
     let t = player.position();
-    const kh0 = Math.min(Hp * 0.56, 112), pxPerSec = Math.max(20, (Hp - kh0) / WINDOW), winT = Math.min((H - kh0) / pxPerSec, 9);
+    const kh0 = isFull() ? Math.min(Hp * 0.4, 130) : Math.min(Hp * (small() ? 0.42 : 0.56), land() ? 36 : small() ? 54 : 112), pxPerSec = Math.max(20, (Hp - kh0) / WINDOW), winT = Math.min((H - kh0) / pxPerSec, 9);
     if (!playing && t <= 0.001) t = -winT - 1;
     else if (playing && t < -GAME_PRE * player.speed - 0.02) t = -winT - 1; // READY ... GO: still empty, nothing moves yet
     const ww = W / whites.length, kh = kh0, top = H - kh;
