@@ -8,8 +8,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const up = async (name, engine) => {
     await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', { name, mimeType: 'application/pdf', buffer: pdf });
     await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")');
-    if (engine) await page.selectOption('dialog select', engine);
-    await page.click('dialog button:has-text("只转换成可播放乐谱")'); await page.waitForTimeout(1800);
+    await page.selectOption('#pdf-mode', 'convert'); if (engine) await page.selectOption('#pdf-engine', engine);
+    await page.click('#pdf-go'); await page.waitForTimeout(1800);
   };
   await up('Default.pdf');
   ok(store.has('inbox/Default.pdf') && !store.has('inbox/Default.pdf.engine.txt'), 'default engine (Audiveris): no engine note, as before');
@@ -21,16 +21,16 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.reload(); await page.waitForSelector('.home'); await page.evaluate(() => (window.__noAuto = true));
   await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', { name: 'Old.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")');
-  const opts = await page.evaluate(() => [...document.querySelectorAll('dialog select option')].map((o) => o.value));
+  const opts = await page.evaluate(() => [...document.querySelectorAll('#pdf-engine option')].map((o) => o.value));
   ok(opts.join(',') === 'audiveris,homr,both', 'the engine list: Audiveris, homr, both (' + opts.join(',') + ')');
-  ok(await page.inputValue('dialog select') === 'audiveris', 'a remembered "oemer" becomes Audiveris');
-  await page.click('dialog button:has-text("取消")'); await page.waitForTimeout(300);
+  ok(await page.inputValue('#pdf-engine') === 'audiveris', 'a remembered "oemer" becomes Audiveris');
+  await page.click('#pdf-cancel'); await page.waitForTimeout(300);
   await up('Both.pdf', 'both');
   ok(store.get('inbox/Both.pdf.engine.txt')?.toString() === 'both', 'Audiveris + homr chosen: "both"');
   // the choice is remembered; the order of the two commits matters (the note first, then the file that starts the converter)
   await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', { name: 'Again.pdf', mimeType: 'application/pdf', buffer: pdf });
   await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")');
-  ok(await page.inputValue('dialog select') === 'both', 'the engine choice is remembered for the next upload');
-  await page.click('dialog button:has-text("取消")');
+  ok(await page.inputValue('#pdf-engine') === 'both', 'the engine choice is remembered for the next upload');
+  await page.click('#pdf-cancel');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();

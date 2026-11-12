@@ -902,3 +902,25 @@ button.primary.small { min-height: 38px; padding: 0 16px; }
 .dlg.convhelp .links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
 .dlg.convhelp .links a { color: var(--accent); }
 button.linkbtn { background: none; border: 0; color: var(--accent); padding: 6px 0; text-align: left; font: inherit; cursor: pointer; }
+
+/* short bullet lists in dialogs; the bold lead of a bullet is highlighted */
+.dlg ul.tips { margin: 10px 0; padding-left: 20px; display: grid; gap: 8px; }
+.dlg ul.tips li { line-height: 1.45; }
+.dlg .hl { color: var(--accent); font-weight: 700; }
+button.linkbtn.inline { display: inline; padding: 0; }
+
+/* Dropdowns: where the browser allows the open list to be styled (Chrome / Edge 135+ "customizable select") it follows the look of the app: rounded card,
+   the app's colours, a soft highlight. Other browsers keep their own list (iPad / iPhone show the system picker, which already follows the system theme). */
+@supports (appearance: base-select) {
+  select, select::picker(select) { appearance: base-select; }
+  select, .group.as-select + .seg-select { display: inline-flex; align-items: center; } /* the text of the closed select stays vertically centred */
+  select::picker-icon { display: none; } /* the closed select already has its own arrow */
+  select::picker(select) {
+    margin-top: 6px; padding: 6px; border: .5px solid var(--sep); border-radius: 14px;
+    background: var(--surface); color: var(--text); box-shadow: var(--shadow-pop); max-height: min(60vh, 420px);
+  }
+  select option { padding: 10px 12px; border-radius: 10px; font: inherit; color: var(--text); background: transparent; }
+  select option:hover, select option:focus-visible { background: var(--fill-2); }
+  select option:checked { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+  select option::checkmark { display: none; }
+}

@@ -413,7 +413,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
   const judgeBox = h("input", { type: "checkbox", checked: settings.gameJudgeText });
   judgeBox.addEventListener("change", () => { settings.gameJudgeText = judgeBox.checked; saveSettings(settings); });
   const jianpuBox = h("input", { type: "checkbox", checked: settings.jianpu });
-  jianpuBox.addEventListener("change", () => { settings.jianpu = jianpuBox.checked; saveSettings(settings); dlg.close(); onLayout?.(); });
+  jianpuBox.addEventListener("change", () => { settings.jianpu = jianpuBox.checked; saveSettings(settings); if (onLayout) { dlg.close(); onLayout(); } }); // inside a score the score is drawn again; on the home screen it is used the next time a score opens
   const peekBox = h("input", { type: "checkbox", checked: settings.peekNext });
   peekBox.addEventListener("change", () => {
     settings.peekNext = peekBox.checked;
@@ -460,7 +460,7 @@ function openSettings(onSound?: () => void, onLayout?: () => void) {
     scrollSelect,
     h("label", { class: "inline" }, "高亮当前行", hlBox),
     h("label", { class: "inline" }, "预览下一行", peekBox),
-    ...(onLayout ? [h("label", { class: "inline", id: "jianpu-opt" }, "显示简谱（每行谱下面一行数字）", jianpuBox)] : []),
+    h("label", { class: "inline", id: "jianpu-opt" }, "显示简谱（每行谱下面一行数字）", jianpuBox),
     ...(settings.gameMode ? [h("label", { class: "inline" }, "显示判定文字和连击横幅（Perfect / Miss / COMBO）", judgeBox), h("label", { class: "inline" }, "游戏演示里加入失误（看特效用）", mistakeBox)] : []),
     ...(onLayout ? [h("label", { class: "inline" }, "四手联弹分屏", splitBox)] : []),
     h("h3", {}, "应用"),
@@ -586,7 +586,7 @@ const sameForAllRow = (box: HTMLInputElement) => (batchCtx.files > 1 ? h("label"
 function engineRow(): HTMLElement {
   const sel = h(
     "select",
-    {},
+    { id: "pdf-engine" },
     h("option", { value: "audiveris", selected: settings.ocrEngine === "audiveris" }, "Audiveris（默认）"),
     h("option", { value: "homr", selected: settings.ocrEngine === "homr" }, "homr（深度学习，实验）"),
     h("option", { value: "both", selected: settings.ocrEngine === "both" }, "Audiveris + homr（对比）"),
@@ -698,18 +698,13 @@ function openConvertHelp() {
     { class: "dlg convhelp", id: "convert-help" },
     h("h2", { tabIndex: -1, autofocus: true }, "把 PDF 变成可播放的乐谱"),
     h("div", { class: "convbody" },
-      h("p", { class: "muted" }, "App 可以直接看 PDF（翻页、批注）。要自动播放、指法、游戏模式，需要乐谱的 MusicXML 文件（.musicxml / .mxl）。几种拿到它的办法："),
-      h("h3", {}, "① 直接找现成的 MusicXML"),
-      h("p", {}, "很多乐谱网站提供 MusicXML 下载，比自己转换准确得多：MuseScore、Mutopia、IMSLP 的部分曲目。"),
-      h("p", { class: "links" }, "官网：", link("MuseScore", "https://musescore.org"), link("Mutopia", "https://www.mutopiaproject.org"), link("IMSLP", "https://imslp.org")),
-      h("h3", {}, "② 用识别软件转换"),
-      h("p", {}, "把 PDF 或照片转成 MusicXML：Audiveris（免费、开源，电脑软件）；ScanScore、PlayScore 2 等（付费，效果一般更好）。"),
-      h("p", { class: "links" }, "官网：", link("Audiveris", "https://github.com/Audiveris/audiveris"), link("ScanScore", "https://scan-score.com"), link("PlayScore 2", "https://www.playscore.co")),
-      h("h3", {}, "③ 用本 App 的 GitHub 云端转换"),
-      h("p", {}, "只在连接了 GitHub 的版本里可用：转换在你自己的仓库里运行，用的是你自己 GitHub 账号的额度。商店版没有这个功能。"),
-      h("button", { class: "linkbtn", id: "github-setup-btn", onclick: () => openGithubSetup() }, "怎么设置？"),
-      h("h3", {}, "转换之后"),
-      h("p", {}, "识别结果常有音符、调号、节奏的错误。建议先用 MuseScore 等软件校对并导出，再点右上角“上传琴谱”，选择 .musicxml 或 .mxl 文件。"),
+      h("p", {}, "要自动播放、指法、游戏模式，需要 MusicXML 文件（.musicxml / .mxl）。拿到它的办法："),
+      h("ul", { class: "tips" },
+        h("li", {}, h("b", { class: "hl" }, "找现成的（最准）："), " ", link("MuseScore", "https://musescore.org"), " · ", link("Mutopia", "https://www.mutopiaproject.org"), " · ", link("IMSLP", "https://imslp.org")),
+        h("li", {}, h("b", { class: "hl" }, "用软件转换："), " 免费：", link("Audiveris", "https://github.com/Audiveris/audiveris"), "；付费（通常更好）：", link("ScanScore", "https://scan-score.com"), " · ", link("PlayScore 2", "https://www.playscore.co")),
+        ...(__LOCAL_ONLY__ ? [] : [h("li", {}, h("b", { class: "hl" }, "用本 App 的 GitHub 转换："), " 用你自己的仓库和账号额度。", " ", h("button", { class: "linkbtn inline", id: "github-setup-btn", onclick: () => openGithubSetup() }, "怎么设置？"))]),
+      ),
+      h("p", {}, h("b", { class: "hl" }, "转换之后："), " 识别常有错，请先用 MuseScore 等软件校对，再点右上角“上传琴谱”，选 .musicxml 或 .mxl 文件。"),
       h("p", { class: "muted small" }, "以上软件和网站与本 App 无关，名称仅供参考，费用和条款以它们的官网为准。你的 PDF 会交给你选择的工具处理，请注意隐私。"),
     ),
     h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "好的")),
@@ -726,26 +721,39 @@ function askPdfMode(name: string): Promise<"convert" | "keep" | "both" | "cancel
   return new Promise((resolve) => {
     let answer: "convert" | "keep" | "both" | "cancel" = "cancel";
     const all = sameForAll();
-    const pick = (a: typeof answer) => () => { answer = a; if (a !== "cancel" && all.checked && batchCtx.files > 1) batchCtx.pdf = a; dlg.close(); };
+    // the three ways are mutually exclusive: one choice, one button
+    const mode = h(
+      "select",
+      { id: "pdf-mode" },
+      h("option", { value: "both" }, "转换成可播放乐谱，并保留 PDF"),
+      h("option", { value: "convert" }, "只转换成可播放乐谱"),
+      h("option", { value: "keep" }, "只保留 PDF，当作乐谱查看"),
+    ) as HTMLSelectElement;
+    const engine = engineRow();
+    mode.addEventListener("change", () => { engine.hidden = mode.value === "keep"; }); // the engine only matters when converting
+    const go = () => {
+      answer = mode.value as "convert" | "keep" | "both";
+      if (all.checked && batchCtx.files > 1) batchCtx.pdf = answer;
+      dlg.close();
+    };
     const dlg = h(
       "dialog",
       { class: "dlg center" },
       h("h2", {}, "这份 PDF 怎么处理？"),
       h("p", { class: "small" }, name),
-      h("p", { class: "muted small" }, "转换成可播放乐谱靠自动识别（需要几分钟），识别结果不一定准，常有音符、调号或节奏出错。保留 PDF 则原样存放，可以像图片谱一样直接看，但不能播放、也没有指法。"),
-      h("p", { class: "muted small" }, "想要最好的效果，请直接上传 MusicXML 文件（.musicxml / .mxl），可以从 MuseScore 等乐谱软件导出。"),
-      engineRow(),
+      h("label", { class: "engine" }, "处理方式", mode),
+      engine,
+      h(
+        "ul",
+        { class: "tips" },
+        h("li", {}, h("b", { class: "hl" }, "结果常有错："), "转换靠自动识别（需要几分钟），常有错音、错调号、错节奏，请转换后核对。"),
+        h("li", {}, h("b", { class: "hl" }, "只保留 PDF："), "原样存放，能看，不能播放，也没有指法。"),
+        h("li", {}, h("b", { class: "hl" }, "想要最好的效果："), "直接上传 MusicXML 文件（.musicxml / .mxl）。"),
+      ),
       h("button", { class: "linkbtn", id: "convert-help-btn", onclick: () => openConvertHelp() }, "其他转换方法…"),
       sameForAllRow(all),
-      h(
-        "div",
-        { class: "row wrap stack" },
-        h("button", { class: "primary", onclick: pick("both") }, "两个都要（转换并保留 PDF）"),
-        h("button", { onclick: pick("keep") }, "只保留 PDF，当作乐谱查看"),
-        h("button", { onclick: pick("convert") }, "只转换成可播放乐谱"),
-        h("button", { onclick: pick("cancel") }, "取消"),
-      ),
-    );
+      h("div", { class: "row wrap" }, h("button", { id: "pdf-cancel", onclick: () => dlg.close() }, "取消"), h("div", { class: "grow" }), h("button", { class: "primary", id: "pdf-go", onclick: go }, "继续")),
+    ) as HTMLDialogElement;
     dlg.addEventListener("close", () => { dlg.remove(); resolve(answer); });
     document.body.append(dlg);
     dlg.showModal();

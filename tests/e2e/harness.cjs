@@ -9,8 +9,8 @@ exports.start = async function (store /* Map "dir/name" -> Buffer */, opts = {})
   const page = await ctx.newPage();
   // the count-in before playback is on by default now; the older suites measure scheduling, so they switch it off (opts.countIn keeps it)
   if (!opts.countIn) await page.addInitScript(() => { try { const k = 'pianist.settings.v1'; const s = JSON.parse(localStorage.getItem(k) || '{}'); if (s.countIn === undefined) { s.countIn = false; localStorage.setItem(k, JSON.stringify(s)); } } catch {} });
-  // PDFs now ask what to do; older suites just want the conversion path (e2e17 sets window.__noAuto)
-  await page.addInitScript(() => setInterval(() => { if (window.__noAuto) return; const d = [...document.querySelectorAll('dialog.center')].find(x => x.textContent.includes('这份 PDF 怎么处理')); d?.querySelector('button:nth-of-type(3)')?.click(); }, 150));
+  // PDFs now ask what to do (a dropdown + Continue); older suites just want the conversion path (e2e17 sets window.__noAuto)
+  await page.addInitScript(() => setInterval(() => { if (window.__noAuto) return; const d = [...document.querySelectorAll('dialog.center')].find(x => x.textContent.includes('这份 PDF 怎么处理')); if (d) { const m = d.querySelector('#pdf-mode'); if (m) { m.value = 'convert'; m.dispatchEvent(new Event('change')); } d.querySelector('#pdf-go')?.click(); } }, 150));
   if (opts.init) await page.addInitScript(opts.init, opts.initArg);   // e.g. a pretend native plugin
   page.on('pageerror', e => console.log('PAGEERROR', e.message));
   const puts = [];

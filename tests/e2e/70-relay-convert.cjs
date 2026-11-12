@@ -8,7 +8,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const store = new Map([['scores/Piece.musicxml', Buffer.from('MY OWN SCORE IN THE REPO')], ['inbox/Piece.pdf', Buffer.from('%PDF my own queued file')]]);
   const { browser, page, puts } = await h.start(store, { local: true, context: { viewport: { width: 1194, height: 1000 } } });
   // a fake converter on the "GitHub" side
-  const converter = async (mode) => { for (let i = 0; i < 80; i++) { const k = [...store.keys()].find((x) => /^inbox\/relay[^/]*\.pdf$/.test(x)); if (k) { const uniq = k.slice(6); store.delete(k); if (mode === 'fail') store.set(`inbox/${uniq}.failed.txt`, Buffer.from('Conversion failed (exit 3): no staves')); else store.set(`scores/${uniq.replace(/\.pdf$/, '.musicxml')}`, xml); return uniq; } await sleep(150); } return null; };
+  const converter = async (mode) => { for (let i = 0; i < 80; i++) { const k = [...store.keys()].find((x) => /^inbox\/relay[^/]*\.pdf$/.test(x)); if (k) { const uniq = k.slice(6); await sleep(1500); /* the conversion takes a while */ store.delete(k); if (mode === 'fail') store.set(`inbox/${uniq}.failed.txt`, Buffer.from('Conversion failed (exit 3): no staves')); else store.set(`scores/${uniq.replace(/\.pdf$/, '.musicxml')}`, xml); return uniq; } await sleep(150); } return null; };
   await page.waitForSelector('.top'); await page.evaluate(() => { window.__noAuto = false; });
   await page.evaluate(async () => { const m = await import('/PianistAssistant/src/api.ts'); m.RELAY_WAIT.every = 300; });
   // 1. not connected yet

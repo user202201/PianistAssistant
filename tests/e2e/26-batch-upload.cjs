@@ -21,7 +21,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.evaluate(() => (window.__noAuto = true));
   const pdf = fs.readFileSync(D + 'Test-Piece-for-OCR.pdf');
   await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', [{ name: 'P1.pdf', mimeType: 'application/pdf', buffer: pdf }, { name: 'P2.pdf', mimeType: 'application/pdf', buffer: pdf }]);
-  await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")'); await page.click('dialog button:has-text("只保留 PDF")');
+  await page.waitForSelector('dialog:has-text("这份 PDF 怎么处理")'); await page.selectOption('#pdf-mode', 'keep'); await page.click('#pdf-go');
   await page.waitForTimeout(3000);
   ok(pdfAsked === 1 && store.has('pdfs/P1.pdf') && store.has('pdfs/P2.pdf'), `two PDFs: asked once (${pdfAsked}) and both were kept`);
   // a single file still behaves as before (no "same for all" row)

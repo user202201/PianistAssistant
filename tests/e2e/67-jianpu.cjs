@@ -19,8 +19,15 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   // on screen
   await page.evaluate(() => (location.hash = '#/score/fing-scale.musicxml')); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1200);
   const count = () => page.evaluate(() => [...document.querySelectorAll('.osmd svg text')].filter((t) => /^[♯♭]*[1-7][̣̇]*$/.test(t.textContent.trim())).length);
+  // the switch is in the settings, on the home screen as well as inside a score
+  const pre = await count();
+  await page.click('.controls button[title="设置"], .top button[title="设置"]'); await page.waitForSelector('dialog.settings[open]');
+  ok(await page.isVisible('#jianpu-opt input'), 'inside a score the Settings have the "numbered notation" switch');
+  await page.click('#jianpu-opt input'); await page.waitForTimeout(2500);
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1')).jianpu === true) && await count() - pre >= 8, 'switching it on in the Settings draws the digits at once');
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.jianpu = false; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); }); await page.reload(); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1200);
   const base = await count(); // time signature and bar numbers are digits too
-  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}').jianpu !== true), 'off by default');
+  ok(await page.evaluate(() => JSON.parse(localStorage.getItem('pianist.settings.v1') || '{}').jianpu !== true), 'off again (stored)');
   await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('pianist.settings.v1')); s.jianpu = true; localStorage.setItem('pianist.settings.v1', JSON.stringify(s)); });
   await page.reload(); await page.waitForSelector('.controls .mainrow', { timeout: 20000 }); await page.waitForTimeout(1500);
   const n = await count();
@@ -33,5 +40,8 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const per = await page.evaluate(() => [...document.querySelectorAll('.pane')].map((p) => [...p.querySelectorAll('svg text')].filter((t) => /^[♯♭]*[1-7][\u0307\u0323]*$/.test(t.textContent.trim())).length));
   ok(per.length === 2 && per.every((x) => x >= 8), `four hands: a line of digits in each part (${per.join(' / ')})`);
   await page.screenshot({ path: D + 'jianpu-duet.png' });
+  await page.evaluate(() => (location.hash = '#/')); await page.waitForSelector('.top .logo'); await page.waitForTimeout(500);
+  await page.click('button[title="设置"]'); await page.waitForSelector('dialog.settings[open]');
+  ok(await page.isVisible('#jianpu-opt input'), 'the home screen Settings have it too (it is used when a score is opened)');
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();
