@@ -33,6 +33,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const n = await count();
   ok(n - base >= 8, `on: a digit under every note (${base} -> ${n} digits)`);
   const geo = await page.evaluate(() => { const ts = [...document.querySelectorAll('.osmd svg text')].filter((t) => /^[♯♭]*[1-7][̣̇]*$/.test(t.textContent.trim())); const ys = ts.map((t) => Math.round(t.getBoundingClientRect().top)); return { rows: [...new Set(ys)].length, first: ts[0] && ts[0].textContent }; });
+  const dots = await page.evaluate(() => { const ds = [...document.querySelectorAll('.osmd svg circle.jp-dot')]; const ts = [...document.querySelectorAll('.osmd svg text')].filter((x) => /^[♯♭]*[1-7]$/.test(x.textContent.trim()) && x.dataset.jp); const r = ds.length ? +ds[0].getAttribute('r') : 0; const hs = ts.map((x) => x.getBBox().height); return { n: ds.length, r, th: hs.length ? Math.max(...hs) : 0 }; });
+  ok(dots.n >= 2 && dots.r >= 1.5, `the octave marks are real dots you can see (${dots.n} dots, radius ${dots.r.toFixed(2)})`);
+  ok(dots.th >= 30, `the digits are big enough to read (${dots.th.toFixed(1)} high)`);
   ok(geo.rows <= 2, `all digits of a line stand at the same height (${geo.rows} different heights)`);
   await page.screenshot({ path: D + 'jianpu.png' });
   // four hands: both parts get their line

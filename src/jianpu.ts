@@ -91,3 +91,46 @@ export function addJianpu(xml: string): string {
     return xml;
   }
 }
+
+// ---------- size and octave dots ----------
+const JP_RE = /^([♯♭]*)([1-7])([\u0307\u0323]*)$/;
+
+/** Bigger, bolder digits (the engraver's lyric size) and, after every drawing, the octave marks as real dots: a combining dot character is far too small to see. */
+export function setupJianpu(o: { EngravingRules: { LyricsHeight: number }; render: () => void }, host: HTMLElement) {
+  o.EngravingRules.LyricsHeight = 3.2; // the default is 2
+  const orig = o.render.bind(o);
+  o.render = () => {
+    orig();
+    try { drawDots(host); } catch { /* the digits stay without dots */ }
+  };
+}
+
+function drawDots(root: HTMLElement) {
+  const NS = "http://www.w3.org/2000/svg";
+  for (const t of Array.from(root.querySelectorAll<SVGTextElement>("svg text"))) {
+    if (t.dataset.jp) continue;
+    const m = JP_RE.exec((t.textContent ?? "").trim());
+    if (!m) continue;
+    t.dataset.jp = "1";
+    t.setAttribute("font-weight", "bold");
+    const above = (m[3].match(/\u0307/g) ?? []).length;
+    const below = (m[3].match(/\u0323/g) ?? []).length;
+    t.textContent = m[1] + m[2]; // the dots are drawn below as circles
+    if (!above && !below) continue;
+    const ext = t.getExtentOfChar(m[1].length);
+    const bb = t.getBBox();
+    const size = bb.height / 1.2; // about the font size
+    const r = Math.max(size * 0.085, 0.9);
+    const cx = ext.x + ext.width / 2;
+    const base = bb.y + bb.height * 0.8; // baseline
+    const fill = t.getAttribute("fill") || getComputedStyle(t).fill || "#000";
+    const dot = (cy: number) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", String(cx)); c.setAttribute("cy", String(cy)); c.setAttribute("r", String(r)); c.setAttribute("fill", fill);
+      c.setAttribute("class", "jp-dot");
+      t.parentNode?.insertBefore(c, t.nextSibling);
+    };
+    for (let i = 0; i < above; i++) dot(base - size * 0.72 - r * (1.6 + i * 2.6));
+    for (let i = 0; i < below; i++) dot(base + r * (1.9 + i * 2.6));
+  }
+}

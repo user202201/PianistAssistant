@@ -20,7 +20,7 @@ import { GameScore, WINDOWS, isComboMilestone } from "./gamescore";
 import { createHud } from "./gamehud";
 import { midi, MidiInput, type MidiNote } from "./midi";
 import { mic, MicInput } from "./mic";
-import { addJianpu } from "./jianpu";
+import { addJianpu, setupJianpu } from "./jianpu";
 import { record as logError, getLog, clearLog, formatLog, startErrorLog } from "./errlog";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
@@ -1802,6 +1802,7 @@ async function renderPlayer(name: string) {
       cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
     });
     const xml = toMusicXml(buf);
+    if (settings.jianpu) setupJianpu(osmd, scoreBox); // before load: the size of the labels is fixed when the score is loaded
     await osmd.load(settings.jianpu ? addJianpu(xml) : xml);
     if (stale()) return;
     undo.push(() => osmd.clear());
@@ -1857,6 +1858,7 @@ async function renderPlayer(name: string) {
           followCursor: false,
           cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
         });
+        if (settings.jianpu) setupJianpu(o, pBox);
         await o.load(settings.jianpu ? addJianpu(xml) : xml);
         undo.push(() => o.clear());
         if (stale()) return bail();
@@ -1944,6 +1946,7 @@ async function renderDuet(pair: api.Pair) {
         followCursor: false,
         cursorsOptions: [{ type: 0, color: "#22c55e", alpha: 0.45, follow: false }],
       });
+      if (settings.jianpu) setupJianpu(o, pBox);
       await o.load(settings.jianpu ? addJianpu(xmls[g]) : xmls[g]);
       undo.push(() => o.clear());
       if (stale()) return bail();
