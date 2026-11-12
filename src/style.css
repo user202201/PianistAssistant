@@ -924,3 +924,12 @@ button.linkbtn.inline { display: inline; padding: 0; }
   select option:checked { color: var(--accent); font-weight: 600; background: var(--accent-soft); }
   select option::checkmark { display: none; }
 }
+
+/* the "what to do with this PDF" question: bullets read left aligned, the buttons stay in view when the text is long (phone, German) */
+.dlg.center { max-height: 92vh; max-height: 92dvh; overflow-y: auto; }
+.dlg.center ul.tips { text-align: left; }
+.dlg.center .row.wrap:last-child { position: sticky; bottom: 0; background: var(--surface); padding-top: 10px; margin-top: 6px; }
+.dlg ul.tips li b.hl { margin-right: .35em; }
+.dlg.convhelp .row { border-top: .5px solid var(--sep); padding-top: 10px; margin-top: 8px; }
+.dlg.center { padding-bottom: 0; }
+.dlg.center .row.wrap:last-child { padding-bottom: 18px; }
