@@ -69,7 +69,10 @@ const defaults = (): Settings => ({ sound: __MOBILE__ ? "fluid" : "splendid", vo
 
 export function loadSettings(): Settings {
   try {
-    return { ...defaults(), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+    const s = { ...defaults(), ...JSON.parse(localStorage.getItem(KEY) ?? "{}") };
+    // oemer produced no result on any of our test scores: it is not offered any more (a remembered choice of it, or of "all three", becomes Audiveris)
+    if (s.ocrEngine === "oemer" || s.ocrEngine === "all") s.ocrEngine = "audiveris";
+    return s;
   } catch {
     return defaults();
   }

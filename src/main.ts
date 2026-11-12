@@ -589,9 +589,7 @@ function engineRow(): HTMLElement {
     {},
     h("option", { value: "audiveris", selected: settings.ocrEngine === "audiveris" }, "Audiveris（默认）"),
     h("option", { value: "homr", selected: settings.ocrEngine === "homr" }, "homr（深度学习，实验）"),
-    h("option", { value: "oemer", selected: settings.ocrEngine === "oemer" }, "oemer（深度学习，可内置 App）"),
     h("option", { value: "both", selected: settings.ocrEngine === "both" }, "Audiveris + homr（对比）"),
-    h("option", { value: "all", selected: settings.ocrEngine === "all" }, "三个都转（对比）"),
   );
   sel.addEventListener("change", () => { settings.ocrEngine = sel.value as typeof settings.ocrEngine; saveSettings(settings); });
   return h("label", { class: "engine" }, "转换引擎", sel);
