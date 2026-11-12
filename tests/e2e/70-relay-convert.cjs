@@ -21,7 +21,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok(await page.evaluate(() => !!localStorage.getItem('pianist.conv.v1')) && !(await page.isVisible('#connect-conv')), 'the right token connects: stored on the device');
   ok(await page.evaluate(() => localStorage.getItem('pianist.storage') === 'local'), 'the library stays on the device (storage mode unchanged)');
   await page.click('button[title="设置"]'); await page.waitForSelector('dialog.settings[open]');
-  ok(await page.isVisible('#usage-btn') && await page.isVisible('#disconnect-conv') && (await page.textContent('dialog.settings')).includes('已连接'), 'settings now show the connection, the usage and "disconnect"');
+  ok(await page.isVisible('#usage-btn') && await page.isVisible('#disconnect-conv') && (await page.textContent('dialog.settings')).includes('user202201/PianistScores'), 'settings now show the connected account, the usage and "disconnect"');
   await page.mouse.click(5, 5); await page.waitForTimeout(300);
   // 2. convert a PDF
   const pdf = { name: 'Piece.pdf', mimeType: 'application/pdf', buffer: fs.readFileSync(D + 'Test-Piece-for-OCR.pdf') };
