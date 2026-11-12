@@ -21,6 +21,8 @@ import { createHud } from "./gamehud";
 import { midi, MidiInput, type MidiNote } from "./midi";
 import { mic, MicInput } from "./mic";
 import { addJianpu, setupJianpu } from "./jianpu";
+import { createConvertYmlUrl } from "./convertyml";
+import { imageToPdf } from "./imgpdf";
 import { record as logError, getLog, clearLog, formatLog, startErrorLog } from "./errlog";
 import { confetti } from "./confetti";
 import { goSound, readySound } from "./gamesound";
@@ -677,6 +679,7 @@ async function showUsage() {
 
 /** Step by step: how to get the cloud conversion running with one's own GitHub account. */
 function openGithubSetup() {
+  const guideRepo = h("input", { type: "text", id: "guide-repo", placeholder: "你的用户名/PianistScores", autocomplete: "off", value: api.convTarget()?.repo ?? "" }) as HTMLInputElement;
   const link = (name: string, href: string) => h("a", { href, target: "_blank", rel: "noopener noreferrer" }, name);
   const dlg = h(
     "dialog",
@@ -688,8 +691,12 @@ function openGithubSetup() {
       h("p", { class: "links" }, link("github.com/signup", "https://github.com/signup")),
       h("h3", {}, "② 新建一个私有（Private）仓库，名字例如 PianistScores。"),
       h("p", { class: "links" }, link("github.com/new", "https://github.com/new")),
-      h("h3", {}, "③ 在仓库里新建文件 .github/workflows/convert.yml，内容复制自下面的文件。"),
-      h("p", { class: "links" }, link("convert.yml", "https://github.com/user202201/PianistAssistant/blob/main/scores-repo-template/.github/workflows/convert.yml")),
+      h("h3", {}, "③ 创建转换文件 convert.yml：填入你的仓库，点下面的按钮，GitHub 会打开一个已填好内容的页面，点页面底部的“Commit changes”即可。"),
+      h("div", { class: "row wrap" }, guideRepo, h("button", { class: "primary", id: "guide-create-yml", onclick: () => {
+        const repo = guideRepo.value.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "");
+        if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { toast("请先填写仓库（用户名/仓库名）"); return; }
+        window.open(createConvertYmlUrl(repo, api.convTarget()?.repo === repo ? api.convTarget()!.branch : "main"), "_blank", "noopener");
+      } }, "在 GitHub 创建 convert.yml")),
       h("h3", {}, "④ 生成令牌：只授权这一个仓库；权限 Contents: Read and write；想在 App 里看用量，再加 Actions: Read-only；有效期最长 1 年。"),
       h("p", { class: "links" }, link("github.com/settings/personal-access-tokens/new", "https://github.com/settings/personal-access-tokens/new")),
       h("h3", {}, "⑤ 回到 App 的登录页，粘贴令牌，仓库填“你的用户名/PianistScores”。"),
@@ -697,7 +704,7 @@ function openGithubSetup() {
       h("p", { class: "muted small" }, "转换用的是你 GitHub 账号的免费额度（私有仓库每月有一定的免费分钟数），额度以 GitHub 为准。官方用量在 GitHub 的账单页面；App 设置里也有一个估算。"),
       h("p", { class: "links" }, link("github.com/settings/billing", "https://github.com/settings/billing")),
     ),
-    h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", onclick: () => dlg.close() }, "好的")),
+    h("div", { class: "row" }, h("div", { class: "grow" }), h("button", { class: "primary", id: "github-setup-ok", onclick: () => dlg.close() }, "好的")),
   ) as HTMLDialogElement;
   dlg.addEventListener("close", () => dlg.remove());
   document.body.append(dlg);
@@ -732,6 +739,35 @@ function openConvertHelp() {
 }
 
 // ---------- what to do with an uploaded PDF ----------
+/** The repository has no convert.yml yet: say so, and offer ONE button that opens GitHub's "new file" page with everything filled in. */
+function askCreateConvertYml(): Promise<void> {
+  return new Promise((resolve) => {
+    const tg = api.convTarget();
+    const dlg = h(
+      "dialog",
+      { class: "dlg center", id: "need-yml" },
+      h("h2", {}, "需要先添加转换文件"),
+      h("p", {}, "你的仓库里还没有 convert.yml，没有它 PDF 无法转换。"),
+      h("p", { class: "muted small" }, "点下面的按钮，GitHub 会打开一个已填好内容的页面，点页面底部的“Commit changes”即可。完成后重新上传 PDF。"),
+      h("div", { class: "row wrap" },
+        h("button", { id: "yml-cancel", onclick: () => dlg.close() }, "取消"),
+        h("div", { class: "grow" }),
+        h("button", { class: "primary", id: "yml-create", onclick: () => { if (tg) window.open(createConvertYmlUrl(tg.repo, tg.branch), "_blank", "noopener"); dlg.close(); } }, "在 GitHub 创建 convert.yml"),
+      ),
+    ) as HTMLDialogElement;
+    dlg.addEventListener("close", () => { dlg.remove(); resolve(); });
+    document.body.append(dlg);
+    dlg.showModal();
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+/** true when conversion can start: the repository has convert.yml (otherwise the user is helped to add it) */
+async function ensureConvertYml(): Promise<boolean> {
+  if (await api.hasConvertYml()) return true;
+  await askCreateConvertYml();
+  return false;
+}
+
 /** PDF conversion is available: switched on in the Settings, and (device mode) a repository connected. Store builds never convert. */
 function canConvert(): boolean {
   return !__LOCAL_ONLY__ && settings.pdfConvert && (!api.isLocal() || !!api.getConvAuth());
@@ -1277,15 +1313,19 @@ async function renderHome() {
     const stored: string[] = [];
     const picked = Array.from(file.files ?? []);
     batchCtx = { files: picked.length, conflict: null, pdf: null };
-    for (const f of picked) {
+    for (let f of picked) {
       let closeUp = () => {}; // the "uploading…" message stays until this file is done
       try {
+        // a photo of a score becomes a PDF first: from here on it is handled like any other PDF (kept, viewed, converted when conversion is on)
+        if (/\.(png|jpe?g|tiff?|bmp)$/i.test(f.name)) {
+          const doneImg = toast(`正在把照片转成 PDF：${f.name}`, 60000, true);
+          try { f = await imageToPdf(f); } catch { doneImg(); throw new Error(`无法读取这张照片：${f.name}`); }
+          doneImg();
+        }
         let mode: "convert" | "keep" | "both" = "convert";
         const isPdf = /\.pdf$/i.test(f.name);
-        const isImage = /\.(png|jpe?g|tiff?|bmp)$/i.test(f.name);
-        if ((isPdf || isImage) && !canConvert()) {
-          // conversion is off (or no repository connected): a PDF is only kept for viewing, a photo cannot be used
-          if (isImage) { toast("图片需要先开启 PDF 转换（设置 → PDF 转换）。", 7000); continue; }
+        if (isPdf && !canConvert()) {
+          // conversion is off (or no repository connected): a PDF is only kept for viewing
           if (batchCtx.pdf !== "keep") {
             await noticePdfOnly(!__LOCAL_ONLY__ && settings.pdfConvert && api.isLocal());
             if (batchCtx.files > 1) batchCtx.pdf = "keep"; // one notice for the whole batch
@@ -1295,6 +1335,7 @@ async function renderHome() {
           const a = await askPdfMode(f.name);
           if (a === "cancel") { toast(`已取消：${f.name}`); continue; }
           mode = a;
+          if (mode !== "keep" && !(await ensureConvertYml())) mode = "keep"; // no convert.yml in the repository: help to add it, the PDF is only kept
         }
         closeUp = toast(`上传中：${f.name}`, 120000, true);
         if (mode !== "convert") {
@@ -1420,6 +1461,7 @@ async function renderHome() {
       h("button", { class: "del", title: "更多", onclick: () => openCardMenu(name.replace(/\.pdf$/i, ""), [
         ...(!canConvert() ? [] : [{ label: "转换成可播放乐谱（识别可能不准）", icon: "refresh", run: async () => {
           try {
+            if (!(await ensureConvertYml())) return;
             if (api.isLocal()) { await relayConvert(name, await api.readStoredPdf(name)); void load(); return; }
             const n = await api.convertStoredPdf(name, settings.ocrEngine);
             optimistic.set(n, Date.now());

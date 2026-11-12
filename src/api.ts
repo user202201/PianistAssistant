@@ -244,6 +244,24 @@ async function relayDelete(a: Auth, dir: string, name: string, message: string):
     return false;
   }
 }
+/** Is the conversion workflow (convert.yml) in the repository? Without it a queued PDF is never converted. `true` when it cannot be told (no permission to look, network). */
+let convertYmlSeen = "";
+export async function hasConvertYml(): Promise<boolean> {
+  const a = convAuth();
+  if (convertYmlSeen === a.repo) return true;
+  try {
+    const r = await gh(a, url(a, ".github/workflows", "convert.yml") + ref(a), { headers: headers(a), cache: "no-store" });
+    if (r.status === 404) return false;
+    if (r.ok) convertYmlSeen = a.repo;
+  } catch { /* unknown: do not block */ }
+  return true;
+}
+/** the repository (owner/name) and branch conversion uses, or null when none is connected */
+export function convTarget(): { repo: string; branch: string } | null {
+  const a = isLocal() ? getConvAuth() : getAuth();
+  return a ? { repo: a.repo, branch: a.branch ?? "main" } : null;
+}
+
 export const RELAY_WAIT = { every: 8000, limit: 25 * 60_000 };
 
 /**

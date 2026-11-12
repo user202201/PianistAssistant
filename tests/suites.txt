@@ -73,3 +73,4 @@
 70-relay-convert
 71-dropdown-theme
 72-pdf-convert-switch
+73-convert-yml-and-photo

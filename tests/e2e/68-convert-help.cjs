@@ -15,7 +15,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.screenshot({ path: D + 'convert-help.png' });
   await page.click('#github-setup-btn'); await page.waitForSelector('#github-setup[open]');
   ok(true, 'the help has a "setup guide" link that opens the step by step guide');
-  await page.click('#github-setup button.primary'); await page.waitForTimeout(200);
+  await page.click('#github-setup-ok'); await page.waitForTimeout(200);
   await page.click('#convert-help button.primary'); await page.waitForTimeout(300);
   ok(!(await page.evaluate(() => !!document.querySelector('#convert-help'))), 'the button closes the help');
   ok(await page.isVisible('dialog.settings[open] #usage-btn') && await page.isChecked('#pdf-convert-opt input'), 'the Settings stay open with the switch on and the conversion items shown under it');

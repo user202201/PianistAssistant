@@ -20,11 +20,11 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   await page.click('#setup-help-btn'); await page.waitForSelector('#github-setup[open]');
   const info = await page.evaluate(() => { const d = document.querySelector('#github-setup'); return { h3: [...d.querySelectorAll('h3')].map((x) => x.innerText[0]), links: [...d.querySelectorAll('a')].map((a) => ({ h: a.href, ok: a.target === '_blank' && /noopener/.test(a.rel) && a.href.startsWith('https://') })) }; });
   ok(info.h3.join('') === '①②③④⑤⑥', 'six numbered steps');
-  ok(info.links.length >= 5 && info.links.every((l) => l.ok) && info.links.some((l) => l.h.includes('personal-access-tokens/new')) && info.links.some((l) => l.h.includes('settings/billing')), 'with links to GitHub: sign up, new repository, new token, billing (' + info.links.length + ' links)');
+  ok(info.links.length >= 4 && info.links.every((l) => l.ok) && info.links.some((l) => l.h.includes('personal-access-tokens/new')) && info.links.some((l) => l.h.includes('settings/billing')), 'with links to GitHub: sign up, new repository, new token, billing (' + info.links.length + ' links)');
   await page.screenshot({ path: D + 'github-setup.png' });
   await page.mouse.click(5, 5); await page.waitForTimeout(250);
   ok(await page.isVisible('#github-setup'), 'a tap outside does not close it');
-  await page.click('#github-setup button.primary'); await page.waitForTimeout(250);
+  await page.click('#github-setup-ok'); await page.waitForTimeout(250);
   ok(!(await page.evaluate(() => !!document.querySelector('#github-setup'))), 'the button closes it');
   await browser.close();
   // no permission to read the runs / no workflow yet
