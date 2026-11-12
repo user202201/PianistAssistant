@@ -947,3 +947,8 @@ button.linkbtn.inline { display: inline; padding: 0; }
 #pdf-notice p { margin: 6px 0 0; }
 #pdf-notice .row { justify-content: center; margin-top: 18px; padding-bottom: 22px; }
 #pdf-notice .row button { min-width: 120px; }
+
+/* small screens: the whole home screen scrolls (the "recent" row scrolls away); the tabs then stay at the top, like a frozen row in a spreadsheet */
+@media (max-width: 920px) {
+  .home > .tabsbar { position: sticky; top: 0; z-index: 25; background: var(--bg); padding-top: 8px; padding-bottom: 8px; }
+}

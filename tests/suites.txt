@@ -74,3 +74,4 @@
 71-dropdown-theme
 72-pdf-convert-switch
 73-convert-yml-and-photo
+74-tabs-stay-on-top
