@@ -36,6 +36,7 @@ const PORT = 5174, BASE = `http://localhost:${PORT}/`;
 
   // a PDF: view, turn, annotate, saved on the device
   await up('Sheet.pdf', fs.readFileSync(path.join(ROOT, 'samples/ocr-lab/Long3.pdf')), 'application/pdf');
+  await page.waitForSelector('#pdf-notice[open]'); await page.click('#pdf-notice-ok'); // a PDF is only kept for viewing
   await page.click('.tabsbar button:has-text("PDF 乐谱")'); await page.waitForSelector('.card.pdf', { timeout: 15000 });
   await page.click('.card.pdf .open'); await page.waitForFunction(() => document.querySelectorAll('.pdfsheet').length === 3, null, { timeout: 30000 });
   await page.click('button[title=下一页]'); await page.click('button[title="用 Apple Pencil 或鼠标在乐谱上写画"]');
