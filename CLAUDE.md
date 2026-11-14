@@ -27,3 +27,5 @@
     conversion in device mode (the score comes back to the device, the temporary files are deleted). The privacy policy (`public/privacy/index.html`) says this; the feedback mail address comes
     from the repository variable `FEEDBACK_EMAIL`.
 12. **Fingering logic is documented.** `docs/fingering-logic.md` explains how `src/fingering.ts` produces its suggestions (for teachers / professionals who ask). Change both together.
+13. **Code map.** `docs/ARCHITECTURE.md` lists every module, route, storage key, build switch, test harness and workflow with how it is implemented. Read it first instead of scanning the code,
+    and update it in the same change whenever a module, route, setting, storage key or workflow is added, removed or renamed.
