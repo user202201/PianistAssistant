@@ -1,0 +1,18 @@
+name: release-clean
+# Removes the test log files (and anything that is not a package) from the release "app-builds". Actions -> release-clean -> Run workflow.
+# (mobile-packages does the same at the end of every run; this is for cleaning up right now, without waiting for a build.)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete log files from the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view app-builds --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | tee /tmp/names.txt
+          grep -E '\.log$' /tmp/names.txt | while read -r n; do echo "delete $n"; gh release delete-asset app-builds "$n" --repo "$GITHUB_REPOSITORY" -y; done || true
+          echo "left:"; gh release view app-builds --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'

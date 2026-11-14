@@ -109,4 +109,7 @@ jobs:
           gh release view app-builds --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create app-builds --repo "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
               --title "Latest app builds" --notes "Always the newest builds of the iOS / Android / HarmonyOS packages. How to install: see packages/*/README.md in the repository."
-          gh release upload app-builds --repo "$GITHUB_REPOSITORY" --clobber $(find out -type f)
+          # only the packages (and the small test report): never logs or other leftovers of the test run
+          gh release upload app-builds --repo "$GITHUB_REPOSITORY" --clobber $(find out -type f \( -name '*.zip' -o -name '*.ipa' -o -name '*.apk' -o -name '*.aab' -o -name '*.ets' -o -name 'test-report.html' \))
+          # and the release itself is kept clean: log files from older runs are removed
+          gh release view app-builds --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | grep -E '\.log$' | while read -r n; do gh release delete-asset app-builds "$n" --repo "$GITHUB_REPOSITORY" -y; done || true
