@@ -9,6 +9,7 @@ RUN="${GITHUB_RUN_NUMBER:-1}"
 
 [ -d node_modules ] || npm ci
 # store builds are local-only: no account, no GitHub, the developer cannot see anybody's library (set LOCAL_ONLY=0 for a build that can sync)
+SUF=""; [ "${LOCAL_ONLY:-1}" = "0" ] && SUF="-github" # a build WITH the GitHub connection (own tests only) gets other file names than the store build
 MOBILE=1 LOCAL_ONLY="${LOCAL_ONLY:-1}" npm run build
 bash mobile/scripts/fetch-sounds.sh dist-app   # the default piano sound goes inside the app
 cd mobile
@@ -18,9 +19,9 @@ npx capacitor-assets generate --ios --iconBackgroundColor '#1f2937' --splashBack
 npx cap sync ios
 
 cd ios/App
-# native plugins: the MIDI keyboard input (always) and the trial + one-time purchase (docs: packages/ios/README.md; PAYWALL=0 builds a version without the purchase)
+# native plugins: the MIDI keyboard input (always) and the trial + one-time purchase (docs: packages/ios/README.md; the trial + purchase is OFF unless PAYWALL=1; the same switch is read by the web build in src/entitlement.ts)
 cp ../../ios-store/PianistStorePlugin.swift ../../ios-store/PianistMidiPlugin.swift ../../ios-store/MainViewController.swift App/
-[ "${PAYWALL:-1}" = "0" ] && sed -i '' '/PianistStorePlugin()/d' App/MainViewController.swift
+[ "${PAYWALL:-0}" = "1" ] || sed -i '' '/PianistStorePlugin()/d' App/MainViewController.swift
 ruby -e 'require "xcodeproj"' 2>/dev/null || gem install xcodeproj --no-document --user-install
 ruby ../../ios-store/add-to-project.rb App.xcodeproj
 # the first screen must be our subclass (it registers the plugins)
@@ -46,7 +47,7 @@ xcodebuild "${WSARG[@]}" -scheme App -configuration Debug -sdk iphonesimulator -
 OUT="$ROOT/packages/ios/out"
 mkdir -p "$OUT"
 cd "$ROOT/mobile"
-zip -qr "$OUT/PianistAssistant-ios-xcode-project.zip" ios -x 'ios/App/Pods/*' -x 'ios/App/build/*' -x '*/DerivedData/*'
+zip -qr "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" ios -x 'ios/App/Pods/*' -x 'ios/App/build/*' -x '*/DerivedData/*'
 
 # An UNSIGNED .ipa: lets you try the app on your own iPad from a Windows PC with a free Apple ID (a tool such as Sideloadly / AltStore signs it
 # on your PC; it then runs for 7 days). Not for the App Store. A failure here must not stop the real build.
@@ -57,7 +58,7 @@ if ! (
     -archivePath "$PWD/build/unsigned.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
   rm -rf build/Payload && mkdir -p build/Payload
   cp -R build/unsigned.xcarchive/Products/Applications/*.app build/Payload/
-  (cd build && zip -qry "$OUT/PianistAssistant-unsigned.ipa" Payload)
+  (cd build && zip -qry "$OUT/PianistAssistant-unsigned$SUF.ipa" Payload)
 ); then echo "warning: the unsigned .ipa could not be built"; fi
 
 # optional: signed .ipa (needs an Apple Developer account)

@@ -111,7 +111,7 @@ GitHub 仓库 → Settings → Secrets and variables → Actions → **Variables
 - 如果 App 里找不到原生插件（比如注册失败），会按本机日期数 14 天，到期后买不了——所以 TestFlight 的这个检查不能省。
 
 ### 开关
-`PAYWALL=0 bash mobile/scripts/build-ios.sh` 构建不带试用/购买的版本（比如给朋友的内测包）。默认带。
+**试用 / 购买目前默认关闭**（自用阶段）：`bash mobile/scripts/build-ios.sh` 构建出来的 App 没有试用、没有购买，永远不会被锁。要打开收费版本：`PAYWALL=1 bash mobile/scripts/build-ios.sh`（云端打包则在 `mobile.yml` 的 iOS 任务里给构建加上 `PAYWALL=1`）。同一个开关同时去掉原生购买插件和网页端的试用逻辑。
 
 
 ## 只有 Windows 电脑，怎么在自己的 iPad 上试？
@@ -143,3 +143,8 @@ The app contains a small native plugin (`mobile/ios-store/PianistMidiPlugin.swif
 - Bluetooth MIDI piano: in the score window press "Bluetooth piano": the system pairing screen opens.
 - The build adds `NSBluetoothAlwaysUsageDescription` to Info.plist by itself (build-ios.sh).
 - Not testable without a real piano: the CI only checks that it compiles.
+
+## 自己测试用：带 GitHub 转换的版本
+商店版（默认）是纯本机，没有 GitHub、没有 PDF 转换。你自己想在 iPad 上试转换：GitHub → Actions → mobile-packages → Run workflow，勾选 **with_github**。
+出来的文件名带 `-github`（`PianistAssistant-ios-xcode-project-github.zip`、`PianistAssistant-unsigned-github.ipa`、安卓 `PianistAssistant-debug-github.apk`），装法和普通版一样。
+这个版本里设置 → 存储与账号 → "连接 GitHub 用于 PDF 转换…"可用。**不要把它提交到商店**（隐私政策和 App 隐私问卷是按纯本机写的）。

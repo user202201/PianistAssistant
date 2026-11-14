@@ -29,10 +29,12 @@ const securityMeta = {
   transformIndexHtml: { order: "post" as const, handler: (html: string) => html.replace("<head>", `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}" />\n<meta name="referrer" content="no-referrer" />`) },
 };
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   define: {
     __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")),
     __MOBILE__: JSON.stringify(mobile),
+    // the 14-day trial + one-time purchase (src/entitlement.ts): OFF in every build unless PAYWALL=1 (the dev server keeps it for the tests)
+    __PAYWALL__: JSON.stringify(command === "serve" || process.env.PAYWALL === "1"),
     __LOCAL_ONLY__: JSON.stringify(["1", "true"].includes(process.env.LOCAL_ONLY ?? "")),
     // where "Help & feedback" mails go (a repository variable in the workflows); empty = the feature is hidden
     __FEEDBACK_EMAIL__: JSON.stringify(process.env.FEEDBACK_EMAIL ?? ""),
@@ -72,4 +74,4 @@ export default defineConfig({
       },
     }),
   ],
-});
+}));

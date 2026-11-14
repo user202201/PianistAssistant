@@ -52,7 +52,8 @@ if [ "$SIGN" = 1 ]; then ./gradlew --no-daemon assembleDebug bundleRelease assem
 
 OUT="$ROOT/packages/android/out"
 mkdir -p "$OUT"
-cp app/build/outputs/apk/debug/app-debug.apk "$OUT/PianistAssistant-debug.apk"
+SUF=""; [ "${LOCAL_ONLY:-1}" = "0" ] && SUF="-github"
+cp app/build/outputs/apk/debug/app-debug.apk "$OUT/PianistAssistant-debug$SUF.apk"
 if [ "$SIGN" = 1 ]; then
   cp app/build/outputs/bundle/release/app-release.aab "$OUT/PianistAssistant-release.aab"
   cp app/build/outputs/apk/release/app-release.apk "$OUT/PianistAssistant-release.apk"

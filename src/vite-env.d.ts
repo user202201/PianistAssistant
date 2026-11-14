@@ -8,3 +8,5 @@ declare const __MOBILE__: boolean;
 declare const __LOCAL_ONLY__: boolean;
 /** address of "Help & feedback" (empty = no such button) */
 declare const __FEEDBACK_EMAIL__: string;
+/** true when the trial + purchase logic is built in (PAYWALL=1; always on in the dev server) */
+declare const __PAYWALL__: boolean;

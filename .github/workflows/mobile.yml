@@ -8,6 +8,11 @@ on:
   schedule:
     - cron: "11 20 * * *"
   workflow_dispatch:
+    inputs:
+      with_github:
+        description: "Own test build WITH the GitHub connection for PDF conversion (files get the suffix -github; never submit this one to the stores)"
+        type: boolean
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -30,6 +35,7 @@ jobs:
       - name: Build Android package
         env:
           FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          LOCAL_ONLY: ${{ inputs.with_github && '0' || '1' }}
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -49,6 +55,7 @@ jobs:
       - name: Build iOS package
         env:
           FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          LOCAL_ONLY: ${{ inputs.with_github && '0' || '1' }}
           IOS_CERT_P12_B64: ${{ secrets.IOS_CERT_P12_B64 }}
           IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
           IOS_PROFILE_B64: ${{ secrets.IOS_PROFILE_B64 }}

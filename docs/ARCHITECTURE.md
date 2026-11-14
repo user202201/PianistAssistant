@@ -132,6 +132,7 @@ UI 文字在代码里写**中文**，其他语言在上屏时翻译（`i18n.ts` 
 | `MOBILE=1` | App 构建：相对路径、无 Service Worker、输出 `dist-app/`、`__MOBILE__=true` |
 | `LOCAL_ONLY=1` | 商店版：无账号 / GitHub / 转换（`mobile/scripts/build-*.sh` 默认设置）|
 | `FEEDBACK_EMAIL` | 反馈邮件地址（仓库变量），空 = 隐藏该功能 |
+| `PAYWALL=1` | 打开 14 天试用 + 买断（`__PAYWALL__`，默认关闭；dev server 恒开，给测试用）；`build-ios.sh` 同时决定是否带原生购买插件 |
 | `BUILD_ID` | 「当前版本」时间戳 |
 `securityMeta` 插件：只在网页版生产构建里写入内容安全策略（CSP）和 `referrer: no-referrer`；改动联网的服务器清单时必须同步改 `connect-src`（见 `docs/SECURITY.md`）。
 提交前必跑：`npx tsc --noEmit && npm run check:i18n && BASE_PATH=/ npx vite build`。
@@ -143,7 +144,7 @@ UI 文字在代码里写**中文**，其他语言在上屏时翻译（`i18n.ts` 
 - 做不了的：真 iPad / iPhone、真钢琴声音与麦克风、真 Apple / Google 账号、真 homr / Audiveris（由 OCR 实验工作流测量）、WebKit（`webkit.yml` 从未跑出结果）。
 
 ## 9. 工作流（`.github/workflows/`）
-`check.yml`（每次推送：类型 + 翻译 + 构建，约 2 分钟）、`deploy.yml`（推送即发布 GitHub Pages）、`tests.yml`（手动全套）、`mobile.yml`（每天 UTC 20:11 + 手动：先跑全部网页测试，通过才打 Android / iOS / 鸿蒙包，发布到 Release `app-builds`）、`webkit.yml`（Safari 引擎抽查，不挡打包）、`sound-sizes.yml`、`ocr-lab.yml` / `ocr-lab-deep.yml`（用已知乐谱做 PDF 转换质量对比）、`ocr-real.yml`（每晚真实 PDF 测量）。
+`check.yml`（每次推送：类型 + 翻译 + 构建，约 2 分钟）、`deploy.yml`（推送即发布 GitHub Pages）、`tests.yml`（手动全套）、`mobile.yml`（每天 UTC 20:11 + 手动，手动可勾选 `with_github` 出带 GitHub 转换的自用包（文件名 `-github`）：先跑全部网页测试，通过才打 Android / iOS / 鸿蒙包，发布到 Release `app-builds`）、`webkit.yml`（Safari 引擎抽查，不挡打包）、`sound-sizes.yml`、`ocr-lab.yml` / `ocr-lab-deep.yml`（用已知乐谱做 PDF 转换质量对比）、`ocr-real.yml`（每晚真实 PDF 测量）。
 用户私有乐谱仓库里（模板在 `scores-repo-template/`）：`convert.yml`（`inbox/` 有新文件即转换；克隆公开仓库的脚本；引擎缓存 `$ENGINE_CACHE`，`AUDIVERIS_VERSION`）、`lab.yml`（私有对比实验）。改 `scores-repo-template/` 后运行 `scripts/make-scores-repo-bundle.sh` 更新 `scores-repo-bundle.zip`。
 转换质量结论（`CLAUDE.md` 规则 8）：Audiveris 对干净 PDF 近乎完美；homr 在扫描件上最好；oemer 全部失败已隐藏；许可证：homr AGPL-3.0、Audiveris AGPL，均不适合内置到商店 App。
 

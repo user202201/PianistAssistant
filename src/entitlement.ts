@@ -20,6 +20,7 @@ interface StorePlugin {
 export type Access = { kind: "free" } | { kind: "owned" } | { kind: "trial"; daysLeft: number } | { kind: "expired" };
 
 function plugin(): StorePlugin | undefined {
+  if (!__PAYWALL__) return undefined; // switched off at build time (PAYWALL=1 turns it on): no trial, nothing is ever locked
   const cap = (window as unknown as { Capacitor?: { Plugins?: Record<string, StorePlugin>; getPlatform?: () => string; registerPlugin?: (n: string) => StorePlugin } }).Capacitor;
   if (!cap) return undefined;
   return cap.Plugins?.PianistStore ?? (cap.getPlatform?.() === "ios" ? cap.registerPlugin?.("PianistStore") : undefined);

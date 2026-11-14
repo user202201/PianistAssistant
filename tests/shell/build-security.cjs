@@ -3,7 +3,7 @@
 //               an injected inline script does not run, and a request to a server that is not on the list is blocked.
 //  STORE build: a login link does nothing (no request to GitHub, no token stored), and the local library works.
 const { chromium } = require('playwright'); const http = require('http'); const fs = require('fs'); const path = require('path');
-const [webDir, storeDir] = process.argv.slice(2); const FX = path.join(__dirname, '..', 'fixtures');
+const [webDir, storeDir, paywallDir] = process.argv.slice(2); const FX = path.join(__dirname, '..', 'fixtures');
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; return c; };
 const serve = (dir) => new Promise((res) => { const s = http.createServer((q, r) => { let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html'; const f = path.join(dir, p); if (!f.startsWith(dir) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.statusCode = 404; return r.end(); }
   const t = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.wasm': 'application/wasm' }[path.extname(f)] || 'application/octet-stream'; r.setHeader('content-type', t); fs.createReadStream(f).pipe(r); }).listen(0, () => res({ s, port: s.address().port })); });
@@ -46,5 +46,18 @@ const serve = (dir) => new Promise((res) => { const s = http.createServer((q, r)
     await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', path.join(FX, 'single.musicxml')); await page.waitForSelector('.listbox .card', { timeout: 15000 });
     ok(gh.length === 0, 'store build: the local library works (upload) and still nothing is sent to GitHub');
     await ctx.close(); s.close(); }
+  // ---------- TRIAL / PURCHASE: off unless the build says PAYWALL=1 ----------
+  // a pretend App Store: first download 30 days ago, nothing bought = the trial is over
+  const expired = () => { window.Capacitor = { getPlatform: () => 'ios', Plugins: { PianistStore: { status: async () => ({ firstInstall: Date.now() - 30 * 86400000, owned: false, price: '1' }), purchase: async () => ({ owned: false }), restore: async () => ({ owned: false }) } } }; };
+  for (const [dir, locked, label] of [[storeDir, false, 'default build (PAYWALL off)'], [paywallDir, true, 'PAYWALL=1 build']]) {
+    const { s, port } = await serve(dir); const ctx = await browser.newContext({ viewport: { width: 1194, height: 900 }, serviceWorkers: 'block', locale: 'zh-CN' }); const page = await ctx.newPage();
+    await page.addInitScript(expired);
+    await page.goto(`http://localhost:${port}/`); await page.waitForSelector('.home', { timeout: 15000 });
+    await page.setInputFiles('input[type=file]:not([accept=".zip,application/zip"])', path.join(FX, 'single.musicxml')); await page.waitForSelector('.listbox .card', { timeout: 15000 });
+    await page.evaluate(() => (location.hash = '#/score/single.musicxml')); await page.waitForTimeout(3000);
+    const st = await page.evaluate(() => ({ paywall: !!document.querySelector('dialog#paywall'), opened: !!document.querySelector('.controls .mainrow') }));
+    ok(locked ? st.paywall && !st.opened : !st.paywall && st.opened, `trial over (30 days) and nothing bought: ${label} ${locked ? 'asks for the purchase' : 'still opens the score, nothing is locked'}`);
+    await ctx.close(); s.close();
+  }
   await browser.close(); console.log(fail ? `\n${fail} FAILED` : '\nALL PASSED'); process.exit(fail ? 1 : 0);
 })();
