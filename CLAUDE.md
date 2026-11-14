@@ -29,3 +29,5 @@
 12. **Fingering logic is documented.** `docs/fingering-logic.md` explains how `src/fingering.ts` produces its suggestions (for teachers / professionals who ask). Change both together.
 13. **Code map.** `docs/ARCHITECTURE.md` lists every module, route, storage key, build switch, test harness and workflow with how it is implemented. Read it first instead of scanning the code,
     and update it in the same change whenever a module, route, setting, storage key or workflow is added, removed or renamed.
+14. **The Xcode zip must build on its own.** `mobile/scripts/build-ios.sh` packs `ios/` (with `Pods/`) and `node_modules/@capacitor/ios` (the Podfile points there) plus `README-XCODE.txt`, then unpacks the zip elsewhere,
+    hides the originals and builds the copy. Keep that check when changing the script: a zip that only builds on the CI machine ("Unable to open base configuration reference file ... Pods-App.xcconfig") once reached the user.

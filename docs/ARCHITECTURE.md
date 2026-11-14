@@ -26,7 +26,7 @@ PDF / 照片转乐谱由用户私有仓库里的 GitHub Actions 完成（Audiver
 | `tests/` | 端到端测试（§8）；`tests/e2e/NN-name.cjs`，清单 `tests/suites.txt` |
 | `scripts/` | `check-i18n.mjs`、`make-scores-repo-bundle.sh`、OCR 实验脚本、`sound-sizes.sh` |
 | `scores-repo-template/` | 用户私有「乐谱仓库」的模板：`convert.sh`、`.github/workflows/convert.yml` 等；`scores-repo-bundle.zip` 是它的打包副本 |
-| `mobile/` | Capacitor 配置、`build-android.sh`、`build-ios.sh`、`fetch-sounds.sh`、`ios-store/`（Swift 原生插件）|
+| `mobile/` | Capacitor 配置、`build-android.sh`、`build-ios.sh`（Xcode zip 自包含并在打包时解压重编译验证，见 CLAUDE.md 第 14 条）、`fetch-sounds.sh`、`ios-store/`（Swift 原生插件）|
 | `packages/` | 各平台安装说明（给用户）|
 | `docs/` | `MAINTAIN.md`（自己维护指南）、`SECURITY.md`（安全检查记录与已知风险）、`NEXT.md`（接着做什么）、`TODO.md`（想法清单）、`fingering-logic.md`（指法算法，改 `fingering.ts` 必须同步）、`going-private/`（用户自助指南）、本文件 |
 | `.github/workflows/` | 见 §9 |
