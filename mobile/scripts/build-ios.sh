@@ -47,7 +47,19 @@ xcodebuild "${WSARG[@]}" -scheme App -configuration Debug -sdk iphonesimulator -
 OUT="$ROOT/packages/ios/out"
 mkdir -p "$OUT"
 cd "$ROOT/mobile"
-zip -qr "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" ios -x 'ios/App/Pods/*' -x 'ios/App/build/*' -x '*/DerivedData/*'
+# The zip must build on its own on someone else's Mac: the project needs Pods/ and, through the Podfile (../../node_modules/@capacitor/ios), the Capacitor sources.
+cp ios-store/README-XCODE.txt README-XCODE.txt
+zip -qry "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" README-XCODE.txt ios node_modules/@capacitor/ios -x 'ios/App/build/*' -x '*/DerivedData/*'
+rm -f README-XCODE.txt
+# proof: unpack it somewhere else, hide the originals, and build the unpacked copy (an absolute path into this machine would fail here, like on the user's Mac)
+unzip -l "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" | grep -q "node_modules/@capacitor/ios/package.json" || { echo "the zip lacks the Capacitor sources"; exit 1; }
+unzip -l "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" | grep -q "ios/App/Pods/Pods.xcodeproj" || { echo "the zip lacks Pods/"; exit 1; }
+ZT="$(mktemp -d)"; unzip -q "$OUT/PianistAssistant-ios-xcode-project$SUF.zip" -d "$ZT"
+mv node_modules node_modules.hidden; mv ios ios.hidden
+zrc=0; (cd "$ZT/ios/App" && xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build > "$ZT/build.log" 2>&1) || zrc=$?
+mv node_modules.hidden node_modules; mv ios.hidden ios
+[ "$zrc" = 0 ] || { tail -n 30 "$ZT/build.log"; echo "the unpacked Xcode project does not build on its own"; exit 1; }
+echo "the packed Xcode project builds on its own"
 
 # An UNSIGNED .ipa: lets you try the app on your own iPad from a Windows PC with a free Apple ID (a tool such as Sideloadly / AltStore signs it
 # on your PC; it then runs for 7 days). Not for the App Store. A failure here must not stop the real build.

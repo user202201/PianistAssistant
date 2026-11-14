@@ -11,7 +11,7 @@
 
 Release 页面（https://github.com/user202201/PianistAssistant/releases/tag/app-builds）里：
 
-- `PianistAssistant-ios-xcode-project.zip` —— 完整的 Xcode 工程（已确认能编译通过）。有 Mac 的话，解压后用 Xcode 打开就能自己签名、装到自己的 iPhone。
+- `PianistAssistant-ios-xcode-project.zip` —— 完整的、自包含的 Xcode 工程（自带 Pods 和 Capacitor 源码；打包时会把压缩包解压到别处并重新编译一遍来验证，所以解压后直接能用）。有 Mac 的话，解压后用 Xcode 打开就能自己签名、装到自己的 iPhone。
 - 配置了苹果机密之后，还会多出 `PianistAssistant.ipa`，并可直接发送到 TestFlight。
 
 ## 一、开通开发者账号
