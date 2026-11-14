@@ -28,7 +28,7 @@ PDF / 照片转乐谱由用户私有仓库里的 GitHub Actions 完成（Audiver
 | `scores-repo-template/` | 用户私有「乐谱仓库」的模板：`convert.sh`、`.github/workflows/convert.yml` 等；`scores-repo-bundle.zip` 是它的打包副本 |
 | `mobile/` | Capacitor 配置、`build-android.sh`、`build-ios.sh`、`fetch-sounds.sh`、`ios-store/`（Swift 原生插件）|
 | `packages/` | 各平台安装说明（给用户）|
-| `docs/` | `SECURITY.md`（安全检查记录与已知风险）、`NEXT.md`（接着做什么）、`TODO.md`（想法清单）、`fingering-logic.md`（指法算法，改 `fingering.ts` 必须同步）、`going-private/`（用户自助指南）、本文件 |
+| `docs/` | `MAINTAIN.md`（自己维护指南）、`SECURITY.md`（安全检查记录与已知风险）、`NEXT.md`（接着做什么）、`TODO.md`（想法清单）、`fingering-logic.md`（指法算法，改 `fingering.ts` 必须同步）、`going-private/`（用户自助指南）、本文件 |
 | `.github/workflows/` | 见 §9 |
 
 ## 3. 模块地图（`src/`）
