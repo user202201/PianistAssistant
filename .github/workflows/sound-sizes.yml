@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     paths: ["scripts/sound-sizes.sh", ".github/workflows/sound-sizes.yml"]
+permissions:
+  contents: read
 jobs:
   sizes:
     runs-on: ubuntu-latest

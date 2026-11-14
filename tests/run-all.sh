@@ -23,8 +23,10 @@ SHELLFAIL=0; SHELLLINE=""
 if [ $# -eq 0 ]; then
   if bash tests/shell/convert-script.sh > "$OUT/convert-script.log" 2>&1; then SHELLLINE="PASS  shell/convert-script"; echo "$SHELLLINE"; else SHELLLINE="FAIL  shell/convert-script"; echo "$SHELLLINE"; tail -n 12 "$OUT/convert-script.log" | sed 's/^/        /'; SHELLFAIL=1; fi
   if bash tests/shell/store-build-no-relay.sh > "$OUT/store-build-no-relay.log" 2>&1; then L2="PASS  shell/store-build-no-relay"; echo "$L2"; else L2="FAIL  shell/store-build-no-relay"; echo "$L2"; tail -n 12 "$OUT/store-build-no-relay.log" | sed 's/^/        /'; SHELLFAIL=1; fi
+  if bash tests/shell/build-security.sh > "$OUT/build-security.log" 2>&1; then L3="PASS  shell/build-security"; echo "$L3"; else L3="FAIL  shell/build-security"; echo "$L3"; tail -n 14 "$OUT/build-security.log" | sed 's/^/        /'; SHELLFAIL=1; fi
   SHELLLINE="$SHELLLINE
-$L2"
+$L2
+$L3"
 fi
 
 if [ $# -gt 0 ]; then SUITES=("$@"); else mapfile -t SUITES < tests/suites.txt; fi

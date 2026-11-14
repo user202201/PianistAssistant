@@ -209,6 +209,7 @@ export function clearConvAuth() {
 }
 /** Connect the repository that converts PDFs in device mode (checked: private, writable). */
 export async function connectConversion(token: string, repo: string): Promise<Auth> {
+  if (__LOCAL_ONLY__) throw new Error("GitHub is not available in this version");
   const a = await checkRepo(token, repo);
   localStorage.setItem(CONV_KEY, JSON.stringify(a));
   return a;
@@ -369,6 +370,7 @@ async function checkRepo(token: string, repo: string): Promise<Auth> {
 
 /** Validate token + repo, then remember them on this device. */
 export async function login(token: string, repo: string, remember = true): Promise<Auth> {
+  if (__LOCAL_ONLY__) throw new Error("GitHub is not available in this version"); // store builds never sign in, whatever link or screen asks for it
   const a = await checkRepo(token, repo);
   logout();
   (remember ? localStorage : sessionStorage).setItem(AUTH_KEY, JSON.stringify(a));
@@ -376,6 +378,7 @@ export async function login(token: string, repo: string, remember = true): Promi
 }
 
 function need(): Auth {
+  if (__LOCAL_ONLY__) throw new Error("GitHub is not available in this version");
   const a = getAuth();
   if (!a) throw new AuthExpired("请先登录");
   return a;

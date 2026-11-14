@@ -45,11 +45,16 @@ export interface ParsedScore {
   expression?: { dynamics: number; articulations: number; pedals: number; wedges: number };
 }
 
+/** the largest MusicXML text accepted out of a .mxl (real scores are well below 20 MB) */
+const MAX_UNPACKED = 50 * 1024 * 1024;
+
 /** Turn uploaded bytes (.mxl zip or plain XML) into MusicXML text. */
 export function toMusicXml(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
-    const files = unzipSync(bytes);
+    // only the two kinds of entry that are needed, each below a size limit: a "zip bomb" (a few KB that unpack to gigabytes) cannot use up the memory of the device
+    // (fflate stops at the declared size, so a lie in the header does not help either)
+    const files = unzipSync(bytes, { filter: (f) => f.originalSize <= MAX_UNPACKED && (f.name === "META-INF/container.xml" || /\.(xml|musicxml)$/i.test(f.name)) });
     const container = files["META-INF/container.xml"];
     let root: string | undefined;
     if (container) {
@@ -58,7 +63,7 @@ export function toMusicXml(buf: ArrayBuffer): string {
     if (!root || !files[root]) {
       root = Object.keys(files).find((n) => /\.(xml|musicxml)$/i.test(n) && !n.startsWith("META-INF"));
     }
-    if (!root) throw new Error("Invalid .mxl file");
+    if (!root) throw new Error("Invalid .mxl file (empty, or an entry is too large)");
     return strFromU8(files[root]);
   }
   return new TextDecoder("utf-8").decode(bytes);

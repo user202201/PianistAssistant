@@ -2875,10 +2875,11 @@ function buildControls(
 
 // ---------- routing ----------
 async function signInFromLink(hash: string) {
-  app.replaceChildren(h("p", { class: "muted pad" }, "正在登录…"));
-  const link = api.parseLink(hash);
+  const link = __LOCAL_ONLY__ ? null : api.parseLink(hash);
   // remove the secret from the address bar / history right away
   history.replaceState(null, "", location.pathname + location.search + "#/");
+  if (__LOCAL_ONLY__) return void route(); // store builds have no account: a login link does nothing
+  app.replaceChildren(h("p", { class: "muted pad" }, "正在登录…"));
   if (!link) return renderLogin("登录链接无效");
   try {
     await api.login(link.token, link.repo, true);
@@ -3300,7 +3301,7 @@ async function renderPdf(name: string) {
       toast("暂时读不到这份 PDF 的标注（可能没有网络）。为避免盖掉已有的标注，标注功能先关闭。", 7000);
     }
     pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(data) }).promise;
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(data), isEvalSupported: false }).promise;
     if (stale()) return;
     total = doc.numPages;
     status.textContent = pageText();

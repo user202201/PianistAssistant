@@ -28,7 +28,7 @@ PDF / 照片转乐谱由用户私有仓库里的 GitHub Actions 完成（Audiver
 | `scores-repo-template/` | 用户私有「乐谱仓库」的模板：`convert.sh`、`.github/workflows/convert.yml` 等；`scores-repo-bundle.zip` 是它的打包副本 |
 | `mobile/` | Capacitor 配置、`build-android.sh`、`build-ios.sh`、`fetch-sounds.sh`、`ios-store/`（Swift 原生插件）|
 | `packages/` | 各平台安装说明（给用户）|
-| `docs/` | `NEXT.md`（接着做什么）、`TODO.md`（想法清单）、`fingering-logic.md`（指法算法，改 `fingering.ts` 必须同步）、`going-private/`（用户自助指南）、本文件 |
+| `docs/` | `SECURITY.md`（安全检查记录与已知风险）、`NEXT.md`（接着做什么）、`TODO.md`（想法清单）、`fingering-logic.md`（指法算法，改 `fingering.ts` 必须同步）、`going-private/`（用户自助指南）、本文件 |
 | `.github/workflows/` | 见 §9 |
 
 ## 3. 模块地图（`src/`）
@@ -79,10 +79,10 @@ PDF / 照片转乐谱由用户私有仓库里的 GitHub Actions 完成（Audiver
   - 仓库模式：PDF 放进 `inbox/` → 用户仓库里的 `convert.yml` 运行 → 结果出现在 `scores/`；`listInbox`、`queuedSince`、`retryConversion`、`readFailureLog`、`convertStoredPdf`。
   - 设备模式「中转」：`connectConversion`/`getConvAuth`/`clearConvAuth`/`convTarget`、`hasConvertYml`（按仓库缓存）、`convertViaRepo(name,data,engine)`（唯一名 `relay<ts>-name`，先写引擎说明，轮询 `RELAY_WAIT` 每 8 秒最多 25 分钟，取回后清理）、`saveConverted`、`conversionUsage`。
   - `OcrEngine`：`audiveris` | `homr`（oemer / both / all 已从界面移除，加载设置时归一为 audiveris）。
-- 商店版（`__LOCAL_ONLY__`）：`getConvAuth()` 返回 null，界面不含 GitHub / 转换。
+- 商店版（`__LOCAL_ONLY__`）：`getConvAuth()` 返回 null，`login()` / `connectConversion()` / `need()` 直接抛错，`#/link/` 登录链接无效，界面不含 GitHub / 转换。
 
 ### 3.3 乐谱解析与播放
-- `score.ts`：`toMusicXml(buf)`（.mxl 解压 / 纯 XML）、`extractScore(osmd,title)` → `ParsedScore`（`events: NoteEvent[]` 含 `sec/dur/midi/part/staff/step/measure/onset/vel/dur0`，`steps`、`duration`、`baseBpm`、`timeSig`）、`mergeScores`（四手）。
+- `score.ts`：`toMusicXml(buf)`（.mxl 解压，只解 container.xml 和 .xml/.musicxml，单条最大 50 MB；纯 XML）、`extractScore(osmd,title)` → `ParsedScore`（`events: NoteEvent[]` 含 `sec/dur/midi/part/staff/step/measure/onset/vel/dur0`，`steps`、`duration`、`baseBpm`、`timeSig`）、`mergeScores`（四手）。
 - `expression.ts`：`applyExpression(score, xml)` 把力度 / 渐强渐弱 / 断奏 / 踏板转成 `vel` 和时值。
 - `player.ts`：`Player`（Web Audio 前瞻调度 `LOOKAHEAD`、速度、`partOn`/`partHands`、节拍器、预备拍、循环 `loop`、渐快 `ramp`、`practiceMute`、`position()`、`isShown(e)`、`onChange`；`osmd` 为 null 时由屏幕自己跟时钟——四手分文件）。
 - `audio.ts`：`SOUNDS`（smplr 预设；`__MOBILE__` 时只留打包进 App 的）、`clickSound`、`createSynth`、`unlockIOSAudio`。
@@ -133,12 +133,13 @@ UI 文字在代码里写**中文**，其他语言在上屏时翻译（`i18n.ts` 
 | `LOCAL_ONLY=1` | 商店版：无账号 / GitHub / 转换（`mobile/scripts/build-*.sh` 默认设置）|
 | `FEEDBACK_EMAIL` | 反馈邮件地址（仓库变量），空 = 隐藏该功能 |
 | `BUILD_ID` | 「当前版本」时间戳 |
+`securityMeta` 插件：只在网页版生产构建里写入内容安全策略（CSP）和 `referrer: no-referrer`；改动联网的服务器清单时必须同步改 `connect-src`（见 `docs/SECURITY.md`）。
 提交前必跑：`npx tsc --noEmit && npm run check:i18n && BASE_PATH=/ npx vite build`。
 
 ## 8. 测试
-- `bash tests/run-all.sh [套件名…]`：无参数 = 全部（约 25 分钟，会 `rm -rf tests/out`、自启 vite 于 5173，**不要同时跑两个，运行期间不要改 src**），另跑 `tests/shell/convert-script.sh`（假引擎测 `convert.sh`）和 `store-build-no-relay.sh`。失败的套件自动重试一次。
+- `bash tests/run-all.sh [套件名…]`：无参数 = 全部（约 25 分钟，会 `rm -rf tests/out`、自启 vite 于 5173，**不要同时跑两个，运行期间不要改 src**），另跑 `tests/shell/convert-script.sh`（假引擎测 `convert.sh`）、`store-build-no-relay.sh` 和 `build-security.sh`（构建出网页版 + 商店版后检查 CSP、注入脚本被拦、商店版登录链接无效）。失败的套件自动重试一次。
 - 每个套件 = `tests/e2e/NN-名字.cjs`，以 `require('./harness.cjs')` 启动**假 GitHub**（内存 `Map`，键如 `scores/x.musicxml`）。`harness.start(store, opts)` 选项：`local`、`pdfConvert:false`、`noConvertYml`、`actionsRuns`、`actionsStatus`、`locale`、`init`、`context`（viewport 等）。默认初始化脚本把 `pdfConvert` 设为 true，并自动回答 PDF 对话框（设 `window.__noAuto=true` 关闭）。夹具在 `tests/fixtures/`，输出与截图在 `tests/out/work/`。
-- 规则：新功能 / 修复必须有套件，且**在旧代码上会失败**。已编号 1–75（`tests/suites.txt`）。新近：72 PDF 转换开关、73 convert.yml 与照片、74 主页标签栏吸顶、75 游戏小屏（头部、淡出、琴键高度、横屏隐藏、仅琴键、按钮不重叠）。
+- 规则：新功能 / 修复必须有套件，且**在旧代码上会失败**。已编号 1–76（`tests/suites.txt`）。新近：72 PDF 转换开关、73 convert.yml 与照片、74 主页标签栏吸顶、75 游戏小屏（头部、淡出、琴键高度、横屏隐藏、仅琴键、按钮不重叠）、76 解压炸弹。
 - 做不了的：真 iPad / iPhone、真钢琴声音与麦克风、真 Apple / Google 账号、真 homr / Audiveris（由 OCR 实验工作流测量）、WebKit（`webkit.yml` 从未跑出结果）。
 
 ## 9. 工作流（`.github/workflows/`）

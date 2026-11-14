@@ -5,6 +5,30 @@ import { VitePWA } from "vite-plugin-pwa";
 // no service worker (the app itself is the offline copy). Everything else is the same code as the website.
 const mobile = !!process.env.MOBILE;
 
+// Content-Security-Policy of the website (a <meta> tag: GitHub Pages cannot send headers). It stops injected scripts and, because connect-src lists the only
+// servers the app talks to, a script that got in still could not send the GitHub token anywhere else. Added to the production build only (the dev server
+// needs inline scripts), and not to the app packages (their web view cannot be tried here: see docs/SECURITY.md).
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' blob: 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' blob: data: https://api.github.com https://smpldsnds.github.io https://gleitz.github.io",
+  "worker-src 'self' blob:",
+  "media-src 'self' blob: data:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-src 'none'",
+].join("; ");
+const securityMeta = {
+  name: "pianist-security-meta",
+  apply: "build" as const,
+  transformIndexHtml: { order: "post" as const, handler: (html: string) => html.replace("<head>", `<head>\n<meta http-equiv="Content-Security-Policy" content="${CSP}" />\n<meta name="referrer" content="no-referrer" />`) },
+};
+
 export default defineConfig({
   define: {
     __BUILD__: JSON.stringify(process.env.BUILD_ID ?? new Date().toISOString().slice(0, 16).replace("T", " ")),
@@ -18,6 +42,7 @@ export default defineConfig({
   build: mobile ? { outDir: "dist-app" } : {},
   resolve: mobile ? { alias: { "virtual:pwa-register": new URL("./src/pwa-stub.ts", import.meta.url).pathname } } : {},
   plugins: mobile ? [] : [
+    securityMeta,
     VitePWA({
       registerType: "prompt", // the app decides when it is safe to reload (not while playing / editing)
       manifest: {
