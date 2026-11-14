@@ -31,3 +31,5 @@
     and update it in the same change whenever a module, route, setting, storage key or workflow is added, removed or renamed.
 14. **The Xcode zip must build on its own.** `mobile/scripts/build-ios.sh` packs `ios/` (with `Pods/`) and `node_modules/@capacitor/ios` (the Podfile points there) plus `README-XCODE.txt`, then unpacks the zip elsewhere,
     hides the originals and builds the copy. Keep that check when changing the script: a zip that only builds on the CI machine ("Unable to open base configuration reference file ... Pods-App.xcconfig") once reached the user.
+15. **Test the iOS package with the same Xcode as the user.** The user's Mac has Xcode 26, which is stricter than the Xcode 16 that used to be the default on CI (it refuses a minimum iOS version below 15.0).
+    `mobile.yml` selects `/Applications/Xcode_26*.app` when the runner has it, and `build-ios.sh` sets the deployment target to 15.0 for the app, the Podfile and every pod. Keep both.

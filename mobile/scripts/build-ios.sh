@@ -15,6 +15,18 @@ bash mobile/scripts/fetch-sounds.sh dist-app   # the default piano sound goes in
 cd mobile
 [ -d node_modules ] || npm ci
 [ -d ios ] || npx cap add ios
+# Xcode 26 only accepts a minimum iOS version of 15.0 or higher (the Capacitor template says 14.0): the app, its Pods and every pod target get 15.0
+sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 14\.0;/IPHONEOS_DEPLOYMENT_TARGET = 15.0;/g' ios/App/App.xcodeproj/project.pbxproj
+python3 - <<'PY'
+p = "ios/App/Podfile"
+s = open(p).read()
+s = s.replace("platform :ios, '14.0'", "platform :ios, '15.0'")
+hook = "  installer.pods_project.targets.each { |t| t.build_configurations.each { |c| c.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0' } }\n"
+if "IPHONEOS_DEPLOYMENT_TARGET" not in s:
+    s = s.replace("  assertDeploymentTarget(installer)\n", "  assertDeploymentTarget(installer)\n" + hook)
+open(p, "w").write(s)
+PY
+grep -q "platform :ios, '15.0'" ios/App/Podfile && grep -q "IPHONEOS_DEPLOYMENT_TARGET = '15.0'" ios/App/Podfile || { echo "could not raise the iOS deployment target"; exit 1; }
 npx capacitor-assets generate --ios --iconBackgroundColor '#1f2937' --splashBackgroundColor '#f2f2f7'
 npx cap sync ios
 
